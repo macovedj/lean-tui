@@ -19,18 +19,6 @@ use crate::{
     tui::widgets::{layout_metrics::LayoutMetrics, theme::Theme},
 };
 
-mod tree_chars {
-    pub const MIDDLE: &str = "├── ";
-    pub const LAST: &str = "╰── ";
-    pub const VERTICAL: &str = "│   ";
-    pub const EMPTY: &str = "    ";
-}
-
-enum TreeElement {
-    Label(Line<'static>),
-    Goal { idx: usize, prefix: String },
-}
-
 /// Widget for rendering a hierarchical tree of goals.
 pub struct GoalTree<'a> {
     goals: &'a [Goal],
@@ -80,56 +68,18 @@ impl<'a> GoalTree<'a> {
         state.click_regions
     }
 
-    fn build_tree_elements(&self) -> Vec<TreeElement> {
-        let mut elements = Vec::new();
-
-        let has_named_goals = self.goals.iter().any(|g| g.user_name.is_some());
-        let use_tree = self.goals.len() > 1 && has_named_goals;
-
-        if use_tree {
-            self.append_goals_as_tree("", &mut elements);
-        } else {
-            self.append_goals_flat(&mut elements);
+    /// Determine the tree prefix for a goal at the given index.
+    /// Returns a prefix string for visual tree structure when multiple goals
+    /// exist.
+    fn goal_prefix(&self, idx: usize) -> String {
+        if self.goals.len() <= 1 {
+            return String::new();
         }
-
-        elements
-    }
-
-    fn append_goals_flat(&self, elements: &mut Vec<TreeElement>) {
-        elements.extend(
-            self.goals
-                .iter()
-                .enumerate()
-                .map(|(idx, _)| TreeElement::Goal {
-                    idx,
-                    prefix: String::new(),
-                }),
-        );
-    }
-
-    fn append_goals_as_tree(&self, base_prefix: &str, elements: &mut Vec<TreeElement>) {
-        let last_idx = self.goals.len().saturating_sub(1);
-
-        for (idx, goal) in self.goals.iter().enumerate() {
-            let is_last = idx == last_idx;
-            let (connector, continuation) = if is_last {
-                (tree_chars::LAST, tree_chars::EMPTY)
-            } else {
-                (tree_chars::MIDDLE, tree_chars::VERTICAL)
-            };
-
-            if let Some(case_name) = &goal.user_name {
-                elements.push(TreeElement::Label(render_case_label(
-                    base_prefix,
-                    connector,
-                    case_name,
-                )));
-            }
-
-            elements.push(TreeElement::Goal {
-                idx,
-                prefix: format!("{base_prefix}{continuation}"),
-            });
+        let is_last = idx == self.goals.len() - 1;
+        if is_last {
+            tree_chars::EMPTY.to_string()
+        } else {
+            tree_chars::VERTICAL.to_string()
         }
     }
 
@@ -156,66 +106,34 @@ impl StatefulWidget for GoalTree<'_> {
             return;
         }
 
-        let elements = self.build_tree_elements();
-
-        // Build flexible constraints
-        let constraints: Vec<Constraint> = elements
+        // Build constraints for each goal
+        let constraints: Vec<Constraint> = self
+            .goals
             .iter()
-            .map(|e| match e {
-                TreeElement::Label(_) => Constraint::Length(1),
-                TreeElement::Goal { idx, .. } => {
-                    Constraint::Min(self.min_goal_height(&self.goals[*idx]))
-                }
-            })
+            .map(|goal| Constraint::Min(self.min_goal_height(goal)))
             .chain(iter::once(Constraint::Fill(1)))
             .collect();
 
         let areas = Layout::vertical(constraints).split(area);
 
         // Ensure we have enough goal box states
-        let goal_count = elements
-            .iter()
-            .filter(|e| matches!(e, TreeElement::Goal { .. }))
-            .count();
         state
             .goal_box_states
-            .resize_with(goal_count, GoalBoxState::default);
+            .resize_with(self.goals.len(), GoalBoxState::default);
 
-        let mut goal_state_idx = 0;
+        // Render each goal directly
+        for (idx, (goal, goal_area)) in self.goals.iter().zip(areas.iter()).enumerate() {
+            let prefix = self.goal_prefix(idx);
+            let content_area = layout_with_prefix(*goal_area, &prefix, buf);
 
-        for (element, elem_area) in elements.iter().zip(areas.iter()) {
-            match element {
-                TreeElement::Label(line) => {
-                    Paragraph::new(line.clone()).render(*elem_area, buf);
-                }
-                TreeElement::Goal { idx, prefix } => {
-                    let content_area = layout_with_prefix(*elem_area, prefix, buf);
+            let goal_box = GoalBox::new(goal, idx, self.selection, self.filters, self.node_id);
 
-                    let goal_box = GoalBox::new(
-                        &self.goals[*idx],
-                        *idx,
-                        self.selection,
-                        self.filters,
-                        self.node_id,
-                    );
+            goal_box.render(content_area, buf, &mut state.goal_box_states[idx]);
 
-                    goal_box.render(
-                        content_area,
-                        buf,
-                        &mut state.goal_box_states[goal_state_idx],
-                    );
-
-                    // Collect click regions from this goal box
-                    state.click_regions.extend(
-                        state.goal_box_states[goal_state_idx]
-                            .click_regions()
-                            .iter()
-                            .cloned(),
-                    );
-
-                    goal_state_idx += 1;
-                }
-            }
+            // Collect click regions from this goal box
+            state
+                .click_regions
+                .extend(state.goal_box_states[idx].click_regions().iter().cloned());
         }
     }
 }
@@ -234,18 +152,4 @@ fn layout_with_prefix(area: Rect, prefix: &str, buf: &mut Buffer) -> Rect {
     } else {
         area
     }
-}
-
-fn render_vertical_prefix(area: Rect, prefix: &str, buf: &mut Buffer) {
-    let line = Line::from(Span::styled(prefix.to_string(), Theme::TREE_CHARS));
-    let lines: Vec<Line> = iter::repeat_n(line, area.height as usize).collect();
-    Paragraph::new(lines).render(area, buf);
-}
-
-fn render_case_label(prefix: &str, connector: &str, name: &str) -> Line<'static> {
-    Line::from(vec![
-        Span::styled(prefix.to_string(), Theme::TREE_CHARS),
-        Span::styled(connector.to_string(), Theme::TREE_CHARS),
-        Span::styled(format!("{name}:"), Theme::CASE_LABEL),
-    ])
 }
