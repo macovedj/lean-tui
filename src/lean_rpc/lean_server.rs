@@ -91,8 +91,7 @@ fn get_lake_serve_log_file() -> Option<File> {
 }
 
 /// Spawn the lake serve process.
-fn spawn_lake_serve() -> Result<(ChildStdin, ChildStdout), LspError>
-{
+fn spawn_lake_serve() -> Result<(ChildStdin, ChildStdout), LspError> {
     let mut cmd = Command::new("lake");
     cmd.arg("serve").arg("--");
 

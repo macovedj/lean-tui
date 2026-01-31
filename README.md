@@ -1,12 +1,12 @@
 # Lean-TUI
 
-**Standalone interactive view that shows a graph view of proofs that are written the Lean 4 theorem prover.**
+**Standalone interactive view that shows a graph view of proofs that are written in [Lean](https://lean-lang.org/).**
 
-Shows proof structure, hypotheses and goals (comparable to the VS Code Web-based infoview but in your terminal). However, this infoview can also show the **complete graph structure** of the complete proof, not only the current open goals. It also tracks your edits in editor and reversely you can use the infoview to jump to locations in the editor.
+Shows proof structure, hypotheses, and goals (comparable to the VS Code Web-based info view but in your terminal). However, this info view can also show the **complete graph structure** of the complete proof, not only the current open goals. It also tracks your edits in editor and reversely you can use the info view to jump to locations in the editor.
 
 ## Example
 
-Below you can see (or go to [codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof:
+Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof:
 
 ```lean
 import Mathlib.Data.Set.Basic
@@ -45,7 +45,7 @@ If you are interested in your proof as it evolves (like a directed acyclic graph
 
 ## Installation
 
-### 1. Compiler toolchains
+### 1. Compiler Toolchains
 
 If you have never used Lean before, install `elan`, the Lean compiler toolchain manager. Run at least a `lake build` or `lake run`in your Lean test project to make sure your Lean code has its dependencies fetched (otherwise the LSP will not work)
 
@@ -61,7 +61,7 @@ cargo install lean-tui
 
 If `~/.cargo/bin` is in your path, you can now run this program with `lean-tui`.
 
-### 3. Add `LeanDag` dependency
+### 3. Add `LeanDag` Dependency
 
 Add [LeanDag](https://github.com/wvhulle/lean-dag) as a Lake dependency.
 
@@ -80,12 +80,23 @@ Fetch the source code of the latest version (Lean only hosts on Git, does not pr
 lake update LeanDag
 ```
 
-Two modes:
+Add this to the top of your Lean file (or build target):
 
-- **Standard mode** (default): Uses `lake serve` and requires `import LeanDag` in your Lean files
-- **Standalone mode** (`--standalone`): Uses the `lean-dag` binary directly, no imports needed
+```lean
+import LeanDag
+```
 
-The standalone mode requires running `lean build LeanDag/lean-build` and adding `--standalone` to the proxy LSP server command in your editor.
+### 4. Optional: Switch to Standalone Mode
+
+This step is completely optional and might cause issues. For those, who don't want to modify their Lean source files, there is an additional mode of operation: standalone. It uses the `lean-dag` binary directly, no imports needed. However, it requires building a binary. This is done with:
+
+```bash
+lean build LeanDag/lean-build
+```
+
+This will build a binary `lean-build` in your projects `.lake` folder that can be used as LSP (instead of `lake serve`) and supports the generation of a graph of your proof state.
+
+Afterward, you need to add `--standalone` to the proxy LSP server command in your editor (see configuration).
 
 ## Configuration
 
@@ -110,11 +121,11 @@ Make sure to disable any other Lean LSP as this one will replace it and extend i
 
 ## Usage
 
-### 1. Split your terminal
+### 1. Split Your Terminal
 
 You can choose between:
 
-- Using multiple terminals (emulator windows) side-by-side (a terminal app is typically provided on every OS)
+- Using multiple terminals (emulator windows) side-by-side (a terminal app is typically provided on Windows/Linux/MacOS)
 - Using a single terminal window with a terminal multiplexer (you'll need to install `zellij` or `tmux` with your system package manager)
 
 Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one).
@@ -147,65 +158,75 @@ The TUI follows your cursor in the editor automatically.
 
 This is mainly a front for **lean-dag**, a custom LSP server that adds an RPC method on top of the built-in LSP-compliant RPC methods provided by Lean's LSP. The additional RPC methods uses Lean's internal APIs to extract detailed proof information (tactic applications, goal transformations, goto locations) that isn't available through standard LSP.
 
-The name `lean-dag` comes from Lean [Directed Acyclic Graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) since its main goal is showing your proof state as a graph. Lean TUI is just a front-end that connects to a proxy LSP (also defined in `lean-dag` that intercepts the standard LSP and adds DAG extraction.
+The name `lean-dag` comes from Lean [Directed Acyclic Graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) since its main goal is showing your proof state as a graph.
 
 ```mermaid
-flowchart TD
-    subgraph LSP-proxy[wvhulle/lean-dag]
+flowchart
 
-        lean-runtime[Lean-runtime]
-        LeanDag[graph constructor]
+subgraph lean-dag-process["Lean RPC watchdog process"]
 
-        LeanDag <-->|Lean| lean-runtime
 
-        custom-rpc-server[custom RPC server]
-        original-lean-lsp[Lean LSP server]
 
-        
+    subgraph lean-worker[Lean RPC worker process]
 
-        lean-dag[LeanDag/Main]
-        original-lean-lsp --> lean-runtime
+        lean-runtime((Lean core))
+        original-lean-lsp[Official <br> Lean.Server <br> as library]
+        lean-runtime((Lean runtime))
 
-        lean-dag -->|JSON| custom-rpc-server 
-        LeanDag <-->|Lean| custom-rpc-server
-        custom-rpc-server <-->|Lean| original-lean-lsp
+        custom-rpc-server["RPC server <br> with extension"]
+
+        rpc-method["RPC method <br> for DAG generation <br> LeanDag"]
+
+        rpc-method <-->|Lean| custom-rpc-server
+        lean-runtime <-->|Lean| rpc-method
     end
 
-    subgraph proxy["lean-tui proxy"]
-        
-        proxy-rpc-client[RPC client]
-        proxy-lsp-server[LSP server]
-        proxy-socket[Socket endpoint]
-        proxy-lsp-server <-->|Rust/JSON| proxy-socket
-        proxy-lsp-server <-->|Rust/JSON| proxy-rpc-client
-        proxy-rpc-client <-->|RPC/JSON| custom-rpc-server
-    end
-
-    
-
-    
-        subgraph TUI[lean-tui view]
-            tui-socket[Socket endpoint]
+    lake-serve[Lake LSP serve <br> Required RPC entrypoint]
 
 
-            Ratatui
+    original-lean-lsp --> lean-runtime
 
-            Ratatui <-->|Rust| tui-socket
-        end
-        
-        json-socket[UNIX socket]
+    lean-dag[binary LSP server <br> compiled from Lean]
 
-        subgraph Editor[Helix/NeoVim/Zed]
-            editor-lsp-client[LSP Client]
-        end
+    lean-dag -->|JSON-RPC| lake-serve
+
+    lake-serve -->|JSON/RPC| custom-rpc-server
+
+    custom-rpc-server <-->|Lean| original-lean-lsp
+end
+
+subgraph proxy["Process lean-tui proxy"]
+
+    proxy-rpc-client[RPC client]
+    proxy-lsp-server[binary LSP server <br> compiled from Rust]
+    proxy-lsp-server <-->|Rust/JSON| proxy-rpc-client
+    proxy-rpc-client <-->|RPC/JSON| lake-serve
+end
 
 
-        proxy-socket <-->|JSON lines| json-socket <-->|JSON lines| tui-socket
 
-        editor-lsp-client -.->|JSON/LSP| proxy-lsp-server
-        
-        Editor -.-> lean-dag
-   
+
+subgraph TUI["Process lean-tui view"]
+    info-view{Interactive <br> proof state  UI}
+    ratatui[Ratatui UI <br/> framework]
+    info-view <--> |Rust| ratatui
+end
+
+TUI <-->|JSON| json-socket{UNIX <br/> socket} <-->|JSON| proxy
+
+
+
+subgraph Editor
+    editor-ui{"NeoVim / <br/> Helix / Zed / ..."}
+    editor-lsp-client[builtin <br> LSP Client]
+    editor-ui <--> editor-lsp-client
+end
+
+
+
+editor-lsp-client -.->|import mode <br> LSP/JSON| proxy-lsp-server
+
+editor-lsp-client -.->|standalone mode <br> JSON/LSP| lean-dag
 ```
 
 ## Debugging
