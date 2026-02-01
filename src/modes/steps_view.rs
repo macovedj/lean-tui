@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use super::Mode;
-use crate::tui::{
+use crate::{
     app::DefinitionInfo,
     protocol::{NodeId, ProofDag, ProofDagNode, ProofState},
     widgets::{

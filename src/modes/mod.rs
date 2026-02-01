@@ -17,7 +17,7 @@ use ratatui::{layout::Rect, Frame};
 pub use steps_view::StepsModeInput;
 use steps_view::TacticTree;
 
-use crate::tui::widgets::{
+use crate::widgets::{
     FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
 };
 

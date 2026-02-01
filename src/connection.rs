@@ -10,7 +10,7 @@ use tokio::{
     },
 };
 
-use super::protocol::{Command, Message};
+use crate::protocol::{Command, Message};
 
 /// TCP connection state machine.
 pub enum Connection {
@@ -33,7 +33,7 @@ impl Connection {
                 Self::Connected { reader, writer }
             }
             Err(e) => {
-                tracing::debug!("Failed to connect to lean-dag at {addr}: {e}");
+                tracing::trace!("Failed to connect to lean-dag at {addr}: {e}");
                 Self::Disconnected
             }
         }
@@ -53,7 +53,7 @@ impl Connection {
         match reader.next_line().await {
             Ok(Some(line)) => match serde_json::from_str::<Message>(&line) {
                 Ok(msg) => {
-                    tracing::debug!("Received message: {:?}", msg.message_type());
+                    tracing::trace!("Received message: {:?}", msg.message_type());
                     Some(msg)
                 }
                 Err(e) => {

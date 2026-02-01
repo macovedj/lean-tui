@@ -13,7 +13,7 @@ use ratatui::{
 };
 
 use super::hyp_layer::{HypLayer, HypLayerRenderContext};
-use crate::tui::{
+use crate::{
     protocol::{NodeId, ProofState},
     widgets::{
         layout_metrics::LayoutMetrics, theme::Theme, ClickRegion, HypothesisFilters, Selection,

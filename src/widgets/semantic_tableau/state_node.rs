@@ -13,7 +13,7 @@ use super::{
     given_pane::{hyp_style_colors, truncate_str},
     ClickRegion, Selection,
 };
-use crate::tui::{
+use crate::{
     protocol::{ProofDagNode, ProofState},
     widgets::theme::Theme,
 };

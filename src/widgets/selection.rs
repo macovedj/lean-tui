@@ -2,7 +2,7 @@
 
 use ratatui::layout::Rect;
 
-use crate::tui::protocol::NodeId;
+use crate::protocol::NodeId;
 
 /// Unified selection type for all display modes.
 /// All selections reference data in `ProofDag`.

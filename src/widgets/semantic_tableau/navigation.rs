@@ -2,10 +2,10 @@
 //!
 //! Handles keyboard navigation through the proof tree using spatial regions.
 
-use tracing::debug;
+use tracing::trace;
 
 use super::{tree_layout::TreeLayout, Selection};
-use crate::tui::protocol::ProofDag;
+use crate::protocol::ProofDag;
 
 /// Region for keyboard navigation - uses virtual coordinates (i32).
 #[derive(Debug, Clone, Copy)]
@@ -74,7 +74,7 @@ fn ranges_overlap(a_start: i32, a_len: u16, b_start: i32, b_len: u16) -> bool {
 pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<NavigationRegion> {
     let mut regions = Vec::new();
 
-    debug!(
+    trace!(
         node_count = layout.nodes.len(),
         "Building navigation regions"
     );
@@ -85,7 +85,7 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
             continue;
         };
 
-        debug!(
+        trace!(
             node_id = pos.node_id,
             x = pos.x,
             y = pos.y,
@@ -110,7 +110,7 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
                     hyp_idx: hyp_idx as usize,
                 },
             };
-            debug!(
+            trace!(
                 i,
                 hyp_idx,
                 x = region.x,
@@ -141,7 +141,7 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
                     goal_idx: i,
                 },
             };
-            debug!(
+            trace!(
                 goal_idx = i,
                 x = region.x,
                 y = region.y,
@@ -151,7 +151,7 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
         }
     }
 
-    debug!(total_regions = regions.len(), "Navigation regions built");
+    trace!(total_regions = regions.len(), "Navigation regions built");
     regions
 }
 
@@ -162,7 +162,7 @@ pub fn find_nearest_in_direction(
     current: Selection,
     direction: Direction,
 ) -> Option<Selection> {
-    debug!(
+    trace!(
         ?current,
         ?direction,
         regions_count = regions.len(),
@@ -170,11 +170,11 @@ pub fn find_nearest_in_direction(
     );
 
     let Some(cur) = regions.iter().find(|r| r.selection == current) else {
-        debug!("Current selection not found in navigation regions");
+        trace!("Current selection not found in navigation regions");
         return None;
     };
 
-    debug!(
+    trace!(
         x = cur.x,
         y = cur.y,
         w = cur.width,
@@ -195,9 +195,9 @@ pub fn find_nearest_in_direction(
         })
         .collect();
 
-    debug!(aligned_count = aligned.len(), "Aligned candidates");
+    trace!(aligned_count = aligned.len(), "Aligned candidates");
     for (i, r) in aligned.iter().enumerate() {
-        debug!(
+        trace!(
             i,
             x = r.x,
             y = r.y,
@@ -212,7 +212,7 @@ pub fn find_nearest_in_direction(
         .min_by_key(|r| direction.distance(cur, r))
         .map(|r| r.selection);
 
-    debug!(?result, "Navigation result");
+    trace!(?result, "Navigation result");
     result
 }
 
