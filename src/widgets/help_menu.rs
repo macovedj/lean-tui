@@ -9,19 +9,37 @@ use ratatui::{
     widgets::{Block, Clear, Paragraph, StatefulWidget, Widget},
 };
 
-use super::{InteractiveStatefulWidget, KeyEvent};
+use super::{theme::Theme, InteractiveStatefulWidget, KeyEvent};
 
 const KEYBINDINGS: &[(&str, &str)] = &[
-    // Display modes
     ("[/]", "cycle display mode"),
-    // Navigation
     ("j/k", "navigate up/down"),
     ("g", "goto origin"),
     ("y", "copy to clipboard"),
-    // Other
     ("?", "close help"),
     ("q", "quit"),
 ];
+
+fn color_legend_lines() -> Vec<Line<'static>> {
+    vec![
+        Line::from(vec![
+            Span::styled("■", Style::new().fg(Theme::HYP_NAME)),
+            Span::raw(" hypothesis"),
+        ]),
+        Line::from(vec![
+            Span::styled("■", Style::new().fg(Theme::GOAL_TYPE)),
+            Span::raw(" goal"),
+        ]),
+        Line::from(vec![
+            Span::styled("■", Style::new().fg(Theme::COMPLETED_GOAL_FG)),
+            Span::raw(" completed"),
+        ]),
+        Line::from(vec![
+            Span::styled("■", Style::new().fg(Theme::INCOMPLETE_NODE_BORDER)),
+            Span::raw(" incomplete"),
+        ]),
+    ]
+}
 
 /// State for the help menu widget.
 #[derive(Default)]
@@ -46,8 +64,25 @@ impl StatefulWidget for HelpMenuWidget {
             return;
         }
 
+        let legend_lines = color_legend_lines();
+        let key_style = Style::new().fg(Color::Cyan);
+        let dim_style = Style::new().fg(Color::DarkGray);
+
+        let mut lines: Vec<Line> = KEYBINDINGS
+            .iter()
+            .map(|(key, desc)| {
+                Line::from(vec![
+                    Span::styled(format!("{key:>6}"), key_style),
+                    Span::raw(format!("  {desc}")),
+                ])
+            })
+            .collect();
+
+        lines.push(Line::from(Span::styled("──────────────────────────", dim_style)));
+        lines.extend(legend_lines);
+
         let width = 28u16;
-        let height = (KEYBINDINGS.len() as u16) + 2;
+        let height = (lines.len() as u16) + 2;
         let x = area.width.saturating_sub(width + 1);
         let y = area.height.saturating_sub(height + 2);
         let popup_area = Rect::new(x, y, width, height);
@@ -58,20 +93,7 @@ impl StatefulWidget for HelpMenuWidget {
             .title(" Help ")
             .border_style(Style::new().fg(Color::Cyan));
 
-        let key_style = Style::new().fg(Color::Cyan);
-        let help_lines: Vec<Line> = KEYBINDINGS
-            .iter()
-            .map(|(key, desc)| {
-                Line::from(vec![
-                    Span::styled(format!("{key:>6}"), key_style),
-                    Span::raw(format!("  {desc}")),
-                ])
-            })
-            .collect();
-
-        Paragraph::new(help_lines)
-            .block(block)
-            .render(popup_area, buf);
+        Paragraph::new(lines).block(block).render(popup_area, buf);
     }
 }
 
