@@ -1,12 +1,10 @@
 use std::{env, fs, path::PathBuf};
 
+/// Pinned commit hash for lean-dag protocol schema.
+const LEAN_DAG_COMMIT: &str = "3cfe898b72c2c46495b415efbbcbfc676c9cb87e";
+
 fn main() {
-    let schema_path = find_schema_path();
-
-    println!("cargo:rerun-if-changed={}", schema_path.display());
-
-    let schema_content = fs::read_to_string(&schema_path)
-        .unwrap_or_else(|e| panic!("Failed to read schema at {}: {e}", schema_path.display()));
+    let schema_content = fetch_schema();
 
     let schema: serde_json::Value = serde_json::from_str(&schema_content)
         .unwrap_or_else(|e| panic!("Failed to parse schema JSON: {e}"));
@@ -23,31 +21,25 @@ fn main() {
     fs::write(out_dir.join("protocol_types.rs"), contents).unwrap();
 }
 
-fn find_schema_path() -> PathBuf {
-    // Try relative path from lean-tui to sibling lean-dag directory
-    let sibling_path = PathBuf::from("../lean-dag/protocol-schema.json");
-    if sibling_path.exists() {
-        return sibling_path;
-    }
-
-    // Try environment variable
+fn fetch_schema() -> String {
+    // Allow override via environment variable for local development
     if let Ok(path) = env::var("LEAN_DAG_SCHEMA") {
         let path = PathBuf::from(path);
         if path.exists() {
-            return path;
+            println!("cargo:rerun-if-changed={}", path.display());
+            return fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("Failed to read schema at {}: {e}", path.display()));
         }
     }
 
-    // Try home directory
-    if let Some(home) = dirs::home_dir() {
-        let home_path = home.join("Code/lean-dag/protocol-schema.json");
-        if home_path.exists() {
-            return home_path;
-        }
-    }
-
-    panic!(
-        "Could not find protocol-schema.json. Set LEAN_DAG_SCHEMA env var or place lean-dag as \
-         sibling directory."
+    // Fetch from GitHub
+    let url = format!(
+        "https://raw.githubusercontent.com/wvhulle/lean-dag/{LEAN_DAG_COMMIT}/protocol-schema.json"
     );
+
+    ureq::get(&url)
+        .call()
+        .unwrap_or_else(|e| panic!("Failed to fetch schema from {url}: {e}"))
+        .into_string()
+        .unwrap_or_else(|e| panic!("Failed to read schema response: {e}"))
 }
