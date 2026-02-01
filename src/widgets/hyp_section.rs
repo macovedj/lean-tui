@@ -14,7 +14,7 @@ use ratatui::{
 
 use super::hyp_layer::{HypLayer, HypLayerRenderContext};
 use crate::{
-    protocol::{NodeId, ProofState},
+    protocol::{NodeId, TacticProofState},
     widgets::{
         layout_metrics::LayoutMetrics, theme::Theme, ClickRegion, HypothesisFilters, Selection,
     },
@@ -43,7 +43,7 @@ impl HypSectionState {
     /// Update the state with new data.
     pub fn update(
         &mut self,
-        state: &ProofState,
+        state: &TacticProofState,
         filters: HypothesisFilters,
         depends_on: HashSet<String>,
         selection: Option<Selection>,
@@ -57,10 +57,10 @@ impl HypSectionState {
 
         for (hyp_idx, h) in state.hypotheses.iter().enumerate() {
             // Apply filters
-            if filters.hide_instances && h.is_instance {
+            if filters.hide_instances && h.is_typeclass_instance {
                 continue;
             }
-            if filters.hide_inaccessible && h.is_proof {
+            if filters.hide_inaccessible && h.is_proof_term {
                 continue;
             }
             if seen.insert(h.name.clone()) {

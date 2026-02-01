@@ -14,7 +14,7 @@ use super::{
     ClickRegion, Selection,
 };
 use crate::{
-    protocol::{ProofDagNode, ProofState},
+    protocol::{ProofDagTacticNode, TacticProofState},
     widgets::theme::Theme,
 };
 
@@ -27,21 +27,21 @@ pub struct StateNodeState {
 
 /// A single proof state node widget.
 pub struct StateNode<'a> {
-    node: &'a ProofDagNode,
+    node: &'a ProofDagTacticNode,
     is_current: bool,
     selection: Option<Selection>,
     top_down: bool,
     /// Override state from LSP (for current node).
-    override_state: Option<&'a ProofState>,
+    override_state: Option<&'a TacticProofState>,
 }
 
 impl<'a> StateNode<'a> {
     pub const fn new(
-        node: &'a ProofDagNode,
+        node: &'a ProofDagTacticNode,
         is_current: bool,
         selection: Option<Selection>,
         top_down: bool,
-        override_state: Option<&'a ProofState>,
+        override_state: Option<&'a TacticProofState>,
     ) -> Self {
         Self {
             node,
@@ -90,22 +90,22 @@ impl<'a> StateNode<'a> {
 
     /// Build the hypothesis line (horizontal layout).
     fn build_hyps_line(&self) -> Option<Line<'static>> {
-        if self.node.new_hypotheses.is_empty() {
+        if self.node.new_hypothesis_indices.is_empty() {
             return None;
         }
 
         let spans: Vec<Span> = self
             .node
-            .new_hypotheses
+            .new_hypothesis_indices
             .iter()
             .enumerate()
             .filter_map(|(i, &hyp_idx)| {
-                let h = self.node.state_after.hypotheses.get(hyp_idx as usize)?;
+                let h = self.node.proof_state_after.hypotheses.get(hyp_idx as usize)?;
                 let selected = matches!(
                     self.selection,
                     Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx as usize
                 );
-                let (fg, bg) = hyp_style_colors(h.is_proof);
+                let (fg, bg) = hyp_style_colors(h.is_proof_term);
                 let style = Style::new()
                     .fg(fg)
                     .bg(bg)
@@ -157,7 +157,7 @@ impl<'a> StateNode<'a> {
     }
 
     /// Append goal spans from override state.
-    fn append_goal_spans_from_state(&self, spans: &mut Vec<Span<'static>>, state: &ProofState) {
+    fn append_goal_spans_from_state(&self, spans: &mut Vec<Span<'static>>, state: &TacticProofState) {
         for (goal_idx, g) in state.goals.iter().enumerate() {
             if goal_idx > 0 {
                 spans.push(Span::styled(" │ ", Style::new().fg(Color::DarkGray)));
@@ -189,7 +189,7 @@ impl<'a> StateNode<'a> {
 
     /// Append goal spans from node's `state_after`.
     fn append_goal_spans_from_node(&self, spans: &mut Vec<Span<'static>>) {
-        for (goal_idx, g) in self.node.state_after.goals.iter().enumerate() {
+        for (goal_idx, g) in self.node.proof_state_after.goals.iter().enumerate() {
             if goal_idx > 0 {
                 spans.push(Span::styled(" │ ", Style::new().fg(Color::DarkGray)));
             }
@@ -221,7 +221,7 @@ impl<'a> StateNode<'a> {
     /// Build click regions for goals and hypotheses.
     fn build_click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
         let mut regions = Vec::new();
-        let has_hyps = !self.node.new_hypotheses.is_empty();
+        let has_hyps = !self.node.new_hypothesis_indices.is_empty();
 
         let (hyps_y, goals_y) = if self.top_down {
             (inner.y, if has_hyps { inner.y + 1 } else { inner.y })
@@ -232,7 +232,7 @@ impl<'a> StateNode<'a> {
         // Goal click regions
         let goal_count = self
             .override_state
-            .map_or(self.node.state_after.goals.len(), |s| s.goals.len());
+            .map_or(self.node.proof_state_after.goals.len(), |s| s.goals.len());
         for goal_idx in 0..goal_count {
             regions.push(ClickRegion {
                 area: Rect::new(inner.x, goals_y, inner.width, 1),
@@ -245,7 +245,7 @@ impl<'a> StateNode<'a> {
 
         // Hypothesis click regions
         if has_hyps {
-            for &hyp_idx in &self.node.new_hypotheses {
+            for &hyp_idx in &self.node.new_hypothesis_indices {
                 regions.push(ClickRegion {
                     area: Rect::new(inner.x, hyps_y, inner.width, 1),
                     selection: Selection::Hyp {

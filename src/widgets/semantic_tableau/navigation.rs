@@ -5,7 +5,7 @@
 use tracing::trace;
 
 use super::{tree_layout::TreeLayout, Selection};
-use crate::protocol::ProofDag;
+use crate::protocol::CompleteProofDag;
 
 /// Region for keyboard navigation - uses virtual coordinates (i32).
 #[derive(Debug, Clone, Copy)]
@@ -71,7 +71,7 @@ fn ranges_overlap(a_start: i32, a_len: u16, b_start: i32, b_len: u16) -> bool {
 /// (they remain mouse-clickable) to avoid coordinate system complexity
 /// between screen coordinates (Given/Theorem) and virtual coordinates (tree
 /// nodes).
-pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<NavigationRegion> {
+pub fn build_navigation_regions(dag: &CompleteProofDag, layout: &TreeLayout) -> Vec<NavigationRegion> {
     let mut regions = Vec::new();
 
     trace!(
@@ -91,13 +91,13 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
             y = pos.y,
             w = pos.width,
             h = pos.height,
-            new_hyps = node.new_hypotheses.len(),
-            goals = node.state_after.goals.len(),
+            new_hyps = node.new_hypothesis_indices.len(),
+            goals = node.proof_state_after.goals.len(),
             "Processing node for navigation"
         );
 
         // New hypotheses in this node
-        for (i, &hyp_idx) in node.new_hypotheses.iter().enumerate() {
+        for (i, &hyp_idx) in node.new_hypothesis_indices.iter().enumerate() {
             let hyp_width = 15u16;
             let hyp_offset = (i as i32) * (i32::from(hyp_width) + 1);
             let region = NavigationRegion {
@@ -121,7 +121,7 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
         }
 
         // Goals in this node - offset each goal horizontally for navigation
-        let goal_count = node.state_after.goals.len();
+        let goal_count = node.proof_state_after.goals.len();
         let goal_width = if goal_count > 1 {
             // Divide available width among goals
             (pos.width.saturating_sub(2) / goal_count as u16).max(15)
@@ -129,7 +129,7 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
             pos.width.saturating_sub(2)
         };
 
-        for (i, _) in node.state_after.goals.iter().enumerate() {
+        for (i, _) in node.proof_state_after.goals.iter().enumerate() {
             let goal_offset = (i as i32) * (i32::from(goal_width) + 1);
             let region = NavigationRegion {
                 x: pos.x + 1 + goal_offset,

@@ -18,7 +18,10 @@ use crate::{
     modes::{
         BeforeAfterModeInput, DeductionTreeModeInput, DisplayMode, PlainListInput, StepsModeInput,
     },
-    protocol::{Command, CursorInfo, Message, Position, ProofDag, ProofState},
+    protocol::{
+        ClientToServerCommand, CompleteProofDag, EditorCursorPosition, LineCharacterPosition,
+        ServerToClientMessage, TacticProofState,
+    },
     widgets::{
         help_menu::{HelpMenu, HelpMenuWidget},
         status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
@@ -43,7 +46,7 @@ pub struct App {
     /// TCP port for lean-dag connection.
     port: u16,
     /// Current cursor position from editor.
-    pub cursor: Option<CursorInfo>,
+    pub cursor: Option<EditorCursorPosition>,
     /// Enclosing definition (theorem/lemma name).
     pub definition: Option<DefinitionInfo>,
     /// Current error message.
@@ -53,11 +56,11 @@ pub struct App {
     /// Whether app should exit.
     pub should_exit: bool,
     /// Outgoing commands queue.
-    outgoing_commands: Vec<Command>,
+    outgoing_commands: Vec<ClientToServerCommand>,
     /// Current display mode.
     display_mode: DisplayMode,
     /// Unified proof DAG - single source of truth for all display modes.
-    proof_dag: Option<ProofDag>,
+    proof_dag: Option<CompleteProofDag>,
     /// Status bar component.
     status_bar: StatusBar,
     /// Help menu overlay.
@@ -83,46 +86,46 @@ impl App {
     }
 
     /// Get current proof state from the DAG.
-    pub fn proof_state(&self) -> ProofState {
+    pub fn proof_state(&self) -> TacticProofState {
         self.proof_dag
             .as_ref()
-            .and_then(|dag| dag.current_node)
+            .and_then(|dag| dag.current_node_id)
             .and_then(|id| self.proof_dag.as_ref()?.get(id))
-            .map(|node| node.state_after.clone())
+            .map(|node| node.proof_state_after.clone())
             .unwrap_or_default()
     }
 
     /// Get position where current goals were fetched.
-    pub fn goals_position(&self) -> Option<Position> {
+    pub fn goals_position(&self) -> Option<LineCharacterPosition> {
         self.proof_dag
             .as_ref()
-            .and_then(|dag| dag.current_node)
+            .and_then(|dag| dag.current_node_id)
             .and_then(|id| self.proof_dag.as_ref()?.get(id))
             .map(|node| node.position)
     }
 
     /// Queue a command to be sent to the server.
-    pub fn queue_command(&mut self, cmd: Command) {
+    pub fn queue_command(&mut self, cmd: ClientToServerCommand) {
         self.outgoing_commands.push(cmd);
     }
 
     /// Take all queued commands.
-    pub fn take_commands(&mut self) -> Vec<Command> {
+    pub fn take_commands(&mut self) -> Vec<ClientToServerCommand> {
         mem::take(&mut self.outgoing_commands)
     }
 
     /// Handle incoming message from lean-dag server.
-    pub fn handle_message(&mut self, msg: Message) {
+    pub fn handle_message(&mut self, msg: ServerToClientMessage) {
         match msg {
-            Message::Connected { .. } => {
+            ServerToClientMessage::Connected { .. } => {
                 self.connected = true;
             }
-            Message::Cursor {
+            ServerToClientMessage::Cursor {
                 uri,
                 position,
                 method,
             } => {
-                self.cursor = Some(CursorInfo {
+                self.cursor = Some(EditorCursorPosition {
                     method,
                     position,
                     uri,
@@ -130,7 +133,7 @@ impl App {
                 self.connected = true;
                 self.error = None;
             }
-            Message::ProofDag {
+            ServerToClientMessage::ProofDag {
                 uri: _,
                 position: _,
                 proof_dag,
@@ -148,7 +151,7 @@ impl App {
                 self.connected = true;
                 self.error = None;
             }
-            Message::Error { error } => {
+            ServerToClientMessage::Error { error } => {
                 self.error = Some(error);
                 self.connected = true;
             }
@@ -174,26 +177,27 @@ impl App {
         let dag = self.proof_dag.as_ref();
         let fallback_pos = self.goals_position().unwrap_or(cursor.position);
 
-        // Resolve `goto` location based on selection type
-        let goto_location: Option<(String, Position)> = selection.and_then(|sel| match sel {
-            Selection::InitialHyp { hyp_idx } => dag
-                .and_then(|d| d.initial_state.as_ref())
-                .and_then(|s| s.hypotheses.get(hyp_idx))
-                .and_then(|h| h.goto_locations().definition)
-                .map(|loc| (loc.uri, loc.position)),
-            Selection::Hyp { node_id, hyp_idx } => dag
-                .and_then(|d| d.get(node_id))
-                .and_then(|node| node.state_after.hypotheses.get(hyp_idx))
-                .and_then(|h| h.goto_locations().definition)
-                .map(|loc| (loc.uri, loc.position)),
-            Selection::Goal { node_id, .. } => dag
-                .and_then(|d| d.get(node_id))
-                .map(|node| (cursor.uri.clone(), node.position)),
-            Selection::Theorem => None,
-        });
+        // Resolve navigation location based on selection type
+        let nav_location: Option<(String, LineCharacterPosition)> =
+            selection.and_then(|sel| match sel {
+                Selection::InitialHyp { hyp_idx } => dag
+                    .and_then(|d| d.initial_proof_state.as_ref())
+                    .and_then(|s| s.hypotheses.get(hyp_idx))
+                    .and_then(|h| h.navigation_locations().definition)
+                    .map(|loc| (loc.uri, loc.position)),
+                Selection::Hyp { node_id, hyp_idx } => dag
+                    .and_then(|d| d.get(node_id))
+                    .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
+                    .and_then(|h| h.navigation_locations().definition)
+                    .map(|loc| (loc.uri, loc.position)),
+                Selection::Goal { node_id, .. } => dag
+                    .and_then(|d| d.get(node_id))
+                    .map(|node| (cursor.uri.clone(), node.position)),
+                Selection::Theorem => None,
+            });
 
-        let (uri, position) = goto_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
-        self.queue_command(Command::Navigate { uri, position });
+        let (uri, position) = nav_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
+        self.queue_command(ClientToServerCommand::Navigate { uri, position });
     }
 
     /// Get the text of the currently selected item (hypothesis or goal).
@@ -202,20 +206,20 @@ impl App {
 
         match selection? {
             Selection::InitialHyp { hyp_idx } => dag
-                .initial_state()
+                .initial_proof_state()
                 .hypotheses
                 .get(hyp_idx)
                 .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
             Selection::Hyp { node_id, hyp_idx } => dag
                 .get(node_id)
-                .and_then(|node| node.state_after.hypotheses.get(hyp_idx))
+                .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
                 .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
             Selection::Goal { node_id, goal_idx } => dag
                 .get(node_id)
-                .and_then(|node| node.state_after.goals.get(goal_idx))
+                .and_then(|node| node.proof_state_after.goals.get(goal_idx))
                 .map(|g| g.type_.to_plain_text()),
             Selection::Theorem => dag
-                .initial_state()
+                .initial_proof_state()
                 .goals
                 .first()
                 .map(|g| g.type_.to_plain_text()),
@@ -250,17 +254,17 @@ impl App {
             error: self.error.clone(),
             proof_dag: self.proof_dag.clone(),
         });
-        // Derive before/after states from the ProofDag
+        // Derive before/after states from the CompleteProofDag
         let current_node = self
             .proof_dag
             .as_ref()
-            .and_then(|dag| dag.current_node)
+            .and_then(|dag| dag.current_node_id)
             .and_then(|id| self.proof_dag.as_ref()?.get(id));
 
         let previous_state = self
             .display_mode
             .show_previous()
-            .then(|| current_node.map(|n| n.state_before.clone()))
+            .then(|| current_node.map(|n| n.proof_state_before.clone()))
             .flatten();
 
         let next_state = self
@@ -270,14 +274,14 @@ impl App {
                 current_node
                     .and_then(|n| n.children.first())
                     .and_then(|&child_id| self.proof_dag.as_ref()?.get(child_id))
-                    .map(|child| child.state_after.clone())
+                    .map(|child| child.proof_state_after.clone())
             })
             .flatten();
 
         self.display_mode.update_before_after(BeforeAfterModeInput {
             previous_state,
             current_state: current_node
-                .map(|n| n.state_after.clone())
+                .map(|n| n.proof_state_after.clone())
                 .unwrap_or_default(),
             next_state,
             definition: self.definition.clone(),

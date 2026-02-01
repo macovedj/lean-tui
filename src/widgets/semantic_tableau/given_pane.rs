@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use super::{ClickRegion, Selection};
-use crate::{protocol::HypothesisInfo, widgets::theme::Theme};
+use crate::{protocol::ProofContextHypothesis, widgets::theme::Theme};
 
 /// State for the given pane.
 #[derive(Default)]
@@ -35,12 +35,12 @@ impl GivenPaneState {
 
 /// Given pane widget - displays initial hypotheses.
 pub struct GivenPane<'a> {
-    hypotheses: &'a [HypothesisInfo],
+    hypotheses: &'a [ProofContextHypothesis],
     selection: Option<Selection>,
 }
 
 impl<'a> GivenPane<'a> {
-    pub const fn new(hypotheses: &'a [HypothesisInfo], selection: Option<Selection>) -> Self {
+    pub const fn new(hypotheses: &'a [ProofContextHypothesis], selection: Option<Selection>) -> Self {
         Self {
             hypotheses,
             selection,
@@ -75,7 +75,7 @@ impl StatefulWidget for GivenPane<'_> {
             .hypotheses
             .iter()
             .enumerate()
-            .filter(|(_, h)| !h.is_proof)
+            .filter(|(_, h)| !h.is_proof_term)
             .collect();
 
         if visible_hyps.is_empty() {
@@ -102,7 +102,7 @@ impl StatefulWidget for GivenPane<'_> {
                     Some(Selection::InitialHyp { hyp_idx: hi }) if hi == *hyp_idx
                 );
 
-                let (fg, bg) = hyp_style_colors(h.is_proof);
+                let (fg, bg) = hyp_style_colors(h.is_proof_term);
                 let mut style = Style::new().fg(fg).bg(bg);
                 if is_selected {
                     style = style.add_modifier(Modifier::UNDERLINED);
@@ -152,8 +152,8 @@ pub fn truncate_str(s: &str, max: usize) -> String {
 }
 
 /// Get hypothesis style colors based on proof status.
-pub const fn hyp_style_colors(is_proof: bool) -> (Color, Color) {
-    if is_proof {
+pub const fn hyp_style_colors(is_proof_term: bool) -> (Color, Color) {
+    if is_proof_term {
         (Theme::PROOF_HYP_FG, Theme::PROOF_HYP_BG)
     } else {
         (Theme::DATA_HYP_FG, Theme::DATA_HYP_BG)

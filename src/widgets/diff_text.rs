@@ -5,13 +5,17 @@ use ratatui::{
     text::Span,
 };
 
-use crate::protocol::{DiffTag, TaggedText};
+use crate::protocol::{AnnotatedTextTree, SubexpressionDiffTag};
 
-pub const fn diff_tag_style(tag: DiffTag, base_style: Style) -> Style {
+pub const fn diff_tag_style(tag: SubexpressionDiffTag, base_style: Style) -> Style {
     match tag {
-        DiffTag::WasChanged | DiffTag::WillChange => base_style.fg(Color::Yellow),
-        DiffTag::WasInserted | DiffTag::WillInsert => base_style.fg(Color::Green),
-        DiffTag::WasDeleted | DiffTag::WillDelete => {
+        SubexpressionDiffTag::WasChanged | SubexpressionDiffTag::WillChange => {
+            base_style.fg(Color::Yellow)
+        }
+        SubexpressionDiffTag::WasInserted | SubexpressionDiffTag::WillInsert => {
+            base_style.fg(Color::Green)
+        }
+        SubexpressionDiffTag::WasDeleted | SubexpressionDiffTag::WillDelete => {
             base_style.fg(Color::Red).add_modifier(Modifier::DIM)
         }
     }
@@ -50,21 +54,24 @@ pub const fn diff_style(state: &DiffState, is_selected: bool, base_color: Color)
     }
 }
 
-pub trait TaggedTextExt {
+pub trait AnnotatedTextTreeExt {
     fn to_spans(&self, base_style: Style) -> Vec<Span<'static>>;
 }
 
-impl TaggedTextExt for TaggedText {
+impl AnnotatedTextTreeExt for AnnotatedTextTree {
     fn to_spans(&self, base_style: Style) -> Vec<Span<'static>> {
         match self {
             Self::Text { text } => vec![Span::styled(text.clone(), base_style)],
-            Self::Tag { info, content } => {
-                let style = info
+            Self::Tag {
+                subexpression_info,
+                tagged_content,
+            } => {
+                let style = subexpression_info
                     .diff_status
                     .map_or(base_style, |tag| diff_tag_style(tag, base_style));
-                content.to_spans(style)
+                tagged_content.to_spans(style)
             }
-            Self::Append { items } => items
+            Self::Append { children } => children
                 .iter()
                 .flat_map(|item| item.to_spans(base_style))
                 .collect(),
