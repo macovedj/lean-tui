@@ -1,7 +1,8 @@
 //! LSP client for standalone mode using the lean-dag binary.
 //!
-//! Spawns its own lean-dag process which has the RPC methods built-in
-//! via `builtin_initialize`. No `import LeanDag` required in user files.
+//! Spawns lean-dag directly as a worker process (no watchdog overhead).
+//! The RPC methods are built-in via `builtin_initialize`.
+//! No `import LeanDag` required in user files.
 
 use std::{
     env,
@@ -148,9 +149,10 @@ fn get_lean_dag_log_file() -> Option<File> {
     File::create(&log_path).ok()
 }
 
-/// Spawn the lean-dag server process.
+/// Spawn the lean-dag server process in direct worker mode.
 ///
-/// lean-dag handles its own environment discovery internally by calling
+/// lean-dag runs as a single worker process (no watchdog) for lower overhead.
+/// It handles its own environment discovery internally by calling
 /// `lake env printenv` at startup, so we can spawn it directly without
 /// wrapping in `lake env`.
 fn spawn_lean_dag_server(server_path: &PathBuf) -> Result<(ChildStdin, ChildStdout), LspError> {
@@ -165,9 +167,6 @@ fn spawn_lean_dag_server(server_path: &PathBuf) -> Result<(ChildStdin, ChildStdo
 
     let mut cmd = Command::new(server_path);
     cmd.args(&args);
-
-    // Set LEAN_WORKER_PATH so worker processes also use the lean-dag binary
-    cmd.env("LEAN_WORKER_PATH", server_path);
 
     let stderr = get_lean_dag_log_file().map_or_else(Stdio::inherit, Stdio::from);
 
