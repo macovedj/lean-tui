@@ -181,16 +181,14 @@ subgraph lean-dag-process["Lean RPC watchdog process"]
         lean-runtime <-->|Lean| rpc-method
     end
 
-    lake-serve[Lake LSP serve <br> Required RPC entrypoint]
 
 
     original-lean-lsp --> lean-runtime
 
     lean-dag[binary LSP server <br> compiled from Lean]
 
-    lean-dag -->|JSON-RPC| lake-serve
+    lean-dag -->|JSON-RPC| custom-rpc-server
 
-    lake-serve -->|JSON/RPC| custom-rpc-server
 
     custom-rpc-server <-->|Lean| original-lean-lsp
 end
@@ -200,7 +198,7 @@ subgraph proxy["Process lean-tui proxy"]
     proxy-rpc-client[RPC client]
     proxy-lsp-server[binary LSP server <br> compiled from Rust]
     proxy-lsp-server <-->|Rust/JSON| proxy-rpc-client
-    proxy-rpc-client <-->|RPC/JSON| lake-serve
+    proxy-rpc-client <-->|RPC/JSON| custom-rpc-server
 end
 
 
@@ -225,8 +223,8 @@ end
 
 
 editor-lsp-client -.->|import mode <br> LSP/JSON| proxy-lsp-server
-
-editor-lsp-client -.->|standalone mode <br> JSON/LSP| lean-dag
+editor-lsp-client -.-> lean-dag
+proxy-rpc-client -.->|standalone mode <br> JSON/LSP| lean-dag
 ```
 
 ## Debugging
