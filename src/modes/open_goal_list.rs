@@ -155,7 +155,7 @@ impl InteractiveComponent for PlainList {
         let click_regions = goal_list.render_to_frame(frame, content_area);
 
         // Adjust click regions for error offset and add to selection
-        let y_offset = if self.error.is_some() { 2 } else { 0 };
+        let y_offset = content_area.y.saturating_sub(area.y);
         for region in click_regions {
             self.selection.add_region(
                 Rect::new(

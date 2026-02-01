@@ -8,6 +8,8 @@ use ratatui::{
     Frame,
 };
 
+use super::error_banner::ErrorBanner;
+
 /// Render an error message at the top of the area and return the remaining
 /// area. Returns the original area if there's no error.
 pub fn render_error(frame: &mut Frame, area: Rect, error: Option<&str>) -> Rect {
@@ -15,12 +17,13 @@ pub fn render_error(frame: &mut Frame, area: Rect, error: Option<&str>) -> Rect 
         return area;
     };
 
+    let banner = ErrorBanner::new(error);
+    let height = banner.required_height(area.width);
+
     let [error_area, rest] =
-        Layout::vertical([Constraint::Length(2), Constraint::Fill(1)]).areas(area);
-    frame.render_widget(
-        Paragraph::new(format!("Error: {error}")).fg(Color::Red),
-        error_area,
-    );
+        Layout::vertical([Constraint::Length(height), Constraint::Fill(1)]).areas(area);
+
+    frame.render_widget(banner, error_area);
     rest
 }
 

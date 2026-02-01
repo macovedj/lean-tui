@@ -1,6 +1,7 @@
 //! Component-based UI architecture.
 
 pub mod diff_text;
+pub mod error_banner;
 pub mod goal_section;
 pub mod goals_column;
 pub mod help_menu;
