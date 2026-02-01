@@ -108,7 +108,7 @@ You can choose between:
 
 Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one).
 
-Split terminal. Launch the TUI in same directory in the second terminal with `lean-tui view`.
+Split terminal. Launch the TUI in same directory in the second terminal with `lean-tui`.
 
 ### 2. Start writing proofs
 
