@@ -80,9 +80,15 @@ async fn handle_incoming_line(
 ) -> Result<bool, ()> {
     match line_result {
         Ok(Some(line)) => {
-            if let Ok(msg) = serde_json::from_str::<Message>(&line) {
-                if msg_tx.send(msg).await.is_err() {
-                    return Err(()); // TUI closed, exit task
+            match serde_json::from_str::<Message>(&line) {
+                Ok(msg) => {
+                    tracing::debug!("Received message: {:?}", msg.message_type());
+                    if msg_tx.send(msg).await.is_err() {
+                        return Err(()); // TUI closed, exit task
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to parse message: {e}");
                 }
             }
             Ok(true)

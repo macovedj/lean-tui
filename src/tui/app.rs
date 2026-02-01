@@ -296,8 +296,8 @@ impl App {
     }
 
     fn render_main(&mut self, frame: &mut Frame, area: Rect) {
-        // Show welcome screen when connected but no cursor position yet
-        let show_welcome = self.connected && self.cursor.is_none();
+        // Show welcome screen when connected but no data yet
+        let show_welcome = self.connected && self.cursor.is_none() && self.proof_dag.is_none();
 
         if show_welcome {
             frame.render_widget(WelcomeScreen, area);
