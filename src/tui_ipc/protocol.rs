@@ -5,11 +5,24 @@ use serde::{Deserialize, Serialize};
 
 use crate::lean_rpc::ProofDag;
 
-/// Returns the path to the UNIX socket for IPC.
+/// Default TCP port for lean-dag connection.
+pub const DEFAULT_TCP_PORT: u16 = 9742;
+
+/// Returns the path to the UNIX socket for IPC (legacy).
 pub fn socket_path() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("lean-tui/lean-tui.sock")
+}
+
+/// Returns the TCP address for connecting to lean-dag.
+/// Uses LEAN_DAG_TCP_PORT env var or defaults to 127.0.0.1:9999.
+pub fn tcp_address() -> String {
+    let port = std::env::var("LEAN_DAG_TCP_PORT")
+        .ok()
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_TCP_PORT);
+    format!("127.0.0.1:{port}")
 }
 
 /// Cursor location with document URI and trigger method.
