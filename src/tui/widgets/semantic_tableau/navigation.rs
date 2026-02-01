@@ -71,7 +71,6 @@ fn ranges_overlap(a_start: i32, a_len: u16, b_start: i32, b_len: u16) -> bool {
 /// (they remain mouse-clickable) to avoid coordinate system complexity
 /// between screen coordinates (Given/Theorem) and virtual coordinates (tree
 /// nodes).
-#[allow(clippy::cast_possible_wrap)]
 pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<NavigationRegion> {
     let mut regions = Vec::new();
 

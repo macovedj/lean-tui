@@ -9,22 +9,20 @@ use ratatui::{
 };
 
 use super::Mode;
-use crate::{
-    tui::protocol::{NodeId, ProofDag, ProofDagNode, ProofState},
-    tui::{
-        app::DefinitionInfo,
-        widgets::{
-            goal_section::{GoalSection, GoalSectionState},
-            hyp_section::{HypSection, HypSectionState},
-            hypothesis_indices,
-            proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
-            render_helpers::{render_error, render_no_goals},
-            selection::SelectionState,
-            tactic_row::divider,
-            theme::FocusedPane,
-            FilterToggle, HypothesisFilters, InteractiveComponent, InteractiveStatefulWidget,
-            KeyMouseEvent, Selection,
-        },
+use crate::tui::{
+    app::DefinitionInfo,
+    protocol::{NodeId, ProofDag, ProofDagNode, ProofState},
+    widgets::{
+        goal_section::{GoalSection, GoalSectionState},
+        hyp_section::{HypSection, HypSectionState},
+        hypothesis_indices,
+        proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
+        render_helpers::{render_error, render_no_goals},
+        selection::SelectionState,
+        tactic_row::divider,
+        theme::FocusedPane,
+        FilterToggle, HypothesisFilters, InteractiveComponent, InteractiveStatefulWidget,
+        KeyMouseEvent, Selection,
     },
 };
 

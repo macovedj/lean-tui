@@ -5,9 +5,8 @@ fn main() {
 
     println!("cargo:rerun-if-changed={}", schema_path.display());
 
-    let schema_content = fs::read_to_string(&schema_path).unwrap_or_else(|e| {
-        panic!("Failed to read schema at {}: {e}", schema_path.display())
-    });
+    let schema_content = fs::read_to_string(&schema_path)
+        .unwrap_or_else(|e| panic!("Failed to read schema at {}: {e}", schema_path.display()));
 
     let schema: serde_json::Value = serde_json::from_str(&schema_content)
         .unwrap_or_else(|e| panic!("Failed to parse schema JSON: {e}"));
@@ -48,6 +47,7 @@ fn find_schema_path() -> PathBuf {
     }
 
     panic!(
-        "Could not find protocol-schema.json. Set LEAN_DAG_SCHEMA env var or place lean-dag as sibling directory."
+        "Could not find protocol-schema.json. Set LEAN_DAG_SCHEMA env var or place lean-dag as \
+         sibling directory."
     );
 }

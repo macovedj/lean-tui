@@ -13,9 +13,9 @@ use ratatui::{
     },
 };
 
-use crate::{
-    tui::protocol::{GoalInfo, NodeId, ProofState},
-    tui::widgets::{
+use crate::tui::{
+    protocol::{GoalInfo, NodeId, ProofState},
+    widgets::{
         diff_text::TaggedTextExt, layout_metrics::LayoutMetrics, theme::Theme, ClickRegion,
         Selection,
     },
@@ -78,7 +78,6 @@ pub struct GoalSection;
 impl StatefulWidget for GoalSection {
     type State = GoalSectionState;
 
-    #[allow(clippy::cast_possible_truncation)]
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 

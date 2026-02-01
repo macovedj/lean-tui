@@ -11,9 +11,9 @@ use ratatui::{
     },
 };
 
-use crate::{
-    tui::protocol::{NodeId, ProofDag, ProofDagNode},
-    tui::widgets::{theme::Theme, InteractiveStatefulWidget},
+use crate::tui::{
+    protocol::{NodeId, ProofDag, ProofDagNode},
+    widgets::{theme::Theme, InteractiveStatefulWidget},
 };
 
 // Tree drawing characters
@@ -248,7 +248,6 @@ impl InteractiveStatefulWidget for ProofStepsSidebar {
 impl StatefulWidget for ProofStepsSidebar {
     type State = ProofStepsSidebarState;
 
-    #[allow(clippy::cast_possible_truncation)]
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let border_style = if state.is_focused {
             Style::new().fg(Theme::BORDER_FOCUSED)

@@ -174,8 +174,7 @@ impl App {
             Selection::Theorem => None,
         });
 
-        let (uri, position) =
-            goto_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
+        let (uri, position) = goto_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
         self.queue_command(Command::Navigate { uri, position });
     }
 

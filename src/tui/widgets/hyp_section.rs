@@ -13,9 +13,9 @@ use ratatui::{
 };
 
 use super::hyp_layer::{HypLayer, HypLayerRenderContext};
-use crate::{
-    tui::protocol::{NodeId, ProofState},
-    tui::widgets::{
+use crate::tui::{
+    protocol::{NodeId, ProofState},
+    widgets::{
         layout_metrics::LayoutMetrics, theme::Theme, ClickRegion, HypothesisFilters, Selection,
     },
 };
@@ -86,7 +86,6 @@ pub struct HypSection;
 impl StatefulWidget for HypSection {
     type State = HypSectionState;
 
-    #[allow(clippy::cast_possible_truncation)]
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 

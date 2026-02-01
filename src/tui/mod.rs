@@ -15,11 +15,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
+pub use error::Result;
 use futures::StreamExt;
 use ratatui::prelude::*;
 use tokio::time::sleep;
-
-pub use error::Result;
 
 pub async fn run() -> Result<()> {
     enable_raw_mode()?;

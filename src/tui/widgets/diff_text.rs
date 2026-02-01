@@ -43,11 +43,12 @@ pub const fn diff_style(state: &DiffState, is_selected: bool, base_color: Color)
         DiffStyle {
             style: item_style(is_selected, Color::Red).add_modifier(Modifier::CROSSED_OUT),
         }
-    } else  {
+    } else {
         DiffStyle {
             style: item_style(is_selected, base_color),
         }
-    } }
+    }
+}
 
 pub trait TaggedTextExt {
     fn to_spans(&self, base_style: Style) -> Vec<Span<'static>>;

@@ -30,7 +30,6 @@ pub enum KeyMouseEvent {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-#[allow(clippy::struct_excessive_bools)]
 pub struct HypothesisFilters {
     pub hide_instances: bool,
     pub hide_inaccessible: bool,

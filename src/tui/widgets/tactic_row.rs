@@ -75,7 +75,6 @@ fn build_labeled_divider(width: u16, label: &str) -> String {
         label.to_string()
     };
 
-    #[allow(clippy::cast_possible_truncation)]
     let label_width = display.chars().count() as u16;
     let brackets_width = 4; // "─[" + "]─"
     let available = width.saturating_sub(label_width + brackets_width);

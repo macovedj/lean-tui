@@ -47,7 +47,6 @@ impl StatefulWidget for HelpMenuWidget {
         }
 
         let width = 28u16;
-        #[allow(clippy::cast_possible_truncation)]
         let height = (KEYBINDINGS.len() as u16) + 2;
         let x = area.width.saturating_sub(width + 1);
         let y = area.height.saturating_sub(height + 2);

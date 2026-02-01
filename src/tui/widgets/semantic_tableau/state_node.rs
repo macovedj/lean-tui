@@ -13,9 +13,9 @@ use super::{
     given_pane::{hyp_style_colors, truncate_str},
     ClickRegion, Selection,
 };
-use crate::{
-    tui::protocol::{ProofDagNode, ProofState},
-    tui::widgets::theme::Theme,
+use crate::tui::{
+    protocol::{ProofDagNode, ProofState},
+    widgets::theme::Theme,
 };
 
 /// State for a single state node widget.

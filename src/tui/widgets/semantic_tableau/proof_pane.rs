@@ -192,7 +192,6 @@ impl StatefulWidget for ProofPane<'_> {
     }
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn render_scrollbars(buf: &mut Buffer, area: Rect, canvas: &VirtualCanvas) {
     if canvas.needs_vertical_scroll(area) && area.height > 2 {
         let sb_area = Rect::new(
