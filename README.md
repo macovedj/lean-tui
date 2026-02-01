@@ -45,15 +45,9 @@ If you are interested in your proof as it evolves (like a directed acyclic graph
 
 ## Installation
 
-### 1. Compiler Toolchains
+### 1. Install `lean-tui` from Crates.io
 
-If you have never used Lean before, install `elan`, the Lean compiler toolchain manager. Run at least a `lake build` or `lake run`in your Lean test project to make sure your Lean code has its dependencies fetched (otherwise the LSP will not work)
-
-Install Rust (through [`rustup`](https://rustup.rs/)) if you haven't compiled Rust programs before.
-
-### 2. Install this TUI
-
-Then install this crate as a binary in your user with:
+Install Rust (through [`rustup`](https://rustup.rs/)) if you haven't compiled Rust programs before. Then install this crate as a binary in your user with:
 
 ```bash
 cargo install lean-tui
@@ -61,7 +55,7 @@ cargo install lean-tui
 
 If `~/.cargo/bin` is in your path, you can now run this program with `lean-tui`.
 
-### 3. Add `LeanDag` Dependency
+### 2. Add `LeanDag` Dependency
 
 Add [LeanDag](https://github.com/wvhulle/lean-dag) as a Lake dependency.
 
@@ -85,16 +79,6 @@ Add this to the top of your Lean file (or build target):
 ```lean
 import LeanDag
 ```
-
-### 4. Optional: Switch to Standalone Mode
-
-This step is completely optional and might cause issues. For those who don't want to modify their Lean source files, there is an additional mode of operation: standalone. It uses the `lean-dag` binary directly, no imports needed. However, it requires building a binary. This is done with:
-
-```bash
-lake build LeanDag:lean-dag
-```
-
-This will build a binary `lean-dag` in your project's `.lake` folder that can be used as LSP (instead of `lake serve`) and supports the generation of a graph of your proof state. Configure your editor to use this binary as the Lean language server.
 
 ## Configuration
 
@@ -148,78 +132,13 @@ Switch to the TUI. Key bindings:
 
 The TUI follows your cursor in the editor automatically.
 
-## How does it work?
-
-This is mainly a front for **lean-dag**, a custom LSP server that adds an RPC method on top of the built-in LSP-compliant RPC methods provided by Lean's LSP. The additional RPC methods uses Lean's internal APIs to extract detailed proof information (tactic applications, goal transformations, goto locations) that isn't available through standard LSP.
-
-The name `lean-dag` comes from Lean [Directed Acyclic Graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) since its main goal is showing your proof state as a graph.
-
-```mermaid
-flowchart
-
-subgraph lean-dag-process["Lean RPC Server Process"]
-    subgraph lean-worker[Lean RPC Worker]
-        lean-runtime((Lean Runtime))
-        original-lean-lsp[Official Lean.Server]
-        custom-rpc-server[RPC Server with Extension]
-        rpc-method[LeanDag RPC Method]
-
-        rpc-method <-->|Lean| custom-rpc-server
-        lean-runtime <-->|Lean| rpc-method
-        original-lean-lsp --> lean-runtime
-        custom-rpc-server <-->|Lean| original-lean-lsp
-    end
-
-    lake-serve[lake serve]
-    lake-serve -->|JSON-RPC| custom-rpc-server
-end
-
-subgraph TUI["Process: lean-tui view"]
-    tcp-client[TCP Client]
-    info-view{Interactive Proof UI}
-    ratatui[Ratatui Framework]
-
-    tcp-client <-->|Rust| info-view
-    info-view <-->|Rust| ratatui
-end
-
-subgraph Editor
-    editor-ui{NeoVim / Helix / Zed}
-    editor-lsp-client[Builtin LSP Client]
-    editor-ui <--> editor-lsp-client
-end
-
-TUI <-->|"TCP:9742 JSON"| lean-dag-process
-editor-lsp-client -->|LSP/JSON| lake-serve
-```
-
-## Debugging
-
-If you see errors in the editor like "incompatible headers", you can try
-
-1. Close both the TUI view and the LSP client and restart.
-2. Rebuilding `lean-dag`
-
-If that does not help, follow along with the logs while reproducing the bug (and paste the output in a bug report):
-
-```bash
-tail -f ~/.cache/lean-tui/tui.log # TUI front-end (for debugging the Ratatui-side)
-tail -f ~/.cache/lean-tui/lean-dag.log # Lean RPC server (for debugging Lean-side)
-```
-
-Some editors also have debug logs for the LSP client. For Helix:
-
-```bash
-tail -f ~/.cache/helix/helix.log
-```
-
 ## Why?
 
 For the **VS Code users**: I don't like VS Code and vendor lock-in, but I like the LSP protocol. The LSP protocol allows programmers to pick whichever editor they like. This means programmers (and mathematicians) will never be stuck with any big company.
 
 For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
 
-For the **NVIM users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ..) since the Lean plugin relies on NeoVim specific features. It is not a generic one.
+For the **NeoVim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ..) since the Lean plugin relies on NeoVim specific features. It is not a generic one.
 
 The `lean-dag` LSP server and this front-end is my attempt at a more generic one, not bound to any editor in particular, and usable from any terminal window.
 

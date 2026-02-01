@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{layout::Rect, Frame};
 
 use super::Mode;
-use crate::tui::{
+use crate::{
     app::DefinitionInfo,
     protocol::{NodeId, ProofDag, ProofState},
     widgets::{

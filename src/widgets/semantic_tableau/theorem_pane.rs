@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use super::{ClickRegion, Selection};
-use crate::tui::widgets::theme::Theme;
+use crate::widgets::theme::Theme;
 
 /// State for the theorem pane.
 #[derive(Default)]

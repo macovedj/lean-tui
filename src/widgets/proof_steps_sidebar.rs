@@ -11,7 +11,7 @@ use ratatui::{
     },
 };
 
-use crate::tui::{
+use crate::{
     protocol::{NodeId, ProofDag, ProofDagNode},
     widgets::{theme::Theme, InteractiveStatefulWidget},
 };

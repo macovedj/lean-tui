@@ -8,7 +8,7 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use crate::tui::{
+use crate::{
     protocol::{HypothesisInfo, NodeId},
     widgets::{
         diff_text::{diff_style, DiffState, TaggedTextExt},

@@ -10,7 +10,7 @@ use ratatui::{
 use super::{
     diff_text::TaggedTextExt, hypothesis_indices, ClickRegion, HypothesisFilters, Selection,
 };
-use crate::tui::{
+use crate::{
     protocol::{NodeId, ProofState},
     widgets::theme::Theme,
 };

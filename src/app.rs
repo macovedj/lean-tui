@@ -14,7 +14,7 @@ use ratatui::{
     Frame,
 };
 
-use super::{
+use crate::{
     modes::{
         BeforeAfterModeInput, DeductionTreeModeInput, DisplayMode, PlainListInput, StepsModeInput,
     },

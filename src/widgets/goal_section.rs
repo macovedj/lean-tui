@@ -13,7 +13,7 @@ use ratatui::{
     },
 };
 
-use crate::tui::{
+use crate::{
     protocol::{GoalInfo, NodeId, ProofState},
     widgets::{
         diff_text::TaggedTextExt, layout_metrics::LayoutMetrics, theme::Theme, ClickRegion,

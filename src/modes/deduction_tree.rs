@@ -7,10 +7,10 @@ use ratatui::{
     widgets::Paragraph,
     Frame,
 };
-use tracing::debug;
+use tracing::trace;
 
 use super::Mode;
-use crate::tui::{
+use crate::{
     app::DefinitionInfo,
     protocol::{ProofDag, ProofState},
     widgets::{
@@ -134,7 +134,7 @@ impl SemanticTableau {
     fn move_in_direction(&mut self, direction: Direction) -> bool {
         // If nothing is selected, start at the active goal
         if self.selected_idx.is_none() {
-            debug!("No selection, starting at active goal");
+            trace!("No selection, starting at active goal");
             if let Some(sel) = self.active_goal_selection() {
                 self.select_by_selection(sel);
                 return true;
@@ -143,14 +143,14 @@ impl SemanticTableau {
 
         let current = self.current_tree_selection();
         let Some(current_sel) = current else {
-            debug!("No current selection found");
+            trace!("No current selection found");
             return false;
         };
 
         let navigation_regions = self.tableau_state.proof.navigation_regions();
         let items = self.tree_selectable_items();
 
-        debug!(
+        trace!(
             ?current_sel,
             ?direction,
             nav_regions = navigation_regions.len(),
@@ -159,11 +159,11 @@ impl SemanticTableau {
         );
 
         let result = find_nearest_in_direction(navigation_regions, current_sel, direction);
-        debug!(?result, "Navigation result in move_in_direction");
+        trace!(?result, "Navigation result in move_in_direction");
 
         result.is_some_and(|sel| {
             let found_in_items = items.contains(&sel);
-            debug!(?sel, found_in_items, "Attempting to select");
+            trace!(?sel, found_in_items, "Attempting to select");
             self.select_by_selection(sel);
             true
         })

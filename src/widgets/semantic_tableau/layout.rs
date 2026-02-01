@@ -12,7 +12,7 @@ use super::{
     theorem_pane::{TheoremPane, TheoremPaneState},
     Selection,
 };
-use crate::tui::protocol::{NodeId, ProofDag, ProofState};
+use crate::protocol::{NodeId, ProofDag, ProofState};
 
 /// Combined state for the semantic tableau layout.
 #[derive(Default)]

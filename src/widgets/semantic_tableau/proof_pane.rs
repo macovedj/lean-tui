@@ -14,7 +14,7 @@ use super::{
     tree_layout::{calculate_tree_layout, NodePosition, TreeLayout},
     ClickRegion, Selection,
 };
-use crate::tui::protocol::{NodeId, ProofDag, ProofState};
+use crate::protocol::{NodeId, ProofDag, ProofState};
 
 /// State for the proof pane widget.
 #[derive(Default)]
