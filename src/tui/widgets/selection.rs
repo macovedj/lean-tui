@@ -2,6 +2,8 @@
 
 use ratatui::layout::Rect;
 
+use crate::tui::protocol::NodeId;
+
 /// Unified selection type for all display modes.
 /// All selections reference data in `ProofDag`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,9 +11,9 @@ pub enum Selection {
     /// Initial hypothesis from theorem statement.
     InitialHyp { hyp_idx: usize },
     /// Hypothesis at a proof step (`node_id` indexes into `ProofDag`).
-    Hyp { node_id: u32, hyp_idx: usize },
+    Hyp { node_id: NodeId, hyp_idx: usize },
     /// Goal at a proof step.
-    Goal { node_id: u32, goal_idx: usize },
+    Goal { node_id: NodeId, goal_idx: usize },
     /// The theorem conclusion.
     Theorem,
 }

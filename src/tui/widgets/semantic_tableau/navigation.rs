@@ -5,7 +5,7 @@
 use tracing::debug;
 
 use super::{tree_layout::TreeLayout, Selection};
-use crate::lean_rpc::ProofDag;
+use crate::tui::protocol::ProofDag;
 
 /// Region for keyboard navigation - uses virtual coordinates (i32).
 #[derive(Debug, Clone, Copy)]
@@ -108,7 +108,7 @@ pub fn build_navigation_regions(dag: &ProofDag, layout: &TreeLayout) -> Vec<Navi
                 height: 1,
                 selection: Selection::Hyp {
                     node_id: pos.node_id,
-                    hyp_idx,
+                    hyp_idx: hyp_idx as usize,
                 },
             };
             debug!(

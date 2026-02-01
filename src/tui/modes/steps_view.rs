@@ -10,7 +10,7 @@ use ratatui::{
 
 use super::Mode;
 use crate::{
-    lean_rpc::{ProofDag, ProofDagNode, ProofState},
+    tui::protocol::{NodeId, ProofDag, ProofDagNode, ProofState},
     tui::{
         app::DefinitionInfo,
         widgets::{
@@ -44,7 +44,7 @@ pub struct TacticTree {
     error: Option<String>,
     proof_dag: Option<ProofDag>,
     /// Current node ID in the DAG (for building selections).
-    current_node_id: Option<u32>,
+    current_node_id: Option<NodeId>,
     hyp_section_state: HypSectionState,
     goal_section_state: GoalSectionState,
     sidebar_state: ProofStepsSidebarState,
@@ -291,14 +291,14 @@ impl InteractiveComponent for TacticTree {
                 node.state_after
                     .goals
                     .iter()
-                    .filter_map(|g| g.username.as_str().map(String::from))
+                    .filter_map(|g| g.username_str().map(String::from))
                     .collect()
             })
             .unwrap_or_default();
 
         let active_goal_name = current_node
             .and_then(|node| node.state_before.goals.first())
-            .and_then(|g| g.username.as_str().map(String::from));
+            .and_then(|g| g.username_str().map(String::from));
 
         // Render hypothesis section
         self.hyp_section_state.update(

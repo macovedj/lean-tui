@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use crate::{
-    lean_rpc::{ProofDag, ProofDagNode},
+    tui::protocol::{NodeId, ProofDag, ProofDagNode},
     tui::widgets::{theme::Theme, InteractiveStatefulWidget},
 };
 
@@ -34,7 +34,7 @@ pub struct ProofStepsSidebarState {
     /// Whether the user has taken manual control of scrolling.
     manual_scroll: bool,
     /// Previous current node ID, used to detect changes.
-    prev_current_node: Option<u32>,
+    prev_current_node: Option<NodeId>,
     /// Max content width (cached from last render).
     max_content_width: usize,
     /// Viewport width (cached from last render).
@@ -61,14 +61,15 @@ impl ProofStepsSidebarState {
                 .is_none_or(|parent| parent.children.last() == Some(&node.id));
 
             // Adjust active_levels to match current depth
-            update_active_levels(&mut active_levels, node.depth, is_last_child);
+            let depth = node.depth as usize;
+            update_active_levels(&mut active_levels, depth, is_last_child);
 
             // Build the tree prefix
-            let prefix = build_tree_prefix(&active_levels, node.depth, is_last_child);
+            let prefix = build_tree_prefix(&active_levels, depth, is_last_child);
             lines.push(step_line(node, &prefix, is_current));
 
             // For continuation lines, use the same prefix structure but with vertical lines
-            let cont_prefix = build_continuation_prefix(&active_levels, node.depth, is_last_child);
+            let cont_prefix = build_continuation_prefix(&active_levels, depth, is_last_child);
 
             if let Some(deps) = dependency_line(node, &cont_prefix) {
                 lines.push(deps);

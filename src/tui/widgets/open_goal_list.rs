@@ -11,14 +11,17 @@ use ratatui::{
 use super::{
     diff_text::TaggedTextExt, hypothesis_indices, ClickRegion, HypothesisFilters, Selection,
 };
-use crate::{lean_rpc::ProofState, tui::widgets::theme::Theme};
+use crate::tui::{
+    protocol::{NodeId, ProofState},
+    widgets::theme::Theme,
+};
 
 pub struct OpenGoalList<'a> {
     state: &'a ProofState,
     selection: Option<Selection>,
     filters: HypothesisFilters,
     /// Node ID for creating click region selections.
-    node_id: Option<u32>,
+    node_id: Option<NodeId>,
     /// Name of the goal the cursor's tactic is working on.
     active_goal_name: Option<&'a str>,
 }
@@ -40,7 +43,7 @@ impl<'a> OpenGoalList<'a> {
         state: &'a ProofState,
         selection: Option<Selection>,
         filters: HypothesisFilters,
-        node_id: Option<u32>,
+        node_id: Option<NodeId>,
         active_goal_name: Option<&'a str>,
     ) -> Self {
         Self {
@@ -171,7 +174,7 @@ impl StatefulWidget for OpenGoalList<'_> {
             let is_selected = matches!(self.selection, Some(Selection::Goal { goal_idx: sel_idx, .. }) if sel_idx == goal_idx);
             let is_active = self
                 .active_goal_name
-                .is_some_and(|name| g.username.as_str() == Some(name));
+                .is_some_and(|name| g.username_str() == Some(name));
 
             let style = if is_selected {
                 Style::new().bg(Theme::SELECTION_BG)
@@ -190,8 +193,7 @@ impl StatefulWidget for OpenGoalList<'_> {
 
             // Format: "⊢ type" or "case name ⊢ type"
             let prefix = g
-                .username
-                .as_str()
+                .username_str()
                 .map_or_else(|| "⊢ ".to_string(), |name| format!("case {name} ⊢ "));
             let mut spans = vec![Span::styled(prefix, style)];
             spans.extend(g.type_.to_spans(target_style));

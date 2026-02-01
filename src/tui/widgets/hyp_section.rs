@@ -14,7 +14,7 @@ use ratatui::{
 
 use super::hyp_layer::{HypLayer, HypLayerRenderContext};
 use crate::{
-    lean_rpc::ProofState,
+    tui::protocol::{NodeId, ProofState},
     tui::widgets::{
         layout_metrics::LayoutMetrics, theme::Theme, ClickRegion, HypothesisFilters, Selection,
     },
@@ -47,7 +47,7 @@ impl HypSectionState {
         filters: HypothesisFilters,
         depends_on: HashSet<String>,
         selection: Option<Selection>,
-        node_id: Option<u32>,
+        node_id: Option<NodeId>,
     ) {
         self.layer = HypLayer::new();
         self.layer.set_node_id(node_id);

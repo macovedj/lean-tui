@@ -11,7 +11,7 @@ use tracing::debug;
 
 use super::Mode;
 use crate::{
-    lean_rpc::{ProofDag, ProofState},
+    tui::protocol::{ProofDag, ProofState},
     tui::{
         app::DefinitionInfo,
         widgets::{
@@ -80,7 +80,8 @@ impl SemanticTableau {
         let mut items = Vec::new();
 
         // Initial hypotheses from the initial_state
-        for (idx, h) in dag.initial_state.hypotheses.iter().enumerate() {
+        let initial = dag.initial_state();
+        for (idx, h) in initial.hypotheses.iter().enumerate() {
             if !h.is_proof {
                 items.push(Selection::InitialHyp { hyp_idx: idx });
             }
@@ -92,7 +93,10 @@ impl SemanticTableau {
 
             // New hypotheses introduced by this step
             for &hyp_idx in &node.new_hypotheses {
-                items.push(Selection::Hyp { node_id, hyp_idx });
+                items.push(Selection::Hyp {
+                    node_id,
+                    hyp_idx: hyp_idx as usize,
+                });
             }
 
             // Goals after this step

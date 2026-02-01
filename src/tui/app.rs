@@ -2,7 +2,6 @@
 
 use std::{io::stdout, mem};
 
-use async_lsp::lsp_types::Url;
 use crossterm::{
     clipboard::CopyToClipboard,
     event::{Event, KeyCode, KeyEventKind},
@@ -19,16 +18,13 @@ use super::{
     modes::{
         BeforeAfterModeInput, DeductionTreeModeInput, DisplayMode, PlainListInput, StepsModeInput,
     },
-    widgets::{welcome::WelcomeScreen, KeyMouseEvent, Selection},
-};
-use crate::{
-    lean_rpc::{ProofDag, ProofState},
-    tui::widgets::{
+    protocol::{tcp_address, Command, CursorInfo, Message, Position, ProofDag, ProofState},
+    widgets::{
         help_menu::{HelpMenu, HelpMenuWidget},
         status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
-        InteractiveStatefulWidget,
+        welcome::WelcomeScreen,
+        InteractiveStatefulWidget, KeyMouseEvent, Selection,
     },
-    tui_ipc::{socket_path, Command, CursorInfo, Message, Position, ServerMode},
 };
 
 /// Information about the enclosing definition (theorem, lemma, def, etc.)
@@ -51,7 +47,7 @@ pub struct App {
     pub definition: Option<DefinitionInfo>,
     /// Current error message.
     pub error: Option<String>,
-    /// Whether connected to proxy.
+    /// Whether connected to lean-dag server.
     pub connected: bool,
     /// Whether app should exit.
     pub should_exit: bool,
@@ -61,8 +57,6 @@ pub struct App {
     display_mode: DisplayMode,
     /// Unified proof DAG - single source of truth for all display modes.
     proof_dag: Option<ProofDag>,
-    /// Server mode (Library or Standalone).
-    server_mode: Option<ServerMode>,
     /// Status bar component.
     status_bar: StatusBar,
     /// Help menu overlay.
@@ -89,7 +83,7 @@ impl App {
             .map(|node| node.position)
     }
 
-    /// Queue a command to be sent to the proxy.
+    /// Queue a command to be sent to the server.
     pub fn queue_command(&mut self, cmd: Command) {
         self.outgoing_commands.push(cmd);
     }
@@ -99,15 +93,22 @@ impl App {
         mem::take(&mut self.outgoing_commands)
     }
 
-    /// Handle incoming message from proxy.
+    /// Handle incoming message from lean-dag server.
     pub fn handle_message(&mut self, msg: Message) {
         match msg {
-            Message::Connected { server_mode } => {
+            Message::Connected { .. } => {
                 self.connected = true;
-                self.server_mode = server_mode;
             }
-            Message::Cursor(cursor) => {
-                self.cursor = Some(cursor);
+            Message::Cursor {
+                uri,
+                position,
+                method,
+            } => {
+                self.cursor = Some(CursorInfo {
+                    method,
+                    position,
+                    uri,
+                });
                 self.connected = true;
                 self.error = None;
             }
@@ -116,7 +117,6 @@ impl App {
                 position: _,
                 proof_dag,
             } => {
-                // Extract definition name from the ProofDag
                 let definition_name = proof_dag
                     .as_ref()
                     .and_then(|dag| dag.definition_name.clone());
@@ -148,8 +148,6 @@ impl App {
     }
 
     /// Navigate to where the selected item was introduced.
-    /// - Hypotheses: go to binder location (where variable was bound)
-    /// - Goals: go to tactic position (where goal was created)
     pub fn navigate_to_selection(&mut self, selection: Option<Selection>) {
         let Some(cursor) = &self.cursor else {
             return;
@@ -159,26 +157,25 @@ impl App {
         let fallback_pos = self.goals_position().unwrap_or(cursor.position);
 
         // Resolve `goto` location based on selection type
-        let goto_location: Option<(Url, Position)> = selection.and_then(|sel| match sel {
-            // Hypotheses: use binder location from goto_locations
+        let goto_location: Option<(String, Position)> = selection.and_then(|sel| match sel {
             Selection::InitialHyp { hyp_idx } => dag
-                .and_then(|d| d.initial_state.hypotheses.get(hyp_idx))
-                .and_then(|h| h.goto_locations.definition.as_ref())
-                .map(|loc| (loc.uri.clone(), loc.position)),
+                .and_then(|d| d.initial_state.as_ref())
+                .and_then(|s| s.hypotheses.get(hyp_idx))
+                .and_then(|h| h.goto_locations().definition)
+                .map(|loc| (loc.uri, loc.position)),
             Selection::Hyp { node_id, hyp_idx } => dag
                 .and_then(|d| d.get(node_id))
                 .and_then(|node| node.state_after.hypotheses.get(hyp_idx))
-                .and_then(|h| h.goto_locations.definition.as_ref())
-                .map(|loc| (loc.uri.clone(), loc.position)),
-            // Goals: use node's tactic position
+                .and_then(|h| h.goto_locations().definition)
+                .map(|loc| (loc.uri, loc.position)),
             Selection::Goal { node_id, .. } => dag
                 .and_then(|d| d.get(node_id))
                 .map(|node| (cursor.uri.clone(), node.position)),
-            // Theorem: fallback to cursor position
             Selection::Theorem => None,
         });
 
-        let (uri, position) = goto_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
+        let (uri, position) =
+            goto_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
         self.queue_command(Command::Navigate { uri, position });
     }
 
@@ -188,7 +185,7 @@ impl App {
 
         match selection? {
             Selection::InitialHyp { hyp_idx } => dag
-                .initial_state
+                .initial_state()
                 .hypotheses
                 .get(hyp_idx)
                 .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
@@ -201,7 +198,7 @@ impl App {
                 .and_then(|node| node.state_after.goals.get(goal_idx))
                 .map(|g| g.type_.to_plain_text()),
             Selection::Theorem => dag
-                .initial_state
+                .initial_state()
                 .goals
                 .first()
                 .map(|g| g.type_.to_plain_text()),
@@ -321,7 +318,7 @@ impl App {
 
         if !self.connected {
             frame.render_widget(
-                Paragraph::new(format!("Connecting to {}...", socket_path().display())),
+                Paragraph::new(format!("Connecting to {}...", tcp_address())),
                 inner,
             );
             return;
@@ -355,10 +352,10 @@ impl App {
     }
 
     fn build_backend_display(&self) -> String {
-        match self.server_mode {
-            Some(mode) => format!(" {} ", mode.display_name()),
-            None if self.proof_dag.is_some() => " Server ".to_string(),
-            None => String::new(),
+        if self.proof_dag.is_some() {
+            " lean-dag ".to_string()
+        } else {
+            String::new()
         }
     }
 

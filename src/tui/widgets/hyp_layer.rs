@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::{
-    lean_rpc::HypothesisInfo,
+    tui::protocol::{HypothesisInfo, NodeId},
     tui::widgets::{
         diff_text::{diff_style, DiffState, TaggedTextExt},
         ClickRegion, Selection,
@@ -28,7 +28,7 @@ pub struct HypLayerRenderContext<'a> {
 #[derive(Debug, Clone)]
 pub struct HypLayer {
     /// Node ID for creating selections (from DAG).
-    node_id: Option<u32>,
+    node_id: Option<NodeId>,
     pub hypotheses: Vec<(usize, HypothesisInfo)>, // (hyp_idx, hyp)
 }
 
@@ -40,7 +40,7 @@ impl HypLayer {
         }
     }
 
-    pub const fn set_node_id(&mut self, node_id: Option<u32>) {
+    pub const fn set_node_id(&mut self, node_id: Option<NodeId>) {
         self.node_id = node_id;
     }
 
@@ -81,7 +81,7 @@ impl HypLayer {
     fn track_click_regions(
         &self,
         click_regions: &mut Vec<ClickRegion>,
-        node_id: u32,
+        node_id: NodeId,
         ctx: &HypLayerRenderContext<'_>,
     ) {
         for (i, (hyp_idx, _)) in self.hypotheses.iter().enumerate() {
