@@ -281,7 +281,13 @@ impl InteractiveComponent for TacticTree {
         let current_node = self.current_node();
 
         let depends_on: HashSet<String> = current_node
-            .map(|node| node.tactic.hypothesis_dependencies.iter().cloned().collect())
+            .map(|node| {
+                node.tactic
+                    .hypothesis_dependencies
+                    .iter()
+                    .cloned()
+                    .collect()
+            })
             .unwrap_or_default();
 
         let spawned_goal_ids: HashSet<String> = current_node

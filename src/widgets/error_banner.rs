@@ -18,7 +18,8 @@ impl<'a> ErrorBanner<'a> {
         Self { message }
     }
 
-    /// Calculate the height needed to display the error message within the given width.
+    /// Calculate the height needed to display the error message within the
+    /// given width.
     pub fn required_height(&self, width: u16) -> u16 {
         if self.message.is_empty() || width == 0 {
             return 0;
@@ -54,15 +55,10 @@ impl Widget for ErrorBanner<'_> {
             .border_style(Style::new().fg(Color::Red))
             .title(Span::styled(
                 " Error ",
-                Style::new()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
+                Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
             ));
 
-        let text = Line::from(Span::styled(
-            self.message,
-            Style::new().fg(Color::Red),
-        ));
+        let text = Line::from(Span::styled(self.message, Style::new().fg(Color::Red)));
 
         Paragraph::new(text)
             .block(block)

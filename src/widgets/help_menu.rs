@@ -78,7 +78,10 @@ impl StatefulWidget for HelpMenuWidget {
             })
             .collect();
 
-        lines.push(Line::from(Span::styled("──────────────────────────", dim_style)));
+        lines.push(Line::from(Span::styled(
+            "──────────────────────────",
+            dim_style,
+        )));
         lines.extend(legend_lines);
 
         let width = 28u16;

@@ -157,7 +157,11 @@ impl<'a> StateNode<'a> {
     }
 
     /// Append goal spans from override state.
-    fn append_goal_spans_from_state(&self, spans: &mut Vec<Span<'static>>, state: &TacticProofState) {
+    fn append_goal_spans_from_state(
+        &self,
+        spans: &mut Vec<Span<'static>>,
+        state: &TacticProofState,
+    ) {
         for (goal_idx, g) in state.goals.iter().enumerate() {
             if goal_idx > 0 {
                 spans.push(Span::styled(" │ ", Style::new().fg(Color::DarkGray)));

@@ -69,7 +69,8 @@ impl PlainList {
         if self.filters.hide_instances && h.is_typeclass_instance {
             return false;
         }
-        // Note: hide_inaccessible checks name prefix, is_proof_term maps to that heuristic
+        // Note: hide_inaccessible checks name prefix, is_proof_term maps to that
+        // heuristic
         if self.filters.hide_inaccessible && h.is_proof_term {
             return false;
         }
