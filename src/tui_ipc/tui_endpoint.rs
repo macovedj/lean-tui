@@ -1,24 +1,23 @@
-
 use std::{io, time::Duration};
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{unix::OwnedWriteHalf, UnixStream},
+    net::{tcp::OwnedWriteHalf, TcpStream},
     sync::mpsc,
     time::sleep,
 };
 
-use super::protocol::{socket_path, Command, Message};
+use super::protocol::{tcp_address, Command, Message};
 
-/// Handle for communicating with the proxy.
+/// Handle for communicating with lean-dag TCP server.
 pub struct TuiIpcSocketEndpoint {
-    /// Receiver for incoming messages from proxy.
+    /// Receiver for incoming messages from lean-dag.
     pub rx: mpsc::Receiver<Message>,
-    /// Sender for outgoing commands to proxy.
+    /// Sender for outgoing commands to lean-dag.
     pub tx: mpsc::Sender<Command>,
 }
 
-/// Spawn a background task that connects to the UNIX socket.
+/// Spawn a background task that connects to the lean-dag TCP server.
 pub fn spawn_socket_handler() -> TuiIpcSocketEndpoint {
     let (msg_tx, msg_rx) = mpsc::channel::<Message>(16);
     let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(16);
@@ -32,13 +31,16 @@ pub fn spawn_socket_handler() -> TuiIpcSocketEndpoint {
 }
 
 async fn connection_loop(msg_tx: mpsc::Sender<Message>, mut cmd_rx: mpsc::Receiver<Command>) {
-    let path = socket_path();
+    let addr = tcp_address();
     loop {
-        match UnixStream::connect(&path).await {
+        match TcpStream::connect(&addr).await {
             Ok(stream) => {
+                tracing::info!("Connected to lean-dag at {addr}");
                 handle_connection(stream, &msg_tx, &mut cmd_rx).await;
+                tracing::info!("Disconnected from lean-dag");
             }
-            Err(_) => {
+            Err(e) => {
+                tracing::debug!("Failed to connect to lean-dag at {addr}: {e}");
                 // Retry connection after delay
                 sleep(Duration::from_secs(1)).await;
             }
@@ -47,7 +49,7 @@ async fn connection_loop(msg_tx: mpsc::Sender<Message>, mut cmd_rx: mpsc::Receiv
 }
 
 async fn handle_connection(
-    stream: UnixStream,
+    stream: TcpStream,
     msg_tx: &mpsc::Sender<Message>,
     cmd_rx: &mut mpsc::Receiver<Command>,
 ) {
