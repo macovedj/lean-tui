@@ -5,17 +5,15 @@
 use tracing::trace;
 
 use super::{tree_layout::TreeLayout, Selection};
-use crate::protocol::CompleteProofDag;
+use crate::protocol::{CompleteProofDag, ProofDagTacticNode};
 
 /// Region for keyboard navigation - uses virtual coordinates (i32).
 #[derive(Debug, Clone, Copy)]
 pub struct NavigationRegion {
-    /// Virtual canvas position - can be negative or outside viewport.
     pub x: i32,
     pub y: i32,
     pub width: u16,
     pub height: u16,
-    /// The selectable item at this position.
     pub selection: Selection,
 }
 
@@ -30,7 +28,7 @@ pub enum Direction {
 
 impl Direction {
     /// Check if `other` is ahead of `cur` in this direction.
-    pub fn is_ahead(self, cur: &NavigationRegion, other: &NavigationRegion) -> bool {
+    fn is_ahead(self, cur: &NavigationRegion, other: &NavigationRegion) -> bool {
         match self {
             Self::Left => other.x + i32::from(other.width) <= cur.x,
             Self::Right => other.x >= cur.x + i32::from(cur.width),
@@ -40,7 +38,7 @@ impl Direction {
     }
 
     /// Calculate distance from `cur` to `other` in this direction.
-    pub fn distance(self, cur: &NavigationRegion, other: &NavigationRegion) -> i32 {
+    fn distance(self, cur: &NavigationRegion, other: &NavigationRegion) -> i32 {
         match self {
             Self::Left => (cur.x - (other.x + i32::from(other.width))).max(0),
             Self::Right => (other.x - (cur.x + i32::from(cur.width))).max(0),
@@ -50,7 +48,7 @@ impl Direction {
     }
 
     /// Whether this is a horizontal direction.
-    pub const fn is_horizontal(self) -> bool {
+    const fn is_horizontal(self) -> bool {
         matches!(self, Self::Left | Self::Right)
     }
 }
@@ -63,75 +61,84 @@ fn ranges_overlap(a_start: i32, a_len: u16, b_start: i32, b_len: u16) -> bool {
 }
 
 /// Build navigation regions for tree nodes only.
-///
-/// These regions use virtual coordinates and are used for keyboard navigation,
-/// allowing navigation to items outside the current viewport.
-///
-/// Given bar hypotheses and Theorem are excluded from keyboard navigation
-/// (they remain mouse-clickable) to avoid coordinate system complexity
-/// between screen coordinates (Given/Theorem) and virtual coordinates (tree
-/// nodes).
-pub fn build_navigation_regions(dag: &CompleteProofDag, layout: &TreeLayout) -> Vec<NavigationRegion> {
-    let mut regions = Vec::new();
-
+pub fn build_navigation_regions(
+    dag: &CompleteProofDag,
+    layout: &TreeLayout,
+) -> Vec<NavigationRegion> {
     trace!(
         node_count = layout.nodes.len(),
         "Building navigation regions"
     );
 
-    // Only node goals and hypotheses - use virtual coordinates from layout
-    for pos in &layout.nodes {
-        let Some(node) = dag.get(pos.node_id) else {
-            continue;
-        };
+    let regions: Vec<_> = layout
+        .nodes
+        .iter()
+        .filter_map(|pos| dag.get(pos.node_id).map(|node| (pos, node)))
+        .flat_map(|(pos, node)| {
+            trace!(
+                node_id = pos.node_id,
+                x = pos.x,
+                y = pos.y,
+                "Processing node"
+            );
 
-        trace!(
-            node_id = pos.node_id,
-            x = pos.x,
-            y = pos.y,
-            w = pos.width,
-            h = pos.height,
-            new_hyps = node.new_hypothesis_indices.len(),
-            goals = node.proof_state_after.goals.len(),
-            "Processing node for navigation"
-        );
+            let hypothesis_regions = build_hypothesis_regions(pos, node);
+            let goal_regions = build_goal_regions(pos, node);
 
-        // New hypotheses in this node
-        for (i, &hyp_idx) in node.new_hypothesis_indices.iter().enumerate() {
-            let hyp_width = 15u16;
-            let hyp_offset = (i as i32) * (i32::from(hyp_width) + 1);
-            let region = NavigationRegion {
+            hypothesis_regions.into_iter().chain(goal_regions)
+        })
+        .collect();
+
+    trace!(total_regions = regions.len(), "Navigation regions built");
+    regions
+}
+
+/// Build navigation regions for hypotheses in a node.
+fn build_hypothesis_regions(
+    pos: &super::tree_layout::NodePosition,
+    node: &ProofDagTacticNode,
+) -> Vec<NavigationRegion> {
+    const HYP_WIDTH: u16 = 15;
+
+    node.new_hypothesis_indices
+        .iter()
+        .enumerate()
+        .map(|(i, &hyp_idx)| {
+            let hyp_offset = (i as i32) * (i32::from(HYP_WIDTH) + 1);
+            NavigationRegion {
                 x: pos.x + hyp_offset,
                 y: pos.y,
-                width: hyp_width,
+                width: HYP_WIDTH,
                 height: 1,
                 selection: Selection::Hyp {
                     node_id: pos.node_id,
                     hyp_idx: hyp_idx as usize,
                 },
-            };
-            trace!(
-                i,
-                hyp_idx,
-                x = region.x,
-                y = region.y,
-                "Adding hypothesis navigation region"
-            );
-            regions.push(region);
-        }
+            }
+        })
+        .collect()
+}
 
-        // Goals in this node - offset each goal horizontally for navigation
-        let goal_count = node.proof_state_after.goals.len();
-        let goal_width = if goal_count > 1 {
-            // Divide available width among goals
-            (pos.width.saturating_sub(2) / goal_count as u16).max(15)
-        } else {
-            pos.width.saturating_sub(2)
-        };
+/// Build navigation regions for goals in a node.
+fn build_goal_regions(
+    pos: &super::tree_layout::NodePosition,
+    node: &ProofDagTacticNode,
+) -> Vec<NavigationRegion> {
+    let goal_count = node.proof_state_after.goals.len();
+    if goal_count == 0 {
+        return Vec::new();
+    }
 
-        for (i, _) in node.proof_state_after.goals.iter().enumerate() {
+    let goal_width = if goal_count > 1 {
+        (pos.width.saturating_sub(2) / goal_count as u16).max(15)
+    } else {
+        pos.width.saturating_sub(2)
+    };
+
+    (0..goal_count)
+        .map(|i| {
             let goal_offset = (i as i32) * (i32::from(goal_width) + 1);
-            let region = NavigationRegion {
+            NavigationRegion {
                 x: pos.x + 1 + goal_offset,
                 y: pos.y + i32::from(pos.height.saturating_sub(2)),
                 width: goal_width,
@@ -140,305 +147,201 @@ pub fn build_navigation_regions(dag: &CompleteProofDag, layout: &TreeLayout) -> 
                     node_id: pos.node_id,
                     goal_idx: i,
                 },
-            };
-            trace!(
-                goal_idx = i,
-                x = region.x,
-                y = region.y,
-                "Adding goal navigation region"
-            );
-            regions.push(region);
-        }
-    }
-
-    trace!(total_regions = regions.len(), "Navigation regions built");
-    regions
+            }
+        })
+        .collect()
 }
 
-/// Find the nearest selectable item in the given direction using grid-based
-/// navigation.
+/// Find the nearest selectable item in the given direction.
 pub fn find_nearest_in_direction(
     regions: &[NavigationRegion],
     current: Selection,
     direction: Direction,
 ) -> Option<Selection> {
-    trace!(
-        ?current,
-        ?direction,
-        regions_count = regions.len(),
-        "Navigation request"
-    );
+    trace!(?current, ?direction, "Navigation request");
 
-    let Some(cur) = regions.iter().find(|r| r.selection == current) else {
-        trace!("Current selection not found in navigation regions");
-        return None;
+    let cur = regions.iter().find(|r| r.selection == current)?;
+
+    trace!(x = cur.x, y = cur.y, "Found current region");
+
+    let is_aligned = |r: &NavigationRegion| {
+        let overlaps = if direction.is_horizontal() {
+            ranges_overlap(cur.y, cur.height, r.y, r.height)
+        } else {
+            ranges_overlap(cur.x, cur.width, r.x, r.width)
+        };
+        overlaps && direction.is_ahead(cur, r)
     };
 
-    trace!(
-        x = cur.x,
-        y = cur.y,
-        w = cur.width,
-        h = cur.height,
-        "Found current region"
-    );
-
-    // Grid-aligned search: only items that overlap on the perpendicular axis
-    let aligned: Vec<_> = regions
+    regions
         .iter()
-        .filter(|r| {
-            let overlaps = if direction.is_horizontal() {
-                ranges_overlap(cur.y, cur.height, r.y, r.height)
-            } else {
-                ranges_overlap(cur.x, cur.width, r.x, r.width)
-            };
-            overlaps && direction.is_ahead(cur, r)
-        })
-        .collect();
-
-    trace!(aligned_count = aligned.len(), "Aligned candidates");
-    for (i, r) in aligned.iter().enumerate() {
-        trace!(
-            i,
-            x = r.x,
-            y = r.y,
-            dist = direction.distance(cur, r),
-            ?r.selection,
-            "Aligned candidate"
-        );
-    }
-
-    let result = aligned
-        .into_iter()
+        .filter(|r| is_aligned(r))
         .min_by_key(|r| direction.distance(cur, r))
-        .map(|r| r.selection);
-
-    trace!(?result, "Navigation result");
-    result
+        .map(|r| r.selection)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Test navigation between sibling hypotheses in the same node.
+    fn hyp_region(node_id: i64, hyp_idx: usize, x: i32, y: i32) -> NavigationRegion {
+        NavigationRegion {
+            x,
+            y,
+            width: 15,
+            height: 1,
+            selection: Selection::Hyp { node_id, hyp_idx },
+        }
+    }
+
+    fn goal_region(node_id: i64, goal_idx: usize, x: i32, y: i32, width: u16) -> NavigationRegion {
+        NavigationRegion {
+            x,
+            y,
+            width,
+            height: 1,
+            selection: Selection::Goal { node_id, goal_idx },
+        }
+    }
+
     #[test]
     fn test_sibling_hypothesis_navigation() {
-        // Simulate two hypotheses in the same node at the same y position
         let regions = vec![
-            NavigationRegion {
-                x: 0,
-                y: 10,
-                width: 15,
-                height: 1,
-                selection: Selection::Hyp {
-                    node_id: 1,
-                    hyp_idx: 0,
-                },
-            },
-            NavigationRegion {
-                x: 16,
-                y: 10,
-                width: 15,
-                height: 1,
-                selection: Selection::Hyp {
-                    node_id: 1,
-                    hyp_idx: 1,
-                },
-            },
-            // Goal below the hypotheses
-            NavigationRegion {
-                x: 1,
-                y: 12,
-                width: 30,
-                height: 1,
-                selection: Selection::Goal {
-                    node_id: 1,
-                    goal_idx: 0,
-                },
-            },
+            hyp_region(1, 0, 0, 10),
+            hyp_region(1, 1, 16, 10),
+            goal_region(1, 0, 1, 12, 30),
         ];
 
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Hyp {
-                node_id: 1,
-                hyp_idx: 0,
-            },
-            Direction::Right,
-        );
         assert_eq!(
-            result,
+            find_nearest_in_direction(
+                &regions,
+                Selection::Hyp {
+                    node_id: 1,
+                    hyp_idx: 0
+                },
+                Direction::Right
+            ),
             Some(Selection::Hyp {
                 node_id: 1,
                 hyp_idx: 1
-            }),
-            "Right from first hyp should go to second hyp"
+            })
         );
 
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Hyp {
-                node_id: 1,
-                hyp_idx: 1,
-            },
-            Direction::Left,
-        );
         assert_eq!(
-            result,
+            find_nearest_in_direction(
+                &regions,
+                Selection::Hyp {
+                    node_id: 1,
+                    hyp_idx: 1
+                },
+                Direction::Left
+            ),
             Some(Selection::Hyp {
                 node_id: 1,
                 hyp_idx: 0
-            }),
-            "Left from second hyp should go to first hyp"
+            })
         );
 
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Hyp {
-                node_id: 1,
-                hyp_idx: 0,
-            },
-            Direction::Down,
-        );
         assert_eq!(
-            result,
+            find_nearest_in_direction(
+                &regions,
+                Selection::Hyp {
+                    node_id: 1,
+                    hyp_idx: 0
+                },
+                Direction::Down
+            ),
             Some(Selection::Goal {
                 node_id: 1,
                 goal_idx: 0
-            }),
-            "Down from hyp should go to goal"
+            })
         );
 
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Goal {
-                node_id: 1,
-                goal_idx: 0,
-            },
-            Direction::Up,
-        );
-        assert!(
-            matches!(
-                result,
-                Some(Selection::Hyp {
+        assert!(matches!(
+            find_nearest_in_direction(
+                &regions,
+                Selection::Goal {
                     node_id: 1,
-                    hyp_idx: 0 | 1
-                })
+                    goal_idx: 0
+                },
+                Direction::Up
             ),
-            "Up from goal should go to a hypothesis"
-        );
+            Some(Selection::Hyp {
+                node_id: 1,
+                hyp_idx: 0 | 1
+            })
+        ));
     }
 
-    /// Test that navigation returns None when no target exists in direction.
     #[test]
     fn test_navigation_no_target() {
-        let regions = vec![NavigationRegion {
-            x: 0,
-            y: 10,
-            width: 15,
-            height: 1,
-            selection: Selection::Hyp {
-                node_id: 1,
-                hyp_idx: 0,
-            },
-        }];
+        let regions = vec![hyp_region(1, 0, 0, 10)];
 
-        // No target to the right
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Hyp {
-                node_id: 1,
-                hyp_idx: 0,
-            },
-            Direction::Right,
+        assert_eq!(
+            find_nearest_in_direction(
+                &regions,
+                Selection::Hyp {
+                    node_id: 1,
+                    hyp_idx: 0
+                },
+                Direction::Right
+            ),
+            None
         );
-        assert_eq!(result, None, "No target to the right");
 
-        // No target to the left
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Hyp {
-                node_id: 1,
-                hyp_idx: 0,
-            },
-            Direction::Left,
+        assert_eq!(
+            find_nearest_in_direction(
+                &regions,
+                Selection::Hyp {
+                    node_id: 1,
+                    hyp_idx: 0
+                },
+                Direction::Left
+            ),
+            None
         );
-        assert_eq!(result, None, "No target to the left");
     }
 
     #[test]
     fn test_ranges_overlap() {
-        // Same position
         assert!(ranges_overlap(10, 1, 10, 1));
-        // Adjacent (no overlap)
         assert!(!ranges_overlap(10, 1, 11, 1));
-        // Overlapping
         assert!(ranges_overlap(10, 5, 12, 5));
-        // One contains the other
         assert!(ranges_overlap(10, 10, 12, 2));
     }
 
-    /// Test navigation between multiple goals in the same node.
     #[test]
     fn test_sibling_goals_navigation() {
-        // Simulate two goals in the same node at the same y position but different x
-        let regions = vec![
-            NavigationRegion {
-                x: 1,
-                y: 5,
-                width: 24,
-                height: 1,
-                selection: Selection::Goal {
-                    node_id: 1,
-                    goal_idx: 0,
-                },
-            },
-            NavigationRegion {
-                x: 26,
-                y: 5,
-                width: 24,
-                height: 1,
-                selection: Selection::Goal {
-                    node_id: 1,
-                    goal_idx: 1,
-                },
-            },
-        ];
+        let regions = vec![goal_region(1, 0, 1, 5, 24), goal_region(1, 1, 26, 5, 24)];
 
-        // From goal 0, pressing Right should go to goal 1
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Goal {
-                node_id: 1,
-                goal_idx: 0,
-            },
-            Direction::Right,
-        );
         assert_eq!(
-            result,
+            find_nearest_in_direction(
+                &regions,
+                Selection::Goal {
+                    node_id: 1,
+                    goal_idx: 0
+                },
+                Direction::Right
+            ),
             Some(Selection::Goal {
                 node_id: 1,
                 goal_idx: 1
-            }),
-            "Right from first goal should go to second goal"
+            })
         );
 
-        // From goal 1, pressing Left should go to goal 0
-        let result = find_nearest_in_direction(
-            &regions,
-            Selection::Goal {
-                node_id: 1,
-                goal_idx: 1,
-            },
-            Direction::Left,
-        );
         assert_eq!(
-            result,
+            find_nearest_in_direction(
+                &regions,
+                Selection::Goal {
+                    node_id: 1,
+                    goal_idx: 1
+                },
+                Direction::Left
+            ),
             Some(Selection::Goal {
                 node_id: 1,
                 goal_idx: 0
-            }),
-            "Left from second goal should go to first goal"
+            })
         );
     }
 }

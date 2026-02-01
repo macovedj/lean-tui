@@ -40,7 +40,10 @@ pub struct GivenPane<'a> {
 }
 
 impl<'a> GivenPane<'a> {
-    pub const fn new(hypotheses: &'a [ProofContextHypothesis], selection: Option<Selection>) -> Self {
+    pub const fn new(
+        hypotheses: &'a [ProofContextHypothesis],
+        selection: Option<Selection>,
+    ) -> Self {
         Self {
             hypotheses,
             selection,

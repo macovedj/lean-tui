@@ -45,7 +45,8 @@ pub struct SemanticTableauLayout<'a> {
     dag: &'a CompleteProofDag,
     top_down: bool,
     selection: Option<Selection>,
-    /// Current proof state from LSP (may differ from node's `proof_state_after`).
+    /// Current proof state from LSP (may differ from node's
+    /// `proof_state_after`).
     current_state: &'a TacticProofState,
 }
 

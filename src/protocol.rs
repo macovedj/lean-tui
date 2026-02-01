@@ -139,7 +139,8 @@ impl EditorCursorPosition {
     }
 }
 
-// LineCharacterPosition's generated derive doesn't include Default, so implement manually
+// LineCharacterPosition's generated derive doesn't include Default, so
+// implement manually
 #[allow(clippy::derivable_impls)]
 impl Default for LineCharacterPosition {
     fn default() -> Self {
