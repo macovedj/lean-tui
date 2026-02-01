@@ -3,8 +3,6 @@
 //! Types are generated at build time from `protocol-schema.json`.
 //! This module re-exports them and adds helper methods.
 
-use std::env;
-
 // Include generated types (suppress lints for generated code)
 #[allow(
     clippy::absolute_paths,
@@ -20,18 +18,6 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/protocol_types.rs"));
 }
 pub use generated::*;
-
-/// Default TCP port for lean-dag connection.
-pub const DEFAULT_TCP_PORT: u16 = 9742;
-
-/// Returns the TCP address for connecting to lean-dag.
-pub fn tcp_address() -> String {
-    let port = env::var("LEAN_DAG_TCP_PORT")
-        .ok()
-        .and_then(|s| s.parse::<u16>().ok())
-        .unwrap_or(DEFAULT_TCP_PORT);
-    format!("127.0.0.1:{port}")
-}
 
 /// Type alias for node IDs.
 pub type NodeId = i64;

@@ -1,107 +1,94 @@
 //! TCP connection to lean-dag server.
 
-use std::{io, time::Duration};
+use std::io;
 
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{tcp::OwnedWriteHalf, TcpStream},
-    sync::mpsc,
-    time::sleep,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
 };
 
-use super::protocol::{tcp_address, Command, Message};
+use super::protocol::{Command, Message};
 
-/// Handle for communicating with lean-dag TCP server.
-pub struct Connection {
-    /// Receiver for incoming messages from lean-dag.
-    pub rx: mpsc::Receiver<Message>,
-    /// Sender for outgoing commands to lean-dag.
-    pub tx: mpsc::Sender<Command>,
+/// TCP connection state machine.
+pub enum Connection {
+    Disconnected,
+    Connected {
+        reader: Lines<BufReader<OwnedReadHalf>>,
+        writer: OwnedWriteHalf,
+    },
 }
 
-/// Spawn a background task that connects to the lean-dag TCP server.
-pub fn spawn() -> Connection {
-    let (msg_tx, msg_rx) = mpsc::channel::<Message>(16);
-    let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(16);
-
-    tokio::spawn(connection_loop(msg_tx, cmd_rx));
-
-    Connection {
-        rx: msg_rx,
-        tx: cmd_tx,
-    }
-}
-
-async fn connection_loop(msg_tx: mpsc::Sender<Message>, mut cmd_rx: mpsc::Receiver<Command>) {
-    let addr = tcp_address();
-    loop {
+impl Connection {
+    /// Try to connect to lean-dag server.
+    pub async fn connect(port: u16) -> Self {
+        let addr = format!("127.0.0.1:{port}");
         match TcpStream::connect(&addr).await {
             Ok(stream) => {
                 tracing::info!("Connected to lean-dag at {addr}");
-                handle_connection(stream, &msg_tx, &mut cmd_rx).await;
-                tracing::info!("Disconnected from lean-dag");
+                let (reader, writer) = stream.into_split();
+                let reader = BufReader::new(reader).lines();
+                Self::Connected { reader, writer }
             }
             Err(e) => {
                 tracing::debug!("Failed to connect to lean-dag at {addr}: {e}");
-                sleep(Duration::from_secs(1)).await;
+                Self::Disconnected
             }
         }
     }
-}
 
-async fn handle_connection(
-    stream: TcpStream,
-    msg_tx: &mpsc::Sender<Message>,
-    cmd_rx: &mut mpsc::Receiver<Command>,
-) {
-    let (reader, mut writer) = stream.into_split();
-    let reader = BufReader::new(reader);
-    let mut lines = reader.lines();
-
-    loop {
-        tokio::select! {
-            line_result = lines.next_line() => {
-                match handle_incoming_line(line_result, msg_tx).await {
-                    Ok(true) => {}
-                    Ok(false) | Err(()) => break,
-                }
-            }
-            Some(cmd) = cmd_rx.recv() => {
-                if send_command(&mut writer, &cmd).await.is_err() {
-                    break;
-                }
-            }
-        }
+    /// Check if connected.
+    pub const fn is_connected(&self) -> bool {
+        matches!(self, Self::Connected { .. })
     }
-}
 
-async fn handle_incoming_line(
-    line_result: Result<Option<String>, io::Error>,
-    msg_tx: &mpsc::Sender<Message>,
-) -> Result<bool, ()> {
-    match line_result {
-        Ok(Some(line)) => {
-            match serde_json::from_str::<Message>(&line) {
+    /// Try to receive a message. Returns None if disconnected or no data ready.
+    pub async fn recv(&mut self) -> Option<Message> {
+        let Self::Connected { reader, .. } = self else {
+            return None;
+        };
+
+        match reader.next_line().await {
+            Ok(Some(line)) => match serde_json::from_str::<Message>(&line) {
                 Ok(msg) => {
                     tracing::debug!("Received message: {:?}", msg.message_type());
-                    if msg_tx.send(msg).await.is_err() {
-                        return Err(());
-                    }
+                    Some(msg)
                 }
                 Err(e) => {
                     tracing::warn!("Failed to parse message: {e}");
+                    None
                 }
+            },
+            Ok(None) => {
+                tracing::info!("Disconnected from lean-dag");
+                *self = Self::Disconnected;
+                None
             }
-            Ok(true)
+            Err(e) => {
+                tracing::warn!("Read error: {e}");
+                *self = Self::Disconnected;
+                None
+            }
         }
-        Ok(None) | Err(_) => Ok(false),
     }
-}
 
-async fn send_command(writer: &mut OwnedWriteHalf, cmd: &Command) -> Result<(), ()> {
-    let Ok(json) = serde_json::to_string(cmd) else {
-        return Ok(());
-    };
-    let line = format!("{json}\n");
-    writer.write_all(line.as_bytes()).await.map_err(|_| ())
+    /// Send a command. Returns error if disconnected or write fails.
+    pub async fn send(&mut self, cmd: &Command) -> io::Result<()> {
+        let Self::Connected { writer, .. } = self else {
+            return Err(io::Error::new(io::ErrorKind::NotConnected, "not connected"));
+        };
+
+        let json = serde_json::to_string(cmd)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let line = format!("{json}\n");
+
+        if let Err(e) = writer.write_all(line.as_bytes()).await {
+            tracing::warn!("Write error: {e}");
+            *self = Self::Disconnected;
+            return Err(e);
+        }
+        Ok(())
+    }
 }

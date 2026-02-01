@@ -18,7 +18,7 @@ use super::{
     modes::{
         BeforeAfterModeInput, DeductionTreeModeInput, DisplayMode, PlainListInput, StepsModeInput,
     },
-    protocol::{tcp_address, Command, CursorInfo, Message, Position, ProofDag, ProofState},
+    protocol::{Command, CursorInfo, Message, Position, ProofDag, ProofState},
     widgets::{
         help_menu::{HelpMenu, HelpMenuWidget},
         status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
@@ -39,8 +39,9 @@ pub struct DefinitionInfo {
 }
 
 /// Application state.
-#[derive(Default)]
 pub struct App {
+    /// TCP port for lean-dag connection.
+    port: u16,
     /// Current cursor position from editor.
     pub cursor: Option<CursorInfo>,
     /// Enclosing definition (theorem/lemma name).
@@ -64,6 +65,23 @@ pub struct App {
 }
 
 impl App {
+    /// Create a new App with the given TCP port.
+    pub fn new(port: u16) -> Self {
+        Self {
+            port,
+            cursor: None,
+            definition: None,
+            error: None,
+            connected: false,
+            should_exit: false,
+            outgoing_commands: Vec::new(),
+            display_mode: DisplayMode::default(),
+            proof_dag: None,
+            status_bar: StatusBar::default(),
+            help_menu: HelpMenu::default(),
+        }
+    }
+
     /// Get current proof state from the DAG.
     pub fn proof_state(&self) -> ProofState {
         self.proof_dag
@@ -317,7 +335,7 @@ impl App {
 
         if !self.connected {
             frame.render_widget(
-                Paragraph::new(format!("Connecting to {}...", tcp_address())),
+                Paragraph::new(format!("Connecting to 127.0.0.1:{}...", self.port)),
                 inner,
             );
             return;
