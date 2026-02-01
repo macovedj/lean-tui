@@ -14,7 +14,7 @@ use super::{
     tree_layout::{calculate_tree_layout, NodePosition, TreeLayout},
     ClickRegion, Selection,
 };
-use crate::protocol::{NodeId, ProofDag, ProofState};
+use crate::protocol::{CompleteProofDag, NodeId, TacticProofState};
 
 /// State for the proof pane widget.
 #[derive(Default)]
@@ -88,20 +88,20 @@ impl ProofPaneState {
 
 /// Proof pane widget.
 pub struct ProofPane<'a> {
-    dag: &'a ProofDag,
+    dag: &'a CompleteProofDag,
     top_down: bool,
     selection: Option<Selection>,
     /// Current proof state from LSP (used to override current node's state if
     /// different).
-    current_state: &'a ProofState,
+    current_state: &'a TacticProofState,
 }
 
 impl<'a> ProofPane<'a> {
     pub const fn new(
-        dag: &'a ProofDag,
+        dag: &'a CompleteProofDag,
         top_down: bool,
         selection: Option<Selection>,
-        current_state: &'a ProofState,
+        current_state: &'a TacticProofState,
     ) -> Self {
         Self {
             dag,
@@ -119,7 +119,7 @@ impl StatefulWidget for ProofPane<'_> {
         state.click_regions.clear();
         state.navigation_regions.clear();
 
-        if self.dag.is_empty() || self.dag.root.is_none() {
+        if self.dag.is_empty() || self.dag.root_node_id.is_none() {
             Paragraph::new("No proof steps")
                 .style(Style::new().fg(Color::DarkGray))
                 .render(area, buf);
@@ -228,7 +228,7 @@ fn render_scrollbars(buf: &mut Buffer, area: Rect, canvas: &VirtualCanvas) {
 
 fn find_scroll_target<'a>(
     layout: &'a TreeLayout,
-    dag: &ProofDag,
+    dag: &CompleteProofDag,
     selection: Option<Selection>,
 ) -> Option<&'a NodePosition> {
     if let Some(sel) = selection {
@@ -242,7 +242,7 @@ fn find_scroll_target<'a>(
             }
         }
     }
-    dag.current_node
+    dag.current_node_id
         .and_then(|id| layout.find_node(id))
-        .or_else(|| dag.root.and_then(|id| layout.find_node(id)))
+        .or_else(|| dag.root_node_id.and_then(|id| layout.find_node(id)))
 }

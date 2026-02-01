@@ -1,7 +1,7 @@
 use std::{env, fs, path::PathBuf};
 
 /// Pinned commit hash for lean-dag protocol schema.
-const LEAN_DAG_COMMIT: &str = "3cfe898b72c2c46495b415efbbcbfc676c9cb87e";
+const LEAN_DAG_COMMIT: &str = "84a98f0ffd89f5c9a10d5a19db1e89c65d7714fb";
 
 fn main() {
     let schema_content = fetch_schema();

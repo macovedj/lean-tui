@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use crate::{
-    protocol::{NodeId, ProofDag, ProofDagNode},
+    protocol::{CompleteProofDag, NodeId, ProofDagTacticNode},
     widgets::{theme::Theme, InteractiveStatefulWidget},
 };
 
@@ -25,7 +25,7 @@ const EMPTY: &str = "   "; // Empty space after last child
 /// State for the proof steps sidebar widget.
 #[derive(Default)]
 pub struct ProofStepsSidebarState {
-    proof_dag: Option<ProofDag>,
+    proof_dag: Option<CompleteProofDag>,
     scroll_state: ScrollbarState,
     vertical_scroll: usize,
     horizontal_scroll: usize,
@@ -94,10 +94,10 @@ impl ProofStepsSidebarState {
                 break;
             }
             current_line += 1; // Main step line
-            if !node.tactic.depends_on.is_empty() {
+            if !node.tactic.hypothesis_dependencies.is_empty() {
                 current_line += 1; // Dependency line
             }
-            if !node.tactic.theorems_used.is_empty() {
+            if !node.tactic.referenced_theorems.is_empty() {
                 current_line += 1; // Theorem line
             }
         }
@@ -119,10 +119,10 @@ impl ProofStepsSidebarState {
         let mut count = 0;
         for node in dag.dfs_iter() {
             count += 1;
-            if !node.tactic.depends_on.is_empty() {
+            if !node.tactic.hypothesis_dependencies.is_empty() {
                 count += 1;
             }
-            if !node.tactic.theorems_used.is_empty() {
+            if !node.tactic.referenced_theorems.is_empty() {
                 count += 1;
             }
         }
@@ -229,11 +229,11 @@ fn build_continuation_prefix(active_levels: &[bool], depth: usize, is_last_child
 pub struct ProofStepsSidebar;
 
 impl InteractiveStatefulWidget for ProofStepsSidebar {
-    type Input = Option<ProofDag>;
+    type Input = Option<CompleteProofDag>;
     type Event = ();
 
     fn update_state(state: &mut Self::State, input: Self::Input) {
-        let new_current = input.as_ref().and_then(|dag| dag.current_node);
+        let new_current = input.as_ref().and_then(|dag| dag.current_node_id);
 
         // Reset manual scroll when current node changes (re-center on new step)
         if new_current != state.prev_current_node {
@@ -316,7 +316,7 @@ impl StatefulWidget for ProofStepsSidebar {
     }
 }
 
-fn step_line(node: &ProofDagNode, prefix: &str, is_current: bool) -> Line<'static> {
+fn step_line(node: &ProofDagTacticNode, prefix: &str, is_current: bool) -> Line<'static> {
     let style = if is_current {
         Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD)
     } else {
@@ -332,8 +332,8 @@ fn step_line(node: &ProofDagNode, prefix: &str, is_current: bool) -> Line<'stati
     ])
 }
 
-fn dependency_line(node: &ProofDagNode, prefix: &str) -> Option<Line<'static>> {
-    if node.tactic.depends_on.is_empty() {
+fn dependency_line(node: &ProofDagTacticNode, prefix: &str) -> Option<Line<'static>> {
+    if node.tactic.hypothesis_dependencies.is_empty() {
         return None;
     }
 
@@ -341,14 +341,14 @@ fn dependency_line(node: &ProofDagNode, prefix: &str) -> Option<Line<'static>> {
         Span::raw("  "), // Match marker width
         Span::styled(prefix.to_string(), Theme::DIM),
         Span::styled(
-            format!("uses: {}", node.tactic.depends_on.join(", ")),
+            format!("uses: {}", node.tactic.hypothesis_dependencies.join(", ")),
             Theme::DEPENDENCY,
         ),
     ]))
 }
 
-fn theorem_line(node: &ProofDagNode, prefix: &str) -> Option<Line<'static>> {
-    if node.tactic.theorems_used.is_empty() {
+fn theorem_line(node: &ProofDagTacticNode, prefix: &str) -> Option<Line<'static>> {
+    if node.tactic.referenced_theorems.is_empty() {
         return None;
     }
 
@@ -356,7 +356,7 @@ fn theorem_line(node: &ProofDagNode, prefix: &str) -> Option<Line<'static>> {
         Span::raw("  "), // Match marker width
         Span::styled(prefix.to_string(), Theme::DIM),
         Span::styled(
-            format!("thms: {}", node.tactic.theorems_used.join(", ")),
+            format!("thms: {}", node.tactic.referenced_theorems.join(", ")),
             Style::new().fg(Color::Blue).add_modifier(Modifier::DIM),
         ),
     ]))

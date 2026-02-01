@@ -7,7 +7,7 @@ use ratatui::{layout::Rect, Frame};
 use super::Mode;
 use crate::{
     app::DefinitionInfo,
-    protocol::{NodeId, ProofDag, ProofState},
+    protocol::{CompleteProofDag, NodeId, TacticProofState},
     widgets::{
         hypothesis_indices, open_goal_list::OpenGoalList, render_helpers::render_error,
         selection::SelectionState, FilterToggle, HypothesisFilters, InteractiveComponent,
@@ -17,17 +17,17 @@ use crate::{
 
 /// Input for updating the Open Goal List mode.
 pub struct PlainListInput {
-    pub state: ProofState,
+    pub state: TacticProofState,
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
-    pub proof_dag: Option<ProofDag>,
+    pub proof_dag: Option<CompleteProofDag>,
 }
 
 /// Open Goal List display mode - navigable list of open goals with hypotheses.
 #[derive(Default)]
 pub struct PlainList {
     /// Current proof state.
-    state: ProofState,
+    state: TacticProofState,
     /// Current node ID in the DAG (for building selections).
     current_node_id: Option<NodeId>,
     /// Name of the goal the cursor's tactic is working on.
@@ -66,11 +66,11 @@ impl PlainList {
             return false;
         };
         // Apply filters based on hypothesis properties
-        if self.filters.hide_instances && h.is_instance {
+        if self.filters.hide_instances && h.is_typeclass_instance {
             return false;
         }
-        // Note: hide_inaccessible checks name prefix, is_proof maps to that heuristic
-        if self.filters.hide_inaccessible && h.is_proof {
+        // Note: hide_inaccessible checks name prefix, is_proof_term maps to that heuristic
+        if self.filters.hide_inaccessible && h.is_proof_term {
             return false;
         }
         true
@@ -83,7 +83,7 @@ impl InteractiveComponent for PlainList {
 
     fn update(&mut self, input: Self::Input) {
         // Extract current node ID from DAG
-        let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node);
+        let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
         let current_node = current_node_id.and_then(|id| input.proof_dag.as_ref()?.get(id));
 
         let state_changed = self.state.goals.len() != input.state.goals.len()
@@ -91,7 +91,7 @@ impl InteractiveComponent for PlainList {
 
         self.current_node_id = current_node_id;
         self.active_goal_name = current_node
-            .and_then(|node| node.state_before.goals.first())
+            .and_then(|node| node.proof_state_before.goals.first())
             .and_then(|g| g.username_str().map(String::from));
         self.state = input.state;
         self.definition = input.definition;

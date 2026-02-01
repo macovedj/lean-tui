@@ -11,7 +11,7 @@ use ratatui::{
 use super::Mode;
 use crate::{
     app::DefinitionInfo,
-    protocol::{NodeId, ProofDag, ProofDagNode, ProofState},
+    protocol::{CompleteProofDag, NodeId, ProofDagTacticNode, TacticProofState},
     widgets::{
         goal_section::{GoalSection, GoalSectionState},
         hyp_section::{HypSection, HypSectionState},
@@ -28,19 +28,19 @@ use crate::{
 
 /// Input for updating the Steps mode.
 pub struct StepsModeInput {
-    pub state: ProofState,
+    pub state: TacticProofState,
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
-    pub proof_dag: Option<ProofDag>,
+    pub proof_dag: Option<CompleteProofDag>,
 }
 
 /// Steps display mode - sidebar + hypotheses + goals.
 #[derive(Default)]
 pub struct TacticTree {
-    state: ProofState,
+    state: TacticProofState,
     definition: Option<DefinitionInfo>,
     error: Option<String>,
-    proof_dag: Option<ProofDag>,
+    proof_dag: Option<CompleteProofDag>,
     /// Current node ID in the DAG (for building selections).
     current_node_id: Option<NodeId>,
     hyp_section_state: HypSectionState,
@@ -64,8 +64,8 @@ impl TacticTree {
         let hyps = hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
             .filter(|&i| {
                 self.state.hypotheses.get(i).is_some_and(|h| {
-                    (!self.filters.hide_instances || !h.is_instance)
-                        && (!self.filters.hide_inaccessible || !h.is_proof)
+                    (!self.filters.hide_instances || !h.is_typeclass_instance)
+                        && (!self.filters.hide_inaccessible || !h.is_proof_term)
                 })
             })
             .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
@@ -107,10 +107,10 @@ impl TacticTree {
         MainLayout { hyps, div, goals }
     }
 
-    fn current_node(&self) -> Option<&ProofDagNode> {
+    fn current_node(&self) -> Option<&ProofDagTacticNode> {
         self.proof_dag
             .as_ref()
-            .and_then(|dag| dag.current_node.and_then(|id| dag.get(id)))
+            .and_then(|dag| dag.current_node_id.and_then(|id| dag.get(id)))
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> bool {
@@ -236,7 +236,7 @@ impl InteractiveComponent for TacticTree {
         self.state = input.state;
         self.definition = input.definition;
         self.error = input.error;
-        self.current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node);
+        self.current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
         self.proof_dag = input.proof_dag;
 
         if state_changed {
@@ -281,12 +281,12 @@ impl InteractiveComponent for TacticTree {
         let current_node = self.current_node();
 
         let depends_on: HashSet<String> = current_node
-            .map(|node| node.tactic.depends_on.iter().cloned().collect())
+            .map(|node| node.tactic.hypothesis_dependencies.iter().cloned().collect())
             .unwrap_or_default();
 
         let spawned_goal_ids: HashSet<String> = current_node
             .map(|node| {
-                node.state_after
+                node.proof_state_after
                     .goals
                     .iter()
                     .filter_map(|g| g.username_str().map(String::from))
@@ -295,7 +295,7 @@ impl InteractiveComponent for TacticTree {
             .unwrap_or_default();
 
         let active_goal_name = current_node
-            .and_then(|node| node.state_before.goals.first())
+            .and_then(|node| node.proof_state_before.goals.first())
             .and_then(|g| g.username_str().map(String::from));
 
         // Render hypothesis section

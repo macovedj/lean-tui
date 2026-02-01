@@ -12,7 +12,7 @@ use super::{
     theorem_pane::{TheoremPane, TheoremPaneState},
     Selection,
 };
-use crate::protocol::{NodeId, ProofDag, ProofState};
+use crate::protocol::{CompleteProofDag, NodeId, TacticProofState};
 
 /// Combined state for the semantic tableau layout.
 #[derive(Default)]
@@ -42,19 +42,19 @@ impl SemanticTableauState {
 
 /// Semantic tableau layout widget - combines given, proof, and theorem panes.
 pub struct SemanticTableauLayout<'a> {
-    dag: &'a ProofDag,
+    dag: &'a CompleteProofDag,
     top_down: bool,
     selection: Option<Selection>,
-    /// Current proof state from LSP (may differ from node's `state_after`).
-    current_state: &'a ProofState,
+    /// Current proof state from LSP (may differ from node's `proof_state_after`).
+    current_state: &'a TacticProofState,
 }
 
 impl<'a> SemanticTableauLayout<'a> {
     pub const fn new(
-        dag: &'a ProofDag,
+        dag: &'a CompleteProofDag,
         top_down: bool,
         selection: Option<Selection>,
-        current_state: &'a ProofState,
+        current_state: &'a TacticProofState,
     ) -> Self {
         Self {
             dag,
@@ -72,7 +72,7 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
         let (given_area, proof_area, theorem_area) = compute_layout(area, self.top_down);
 
         // Render given pane
-        let initial = self.dag.initial_state();
+        let initial = self.dag.initial_proof_state();
         let given_widget = GivenPane::new(&initial.hypotheses, self.selection);
         given_widget.render(given_area, buf, &mut state.given);
 

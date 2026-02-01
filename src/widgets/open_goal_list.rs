@@ -8,15 +8,15 @@ use ratatui::{
 };
 
 use super::{
-    diff_text::TaggedTextExt, hypothesis_indices, ClickRegion, HypothesisFilters, Selection,
+    diff_text::AnnotatedTextTreeExt, hypothesis_indices, ClickRegion, HypothesisFilters, Selection,
 };
 use crate::{
-    protocol::{NodeId, ProofState},
+    protocol::{NodeId, TacticProofState},
     widgets::theme::Theme,
 };
 
 pub struct OpenGoalList<'a> {
-    state: &'a ProofState,
+    state: &'a TacticProofState,
     selection: Option<Selection>,
     filters: HypothesisFilters,
     /// Node ID for creating click region selections.
@@ -39,7 +39,7 @@ impl OpenGoalListState {
 
 impl<'a> OpenGoalList<'a> {
     pub const fn new(
-        state: &'a ProofState,
+        state: &'a TacticProofState,
         selection: Option<Selection>,
         filters: HypothesisFilters,
         node_id: Option<NodeId>,
@@ -75,10 +75,10 @@ impl<'a> OpenGoalList<'a> {
         let Some(h) = self.state.hypotheses.get(idx) else {
             return false;
         };
-        if self.filters.hide_instances && h.is_instance {
+        if self.filters.hide_instances && h.is_typeclass_instance {
             return false;
         }
-        if self.filters.hide_inaccessible && h.is_proof {
+        if self.filters.hide_inaccessible && h.is_proof_term {
             return false;
         }
         true

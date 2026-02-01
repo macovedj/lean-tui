@@ -22,7 +22,7 @@ pub use generated::*;
 /// Type alias for node IDs.
 pub type NodeId = i64;
 
-impl Message {
+impl ServerToClientMessage {
     /// Get a string describing the message type for logging.
     pub const fn message_type(&self) -> &'static str {
         match self {
@@ -34,7 +34,7 @@ impl Message {
     }
 }
 
-impl Default for TaggedText {
+impl Default for AnnotatedTextTree {
     fn default() -> Self {
         Self::Text {
             text: String::new(),
@@ -42,13 +42,13 @@ impl Default for TaggedText {
     }
 }
 
-impl TaggedText {
+impl AnnotatedTextTree {
     /// Extract plain text from the tagged structure (flattens all tags).
     pub fn to_plain_text(&self) -> String {
         match self {
             Self::Text { text } => text.clone(),
-            Self::Tag { content, .. } => content.to_plain_text(),
-            Self::Append { items } => items.iter().map(Self::to_plain_text).collect(),
+            Self::Tag { tagged_content, .. } => tagged_content.to_plain_text(),
+            Self::Append { children } => children.iter().map(Self::to_plain_text).collect(),
         }
     }
 
@@ -56,23 +56,26 @@ impl TaggedText {
     pub fn has_any_diff(&self) -> bool {
         match self {
             Self::Text { .. } => false,
-            Self::Tag { info, content } => info.diff_status.is_some() || content.has_any_diff(),
-            Self::Append { items } => items.iter().any(Self::has_any_diff),
+            Self::Tag {
+                subexpression_info,
+                tagged_content,
+            } => subexpression_info.diff_status.is_some() || tagged_content.has_any_diff(),
+            Self::Append { children } => children.iter().any(Self::has_any_diff),
         }
     }
 }
 
-impl ProofDag {
+impl CompleteProofDag {
     /// Get a node by ID.
-    pub fn get(&self, id: NodeId) -> Option<&ProofDagNode> {
+    pub fn get(&self, id: NodeId) -> Option<&ProofDagTacticNode> {
         self.nodes.get(id as usize)
     }
 
     /// Iterate nodes in depth-first order.
-    pub fn dfs_iter(&self) -> impl Iterator<Item = &ProofDagNode> {
+    pub fn dfs_iter(&self) -> impl Iterator<Item = &ProofDagTacticNode> {
         DfsIterator {
             dag: self,
-            stack: self.root.into_iter().collect(),
+            stack: self.root_node_id.into_iter().collect(),
         }
     }
 
@@ -88,19 +91,19 @@ impl ProofDag {
 
     /// Check if a node is the current node (closest to cursor).
     pub fn is_current(&self, node_id: NodeId) -> bool {
-        self.current_node == Some(node_id)
+        self.current_node_id == Some(node_id)
     }
 
     /// Get initial state with default if missing.
-    pub fn initial_state(&self) -> ProofState {
-        self.initial_state.clone().unwrap_or_default()
+    pub fn initial_proof_state(&self) -> TacticProofState {
+        self.initial_proof_state.clone().unwrap_or_default()
     }
 }
 
-impl ProofDagNode {
+impl ProofDagTacticNode {
     /// All sub-goals solved (`goals_after` empty).
     pub fn is_complete(&self) -> bool {
-        self.state_after.goals.is_empty()
+        self.proof_state_after.goals.is_empty()
     }
 
     /// No children in tree.
@@ -109,36 +112,36 @@ impl ProofDagNode {
     }
 }
 
-impl GoalInfo {
+impl ProofObligation {
     /// Get username as string slice (compatibility helper).
     pub fn username_str(&self) -> Option<&str> {
         self.username.as_deref()
     }
 
-    /// Get goto locations with default if missing.
+    /// Get navigation locations with default if missing.
     #[allow(dead_code)]
-    pub fn goto_locations(&self) -> GotoLocations {
-        self.goto_locations.clone().unwrap_or_default()
+    pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
+        self.navigation_locations.clone().unwrap_or_default()
     }
 }
 
-impl HypothesisInfo {
-    /// Get goto locations with default if missing.
-    pub fn goto_locations(&self) -> GotoLocations {
-        self.goto_locations.clone().unwrap_or_default()
+impl ProofContextHypothesis {
+    /// Get navigation locations with default if missing.
+    pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
+        self.navigation_locations.clone().unwrap_or_default()
     }
 }
 
-impl CursorInfo {
+impl EditorCursorPosition {
     /// Extract filename from URI.
     pub fn filename(&self) -> Option<&str> {
         self.uri.rsplit('/').next()
     }
 }
 
-// Position's generated derive doesn't include Default, so implement manually
+// LineCharacterPosition's generated derive doesn't include Default, so implement manually
 #[allow(clippy::derivable_impls)]
-impl Default for Position {
+impl Default for LineCharacterPosition {
     fn default() -> Self {
         Self {
             line: 0,
@@ -147,16 +150,16 @@ impl Default for Position {
     }
 }
 
-impl Copy for Position {}
+impl Copy for LineCharacterPosition {}
 
 /// Depth-first iterator over proof DAG nodes.
 struct DfsIterator<'a> {
-    dag: &'a ProofDag,
+    dag: &'a CompleteProofDag,
     stack: Vec<NodeId>,
 }
 
 impl<'a> Iterator for DfsIterator<'a> {
-    type Item = &'a ProofDagNode;
+    type Item = &'a ProofDagTacticNode;
 
     fn next(&mut self) -> Option<Self::Item> {
         let id = self.stack.pop()?;

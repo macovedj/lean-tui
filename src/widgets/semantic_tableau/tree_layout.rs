@@ -1,6 +1,6 @@
 //! Tree layout calculation for the semantic tableau.
 
-use crate::protocol::{NodeId, ProofDag, ProofDagNode};
+use crate::protocol::{CompleteProofDag, NodeId, ProofDagTacticNode};
 
 pub const MIN_NODE_WIDTH: u16 = 25;
 pub const MAX_NODE_WIDTH: u16 = 60;
@@ -29,7 +29,7 @@ impl TreeLayout {
 
 /// Configuration for tree layout direction and data source.
 struct TreeLayoutConfig<'a> {
-    dag: &'a ProofDag,
+    dag: &'a CompleteProofDag,
     top_down: bool,
 }
 
@@ -43,13 +43,13 @@ struct NodePlacement {
 }
 
 /// Calculate height for a node box based on content.
-pub const fn node_height(node: &ProofDagNode) -> u16 {
+pub const fn node_height(node: &ProofDagTacticNode) -> u16 {
     // Border (2) + goals line (1) + optional hypotheses line (1)
-    3 + (!node.new_hypotheses.is_empty()) as u16
+    3 + (!node.new_hypothesis_indices.is_empty()) as u16
 }
 
 /// Calculate minimum width needed for a node's content.
-pub fn node_content_width(node: &ProofDagNode) -> u16 {
+pub fn node_content_width(node: &ProofDagTacticNode) -> u16 {
     let mut max_width: usize = 0;
 
     // Tactic title width (with " tactic [N→] " format)
@@ -57,18 +57,18 @@ pub fn node_content_width(node: &ProofDagNode) -> u16 {
     max_width = max_width.max(title_width);
 
     // Hypothesis widths: " name: type "
-    for &hyp_idx in &node.new_hypotheses {
-        if let Some(h) = node.state_after.hypotheses.get(hyp_idx as usize) {
+    for &hyp_idx in &node.new_hypothesis_indices {
+        if let Some(h) = node.proof_state_after.hypotheses.get(hyp_idx as usize) {
             let hyp_width = h.name.len() + h.type_.to_plain_text().len() + 5;
             max_width = max_width.max(hyp_width);
         }
     }
 
     // Goal widths: "⊢ type" or "✓ Goal completed"
-    if node.state_after.goals.is_empty() {
+    if node.proof_state_after.goals.is_empty() {
         max_width = max_width.max(16); // "✓ Goal completed"
     } else {
-        for g in &node.state_after.goals {
+        for g in &node.proof_state_after.goals {
             let goal_width = g.type_.to_plain_text().len() + 4; // "⊢ " prefix + padding
             max_width = max_width.max(goal_width);
         }
@@ -83,10 +83,10 @@ pub fn node_content_width(node: &ProofDagNode) -> u16 {
 const ORPHAN_GAP: i32 = 4;
 
 /// Calculate tree layout with actual content dimensions.
-pub fn calculate_tree_layout(dag: &ProofDag, top_down: bool) -> TreeLayout {
+pub fn calculate_tree_layout(dag: &CompleteProofDag, top_down: bool) -> TreeLayout {
     let mut layout = TreeLayout::default();
 
-    let Some(root_id) = dag.root else {
+    let Some(root_id) = dag.root_node_id else {
         return layout;
     };
 
@@ -132,7 +132,7 @@ pub fn calculate_tree_layout(dag: &ProofDag, top_down: bool) -> TreeLayout {
 }
 
 /// Calculate subtree dimensions (width, height).
-fn subtree_size(dag: &ProofDag, node_id: NodeId) -> (i32, i32) {
+fn subtree_size(dag: &CompleteProofDag, node_id: NodeId) -> (i32, i32) {
     let Some(node) = dag.get(node_id) else {
         return (0, 0);
     };
@@ -144,7 +144,7 @@ fn subtree_size(dag: &ProofDag, node_id: NodeId) -> (i32, i32) {
         return (node_w, h);
     }
 
-    let (total_w, max_child_h) = node.children.iter().fold((0, 0), |(tw, mh), &cid| {
+    let (total_w, max_child_h): (i32, i32) = node.children.iter().fold((0, 0), |(tw, mh): (i32, i32), &cid| {
         let (cw, ch) = subtree_size(dag, cid);
         (tw + cw, mh.max(ch))
     });

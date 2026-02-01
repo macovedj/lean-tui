@@ -9,9 +9,9 @@ use ratatui::{
 };
 
 use crate::{
-    protocol::{HypothesisInfo, NodeId},
+    protocol::{NodeId, ProofContextHypothesis},
     widgets::{
-        diff_text::{diff_style, DiffState, TaggedTextExt},
+        diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
         ClickRegion, Selection,
     },
 };
@@ -29,7 +29,7 @@ pub struct HypLayerRenderContext<'a> {
 pub struct HypLayer {
     /// Node ID for creating selections (from DAG).
     node_id: Option<NodeId>,
-    pub hypotheses: Vec<(usize, HypothesisInfo)>, // (hyp_idx, hyp)
+    pub hypotheses: Vec<(usize, ProofContextHypothesis)>, // (hyp_idx, hyp)
 }
 
 impl HypLayer {
@@ -44,8 +44,8 @@ impl HypLayer {
         self.node_id = node_id;
     }
 
-    /// Add a hypothesis from `HypothesisInfo`.
-    pub fn add_from_info(&mut self, hyp_idx: usize, info: &HypothesisInfo) {
+    /// Add a hypothesis from `ProofContextHypothesis`.
+    pub fn add_from_info(&mut self, hyp_idx: usize, info: &ProofContextHypothesis) {
         self.hypotheses.push((hyp_idx, info.clone()));
     }
 
@@ -100,7 +100,11 @@ impl HypLayer {
 
 const DIM_GRAY: Style = Style::new().fg(Color::DarkGray);
 
-fn render_hyp_line(hyp: &HypothesisInfo, is_selected: bool, is_dependency: bool) -> Line<'static> {
+fn render_hyp_line(
+    hyp: &ProofContextHypothesis,
+    is_selected: bool,
+    is_dependency: bool,
+) -> Line<'static> {
     let state = DiffState {
         is_inserted: false,
         is_removed: hyp.is_removed,

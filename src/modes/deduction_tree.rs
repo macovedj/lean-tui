@@ -12,7 +12,7 @@ use tracing::trace;
 use super::Mode;
 use crate::{
     app::DefinitionInfo,
-    protocol::{ProofDag, ProofState},
+    protocol::{CompleteProofDag, TacticProofState},
     widgets::{
         render_helpers::{render_error, render_no_goals},
         semantic_tableau::{
@@ -25,18 +25,18 @@ use crate::{
 
 /// Input for updating the Deduction Tree mode.
 pub struct DeductionTreeModeInput {
-    pub state: ProofState,
+    pub state: TacticProofState,
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
-    pub proof_dag: Option<ProofDag>,
+    pub proof_dag: Option<CompleteProofDag>,
 }
 
 /// Deduction Tree display mode - semantic tree visualization.
 pub struct SemanticTableau {
-    state: ProofState,
+    state: TacticProofState,
     definition: Option<DefinitionInfo>,
     error: Option<String>,
-    proof_dag: Option<ProofDag>,
+    proof_dag: Option<CompleteProofDag>,
     filters: HypothesisFilters,
     /// Flat index into `tree_selectable_items()`.
     selected_idx: Option<usize>,
@@ -49,7 +49,7 @@ pub struct SemanticTableau {
 impl Default for SemanticTableau {
     fn default() -> Self {
         Self {
-            state: ProofState::default(),
+            state: TacticProofState::default(),
             definition: None,
             error: None,
             proof_dag: None,
@@ -77,10 +77,10 @@ impl SemanticTableau {
 
         let mut items = Vec::new();
 
-        // Initial hypotheses from the initial_state
-        let initial = dag.initial_state();
+        // Initial hypotheses from the initial_proof_state
+        let initial = dag.initial_proof_state();
         for (idx, h) in initial.hypotheses.iter().enumerate() {
-            if !h.is_proof {
+            if !h.is_proof_term {
                 items.push(Selection::InitialHyp { hyp_idx: idx });
             }
         }
@@ -90,7 +90,7 @@ impl SemanticTableau {
             let node_id = node.id;
 
             // New hypotheses introduced by this step
-            for &hyp_idx in &node.new_hypotheses {
+            for &hyp_idx in &node.new_hypothesis_indices {
                 items.push(Selection::Hyp {
                     node_id,
                     hyp_idx: hyp_idx as usize,
@@ -98,7 +98,7 @@ impl SemanticTableau {
             }
 
             // Goals after this step
-            for (goal_idx, _) in node.state_after.goals.iter().enumerate() {
+            for (goal_idx, _) in node.proof_state_after.goals.iter().enumerate() {
                 items.push(Selection::Goal { node_id, goal_idx });
             }
         }
@@ -124,7 +124,7 @@ impl SemanticTableau {
     /// Get the active goal selection (first goal of the current node).
     fn active_goal_selection(&self) -> Option<Selection> {
         let dag = self.proof_dag.as_ref()?;
-        let current_node_id = dag.current_node?;
+        let current_node_id = dag.current_node_id?;
         Some(Selection::Goal {
             node_id: current_node_id,
             goal_idx: 0,
@@ -176,10 +176,10 @@ impl InteractiveComponent for SemanticTableau {
 
     fn update(&mut self, input: Self::Input) {
         // Detect changes to proof tree or goals
-        let old_count = self.proof_dag.as_ref().map_or(0, ProofDag::len);
-        let new_count = input.proof_dag.as_ref().map_or(0, ProofDag::len);
-        let old_current = self.proof_dag.as_ref().and_then(|dag| dag.current_node);
-        let new_current = input.proof_dag.as_ref().and_then(|dag| dag.current_node);
+        let old_count = self.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
+        let new_count = input.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
+        let old_current = self.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
+        let new_current = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
 
         let tree_changed = old_count != new_count || old_current != new_current;
         let state_changed = self.state.goals.len() != input.state.goals.len()

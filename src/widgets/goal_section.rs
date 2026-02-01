@@ -14,9 +14,9 @@ use ratatui::{
 };
 
 use crate::{
-    protocol::{GoalInfo, NodeId, ProofState},
+    protocol::{NodeId, ProofObligation, TacticProofState},
     widgets::{
-        diff_text::TaggedTextExt, layout_metrics::LayoutMetrics, theme::Theme, ClickRegion,
+        diff_text::AnnotatedTextTreeExt, layout_metrics::LayoutMetrics, theme::Theme, ClickRegion,
         Selection,
     },
 };
@@ -24,7 +24,7 @@ use crate::{
 /// State for the goal section widget.
 #[derive(Default)]
 pub struct GoalSectionState {
-    goals: Vec<GoalInfo>,
+    goals: Vec<ProofObligation>,
     selection: Option<Selection>,
     spawned_goal_ids: HashSet<String>,
     /// Node ID for creating click region selections.
@@ -48,7 +48,7 @@ impl GoalSectionState {
     /// Update the state with new data.
     pub fn update(
         &mut self,
-        state: &ProofState,
+        state: &TacticProofState,
         selection: Option<Selection>,
         spawned_goal_ids: HashSet<String>,
         node_id: Option<NodeId>,
@@ -198,7 +198,7 @@ fn track_goal_click_regions(
 }
 
 fn goal_row(
-    goal: &GoalInfo,
+    goal: &ProofObligation,
     is_selected: bool,
     _is_spawned: bool,
     is_active: bool,

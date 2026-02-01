@@ -9,10 +9,10 @@ use ratatui::{
 };
 
 use super::{
-    diff_text::TaggedTextExt, hypothesis_indices, ClickRegion, HypothesisFilters, Selection,
+    diff_text::AnnotatedTextTreeExt, hypothesis_indices, ClickRegion, HypothesisFilters, Selection,
 };
 use crate::{
-    protocol::{GoalInfo, HypothesisInfo, NodeId, ProofState},
+    protocol::{NodeId, ProofContextHypothesis, ProofObligation, TacticProofState},
     widgets::theme::Theme,
 };
 
@@ -32,7 +32,7 @@ impl GoalsColumnState {
 /// Widget for rendering a column showing proof state (hypotheses + goals).
 pub struct GoalsColumn<'a> {
     title: &'a str,
-    state: &'a ProofState,
+    state: &'a TacticProofState,
     filters: HypothesisFilters,
     selection: Option<Selection>,
     is_current: bool,
@@ -43,7 +43,7 @@ pub struct GoalsColumn<'a> {
 impl<'a> GoalsColumn<'a> {
     pub const fn new(
         title: &'a str,
-        state: &'a ProofState,
+        state: &'a TacticProofState,
         filters: HypothesisFilters,
         selection: Option<Selection>,
         is_current: bool,
@@ -65,10 +65,10 @@ impl<'a> GoalsColumn<'a> {
         let Some(h) = self.state.hypotheses.get(idx) else {
             return false;
         };
-        if self.filters.hide_instances && h.is_instance {
+        if self.filters.hide_instances && h.is_typeclass_instance {
             return false;
         }
-        if self.filters.hide_inaccessible && h.is_proof {
+        if self.filters.hide_inaccessible && h.is_proof_term {
             return false;
         }
         true
@@ -194,7 +194,7 @@ impl GoalsColumn<'_> {
     }
 }
 
-fn render_hypothesis_line(h: &HypothesisInfo, is_selected: bool) -> Line<'static> {
+fn render_hypothesis_line(h: &ProofContextHypothesis, is_selected: bool) -> Line<'static> {
     let style = if is_selected {
         Style::new().bg(Theme::SELECTION_BG)
     } else {
@@ -209,7 +209,7 @@ fn render_hypothesis_line(h: &HypothesisInfo, is_selected: bool) -> Line<'static
     Line::from(spans)
 }
 
-fn render_goal_line(g: &GoalInfo, is_selected: bool, is_active: bool) -> Line<'static> {
+fn render_goal_line(g: &ProofObligation, is_selected: bool, is_active: bool) -> Line<'static> {
     let style = if is_selected {
         Style::new().bg(Theme::SELECTION_BG)
     } else {

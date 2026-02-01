@@ -9,7 +9,7 @@ use ratatui::{
 use super::Mode;
 use crate::{
     app::DefinitionInfo,
-    protocol::{NodeId, ProofDag, ProofState},
+    protocol::{CompleteProofDag, NodeId, TacticProofState},
     widgets::{
         goals_column::{GoalsColumn, GoalsColumnState},
         hypothesis_indices,
@@ -21,19 +21,19 @@ use crate::{
 
 /// Input for updating the Before/After mode.
 pub struct BeforeAfterModeInput {
-    pub previous_state: Option<ProofState>,
-    pub current_state: ProofState,
-    pub next_state: Option<ProofState>,
+    pub previous_state: Option<TacticProofState>,
+    pub current_state: TacticProofState,
+    pub next_state: Option<TacticProofState>,
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
-    pub proof_dag: Option<ProofDag>,
+    pub proof_dag: Option<CompleteProofDag>,
 }
 
 /// Before/After display mode - temporal comparison of goal states.
 pub struct BeforeAfterMode {
-    previous_state: Option<ProofState>,
-    current_state: ProofState,
-    next_state: Option<ProofState>,
+    previous_state: Option<TacticProofState>,
+    current_state: TacticProofState,
+    next_state: Option<TacticProofState>,
     definition: Option<DefinitionInfo>,
     error: Option<String>,
     /// Current node ID in the DAG (for building selections).
@@ -53,7 +53,7 @@ impl Default for BeforeAfterMode {
     fn default() -> Self {
         Self {
             previous_state: None,
-            current_state: ProofState::default(),
+            current_state: TacticProofState::default(),
             next_state: None,
             definition: None,
             error: None,
@@ -97,8 +97,8 @@ impl BeforeAfterMode {
         )
         .filter(|&hyp_idx| {
             self.current_state.hypotheses.get(hyp_idx).is_some_and(|h| {
-                (!self.filters.hide_instances || !h.is_instance)
-                    && (!self.filters.hide_inaccessible || !h.is_proof)
+                (!self.filters.hide_instances || !h.is_typeclass_instance)
+                    && (!self.filters.hide_inaccessible || !h.is_proof_term)
             })
         })
         .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
@@ -122,11 +122,11 @@ impl InteractiveComponent for BeforeAfterMode {
         self.next_state = input.next_state;
         self.definition = input.definition;
         self.error = input.error;
-        let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node);
+        let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
         let current_node = current_node_id.and_then(|id| input.proof_dag.as_ref()?.get(id));
         self.current_node_id = current_node_id;
         self.active_goal_name = current_node
-            .and_then(|node| node.state_before.goals.first())
+            .and_then(|node| node.proof_state_before.goals.first())
             .and_then(|g| g.username_str().map(String::from));
         if state_changed {
             self.selection.reset(self.selectable_items().len());

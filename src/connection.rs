@@ -10,7 +10,7 @@ use tokio::{
     },
 };
 
-use crate::protocol::{Command, Message};
+use crate::protocol::{ClientToServerCommand, ServerToClientMessage};
 
 /// TCP connection state machine.
 pub enum Connection {
@@ -45,13 +45,13 @@ impl Connection {
     }
 
     /// Try to receive a message. Returns None if disconnected or no data ready.
-    pub async fn recv(&mut self) -> Option<Message> {
+    pub async fn recv(&mut self) -> Option<ServerToClientMessage> {
         let Self::Connected { reader, .. } = self else {
             return None;
         };
 
         match reader.next_line().await {
-            Ok(Some(line)) => match serde_json::from_str::<Message>(&line) {
+            Ok(Some(line)) => match serde_json::from_str::<ServerToClientMessage>(&line) {
                 Ok(msg) => {
                     tracing::trace!("Received message: {:?}", msg.message_type());
                     Some(msg)
@@ -75,7 +75,7 @@ impl Connection {
     }
 
     /// Send a command. Returns error if disconnected or write fails.
-    pub async fn send(&mut self, cmd: &Command) -> io::Result<()> {
+    pub async fn send(&mut self, cmd: &ClientToServerCommand) -> io::Result<()> {
         let Self::Connected { writer, .. } = self else {
             return Err(io::Error::new(io::ErrorKind::NotConnected, "not connected"));
         };
