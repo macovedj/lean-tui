@@ -88,36 +88,30 @@ import LeanDag
 
 ### 4. Optional: Switch to Standalone Mode
 
-This step is completely optional and might cause issues. For those, who don't want to modify their Lean source files, there is an additional mode of operation: standalone. It uses the `lean-dag` binary directly, no imports needed. However, it requires building a binary. This is done with:
+This step is completely optional and might cause issues. For those who don't want to modify their Lean source files, there is an additional mode of operation: standalone. It uses the `lean-dag` binary directly, no imports needed. However, it requires building a binary. This is done with:
 
 ```bash
-lean build LeanDag/lean-build
+lake build LeanDag:lean-dag
 ```
 
-This will build a binary `lean-build` in your projects `.lake` folder that can be used as LSP (instead of `lake serve`) and supports the generation of a graph of your proof state.
-
-Afterward, you need to add `--standalone` to the proxy LSP server command in your editor (see configuration).
+This will build a binary `lean-dag` in your project's `.lake` folder that can be used as LSP (instead of `lake serve`) and supports the generation of a graph of your proof state. Configure your editor to use this binary as the Lean language server.
 
 ## Configuration
 
-Go into the settings of your editor and configure the LSP command for lean to be `lean-tui proxy`.
+Configure your editor to use `lake serve` as the Lean LSP server. This connects to lean-dag which provides the extended RPC methods.
 
-For example, for Helix, it would look like this:
+For example, for Helix:
 
 ```toml
 # .helix/languages.toml
-[language-server.lean-tui]
-args = [
-  "proxy",
-] # Add `--standalone` argument if you want to use LeanDag through its binary `lean-dag`
-command = "lean-tui"
+[language-server.lean]
+command = "lake"
+args = ["serve"]
 
 [[language]]
-language-servers = ["lean-tui"]
+language-servers = ["lean"]
 name = "lean"
 ```
-
-Make sure to disable any other Lean LSP as this one will replace it and extend it.
 
 ## Usage
 
@@ -163,70 +157,40 @@ The name `lean-dag` comes from Lean [Directed Acyclic Graph (DAG)](https://en.wi
 ```mermaid
 flowchart
 
-subgraph lean-dag-process["Lean RPC watchdog process"]
-
-
-
-    subgraph lean-worker[Lean RPC worker process]
-
-        lean-runtime((Lean core))
-        original-lean-lsp[Official <br> Lean.Server <br> as library]
-        lean-runtime((Lean runtime))
-
-        custom-rpc-server["RPC server <br> with extension"]
-
-        rpc-method["RPC method <br> for DAG generation <br> LeanDag"]
+subgraph lean-dag-process["Lean RPC Server Process"]
+    subgraph lean-worker[Lean RPC Worker]
+        lean-runtime((Lean Runtime))
+        original-lean-lsp[Official Lean.Server]
+        custom-rpc-server[RPC Server with Extension]
+        rpc-method[LeanDag RPC Method]
 
         rpc-method <-->|Lean| custom-rpc-server
         lean-runtime <-->|Lean| rpc-method
+        original-lean-lsp --> lean-runtime
+        custom-rpc-server <-->|Lean| original-lean-lsp
     end
 
-    lake-serve[Lake LSP serve <br> Required RPC entrypoint]
-
-
-    original-lean-lsp --> lean-runtime
-
-    lean-dag[binary LSP server <br> compiled from Lean]
-
-    lean-dag -->|JSON-RPC| lake-serve
-
-    lake-serve -->|JSON/RPC| custom-rpc-server
-
-    custom-rpc-server <-->|Lean| original-lean-lsp
+    lake-serve[lake serve]
+    lake-serve -->|JSON-RPC| custom-rpc-server
 end
 
-subgraph proxy["Process lean-tui proxy"]
+subgraph TUI["Process: lean-tui view"]
+    tcp-client[TCP Client]
+    info-view{Interactive Proof UI}
+    ratatui[Ratatui Framework]
 
-    proxy-rpc-client[RPC client]
-    proxy-lsp-server[binary LSP server <br> compiled from Rust]
-    proxy-lsp-server <-->|Rust/JSON| proxy-rpc-client
-    proxy-rpc-client <-->|RPC/JSON| lake-serve
+    tcp-client <-->|Rust| info-view
+    info-view <-->|Rust| ratatui
 end
-
-
-
-
-subgraph TUI["Process lean-tui view"]
-    info-view{Interactive <br> proof state  UI}
-    ratatui[Ratatui UI <br/> framework]
-    info-view <--> |Rust| ratatui
-end
-
-TUI <-->|JSON| json-socket{UNIX <br/> socket} <-->|JSON| proxy
-
-
 
 subgraph Editor
-    editor-ui{"NeoVim / <br/> Helix / Zed / ..."}
-    editor-lsp-client[builtin <br> LSP Client]
+    editor-ui{NeoVim / Helix / Zed}
+    editor-lsp-client[Builtin LSP Client]
     editor-ui <--> editor-lsp-client
 end
 
-
-
-editor-lsp-client -.->|import mode <br> LSP/JSON| proxy-lsp-server
-
-editor-lsp-client -.->|standalone mode <br> JSON/LSP| lean-dag
+TUI <-->|"TCP:9742 JSON"| lean-dag-process
+editor-lsp-client -->|LSP/JSON| lake-serve
 ```
 
 ## Debugging
@@ -236,11 +200,10 @@ If you see errors in the editor like "incompatible headers", you can try
 1. Close both the TUI view and the LSP client and restart.
 2. Rebuilding `lean-dag`
 
-If that does not help and you have time, follow along with the logs while reproducing the bug (and paste the output in a bug report):
+If that does not help, follow along with the logs while reproducing the bug (and paste the output in a bug report):
 
 ```bash
-tail -f ~/.cache/lean-tui/proxy.log # Proxy server only (for debugging RPC deserialization)
-tail -f ~/.cache/lean-tui/tui.log # TUI front-end only (for debugging the Ratatui-side)
+tail -f ~/.cache/lean-tui/tui.log # TUI front-end (for debugging the Ratatui-side)
 tail -f ~/.cache/lean-tui/lean-dag.log # Lean RPC server (for debugging Lean-side)
 ```
 

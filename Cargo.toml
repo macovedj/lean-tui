@@ -6,7 +6,7 @@ keywords = ["lean4", "proof-assistant", "tui", "mathematics"]
 license = "MIT"
 name = "lean-tui"
 repository = "https://codeberg.org/wvhulle/lean-tui"
-version = "0.1.0"
+version = "0.2.0"
 
 [lints.clippy]
 absolute_paths = { level = "warn", priority = 2 }
@@ -26,6 +26,9 @@ pedantic = "deny"
 struct_excessive_bools = { level = "allow", priority = 2 }
 
 [dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
 # Async runtime
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }
