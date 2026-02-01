@@ -96,7 +96,6 @@ impl ProofDag {
     }
 
     /// Get number of nodes.
-    #[allow(clippy::missing_const_for_fn)]
     pub fn len(&self) -> usize {
         self.nodes.len()
     }
@@ -114,13 +113,11 @@ impl ProofDag {
 
 impl ProofDagNode {
     /// All sub-goals solved (`goals_after` empty).
-    #[allow(clippy::missing_const_for_fn)]
     pub fn is_complete(&self) -> bool {
         self.state_after.goals.is_empty()
     }
 
     /// No children in tree.
-    #[allow(clippy::missing_const_for_fn)]
     pub fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }

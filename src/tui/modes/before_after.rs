@@ -7,17 +7,15 @@ use ratatui::{
 };
 
 use super::Mode;
-use crate::{
-    tui::protocol::{NodeId, ProofDag, ProofState},
-    tui::{
-        app::DefinitionInfo,
-        widgets::{
-            goals_column::{GoalsColumn, GoalsColumnState},
-            hypothesis_indices,
-            render_helpers::render_error,
-            selection::SelectionState,
-            FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
-        },
+use crate::tui::{
+    app::DefinitionInfo,
+    protocol::{NodeId, ProofDag, ProofState},
+    widgets::{
+        goals_column::{GoalsColumn, GoalsColumnState},
+        hypothesis_indices,
+        render_helpers::render_error,
+        selection::SelectionState,
+        FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
     },
 };
 
@@ -98,13 +96,10 @@ impl BeforeAfterMode {
             self.filters.reverse_order,
         )
         .filter(|&hyp_idx| {
-            self.current_state
-                .hypotheses
-                .get(hyp_idx)
-                .is_some_and(|h| {
-                    (!self.filters.hide_instances || !h.is_instance)
-                        && (!self.filters.hide_inaccessible || !h.is_proof)
-                })
+            self.current_state.hypotheses.get(hyp_idx).is_some_and(|h| {
+                (!self.filters.hide_instances || !h.is_instance)
+                    && (!self.filters.hide_inaccessible || !h.is_proof)
+            })
         })
         .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
 

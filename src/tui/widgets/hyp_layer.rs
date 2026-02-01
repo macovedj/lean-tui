@@ -8,9 +8,9 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use crate::{
-    tui::protocol::{HypothesisInfo, NodeId},
-    tui::widgets::{
+use crate::tui::{
+    protocol::{HypothesisInfo, NodeId},
+    widgets::{
         diff_text::{diff_style, DiffState, TaggedTextExt},
         ClickRegion, Selection,
     },
@@ -53,7 +53,6 @@ impl HypLayer {
         self.hypotheses.len()
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     pub fn render(
         &self,
         ctx: &HypLayerRenderContext<'_>,
@@ -77,7 +76,6 @@ impl HypLayer {
             .collect()
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     fn track_click_regions(
         &self,
         click_regions: &mut Vec<ClickRegion>,

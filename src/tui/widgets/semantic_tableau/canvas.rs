@@ -49,7 +49,6 @@ impl VirtualCanvas {
     }
 
     /// Clip a virtual rectangle to the viewport. Returns None if not visible.
-    #[allow(clippy::cast_sign_loss)]
     pub fn clip_to_viewport(
         &self,
         x: i32,
@@ -77,7 +76,6 @@ impl VirtualCanvas {
     }
 }
 
-#[allow(clippy::cast_sign_loss)]
 fn clip_axis(rel_pos: i32, size: u16, origin: u16, area_size: u16) -> (u16, u16) {
     if rel_pos < 0 {
         let clip = (-rel_pos) as u16;

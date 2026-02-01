@@ -1,4 +1,3 @@
-
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},

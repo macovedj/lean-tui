@@ -33,7 +33,6 @@ pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent>
 }
 
 /// Display mode with embedded state.
-#[allow(clippy::large_enum_variant)]
 pub enum DisplayMode {
     OpenGoalList(PlainList),
     BeforeAfter(BeforeAfterMode),

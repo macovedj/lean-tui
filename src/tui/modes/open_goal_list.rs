@@ -5,15 +5,13 @@ use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{layout::Rect, Frame};
 
 use super::Mode;
-use crate::{
-    tui::protocol::{NodeId, ProofDag, ProofState},
-    tui::{
-        app::DefinitionInfo,
-        widgets::{
-            hypothesis_indices, open_goal_list::OpenGoalList, render_helpers::render_error,
-            selection::SelectionState, FilterToggle, HypothesisFilters, InteractiveComponent,
-            KeyMouseEvent, Selection,
-        },
+use crate::tui::{
+    app::DefinitionInfo,
+    protocol::{NodeId, ProofDag, ProofState},
+    widgets::{
+        hypothesis_indices, open_goal_list::OpenGoalList, render_helpers::render_error,
+        selection::SelectionState, FilterToggle, HypothesisFilters, InteractiveComponent,
+        KeyMouseEvent, Selection,
     },
 };
 

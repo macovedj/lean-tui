@@ -10,18 +10,16 @@ use ratatui::{
 use tracing::debug;
 
 use super::Mode;
-use crate::{
-    tui::protocol::{ProofDag, ProofState},
-    tui::{
-        app::DefinitionInfo,
-        widgets::{
-            render_helpers::{render_error, render_no_goals},
-            semantic_tableau::{
-                navigation::{find_nearest_in_direction, Direction},
-                SemanticTableauLayout, SemanticTableauState,
-            },
-            FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+use crate::tui::{
+    app::DefinitionInfo,
+    protocol::{ProofDag, ProofState},
+    widgets::{
+        render_helpers::{render_error, render_no_goals},
+        semantic_tableau::{
+            navigation::{find_nearest_in_direction, Direction},
+            SemanticTableauLayout, SemanticTableauState,
         },
+        FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
     },
 };
 

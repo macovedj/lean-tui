@@ -10,13 +10,20 @@ version = "0.1.0"
 
 [lints.clippy]
 absolute_paths = { level = "warn", priority = 2 }
+# TUI coordinate calculations involve safe numeric conversions
 cast_possible_truncation = { level = "allow", priority = 2 }
-# Generated protocol types use i64 for indices; conversions to usize are safe
+cast_possible_wrap = { level = "allow", priority = 2 }
 cast_sign_loss = { level = "allow", priority = 2 }
 excessive_nesting = { level = "warn", priority = 2 }
+# ViewMode variants have different sizes by design
+large_enum_variant = { level = "allow", priority = 2 }
 missing_errors_doc = { level = "allow", priority = -1 }
+# Vec::is_empty/len aren't const on stable Rust
+missing_const_for_fn = { level = "allow", priority = 2 }
 nursery = "warn"
 pedantic = "deny"
+# HypothesisFilters uses bools for filter flags by design
+struct_excessive_bools = { level = "allow", priority = 2 }
 
 [dependencies]
 # Async runtime
