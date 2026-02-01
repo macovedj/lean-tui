@@ -12,7 +12,7 @@ use super::{
     theorem_pane::{TheoremPane, TheoremPaneState},
     Selection,
 };
-use crate::lean_rpc::{ProofDag, ProofState};
+use crate::tui::protocol::{NodeId, ProofDag, ProofState};
 
 /// Combined state for the semantic tableau layout.
 #[derive(Default)]
@@ -35,7 +35,7 @@ impl SemanticTableauState {
     }
 
     /// Update state when current node changes.
-    pub fn update_current_node(&mut self, current_node: Option<u32>) {
+    pub fn update_current_node(&mut self, current_node: Option<NodeId>) {
         self.proof.update_current_node(current_node);
     }
 }
@@ -72,7 +72,8 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
         let (given_area, proof_area, theorem_area) = compute_layout(area, self.top_down);
 
         // Render given pane
-        let given_widget = GivenPane::new(&self.dag.initial_state.hypotheses, self.selection);
+        let initial = self.dag.initial_state();
+        let given_widget = GivenPane::new(&initial.hypotheses, self.selection);
         given_widget.render(given_area, buf, &mut state.given);
 
         // Render proof pane with actual current state
@@ -81,9 +82,7 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
         proof_widget.render(proof_area, buf, &mut state.proof);
 
         // Render theorem pane with the top-level theorem (initial goal)
-        let theorem_goal = self
-            .dag
-            .initial_state
+        let theorem_goal = initial
             .goals
             .first()
             .map(|g| g.type_.to_plain_text())

@@ -14,7 +14,7 @@ use super::{
     tree_layout::{calculate_tree_layout, NodePosition, TreeLayout},
     ClickRegion, Selection,
 };
-use crate::lean_rpc::{ProofDag, ProofState};
+use crate::tui::protocol::{NodeId, ProofDag, ProofState};
 
 /// State for the proof pane widget.
 #[derive(Default)]
@@ -22,7 +22,7 @@ pub struct ProofPaneState {
     scroll_x: i32,
     scroll_y: i32,
     manual_scroll: bool,
-    prev_current_node: Option<u32>,
+    prev_current_node: Option<NodeId>,
     layout: TreeLayout,
     content_width: i32,
     content_height: i32,
@@ -62,7 +62,7 @@ impl ProofPaneState {
         self.manual_scroll = false;
     }
 
-    pub fn update_current_node(&mut self, current_node: Option<u32>) {
+    pub fn update_current_node(&mut self, current_node: Option<NodeId>) {
         if current_node != self.prev_current_node {
             self.manual_scroll = false;
             self.prev_current_node = current_node;

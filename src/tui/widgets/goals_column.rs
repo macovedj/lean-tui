@@ -12,7 +12,7 @@ use super::{
     diff_text::TaggedTextExt, hypothesis_indices, ClickRegion, HypothesisFilters, Selection,
 };
 use crate::{
-    lean_rpc::{GoalInfo, HypothesisInfo, ProofState},
+    tui::protocol::{GoalInfo, HypothesisInfo, NodeId, ProofState},
     tui::widgets::theme::Theme,
 };
 
@@ -36,7 +36,7 @@ pub struct GoalsColumn<'a> {
     filters: HypothesisFilters,
     selection: Option<Selection>,
     is_current: bool,
-    node_id: Option<u32>,
+    node_id: Option<NodeId>,
     active_goal_name: Option<&'a str>,
 }
 
@@ -47,7 +47,7 @@ impl<'a> GoalsColumn<'a> {
         filters: HypothesisFilters,
         selection: Option<Selection>,
         is_current: bool,
-        node_id: Option<u32>,
+        node_id: Option<NodeId>,
         active_goal_name: Option<&'a str>,
     ) -> Self {
         Self {
@@ -122,7 +122,7 @@ impl GoalsColumn<'_> {
         buf: &mut Buffer,
         state: &mut GoalsColumnState,
         selection: Option<Selection>,
-        node_id: Option<u32>,
+        node_id: Option<NodeId>,
     ) {
         let visible_hyps = hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
             .filter(|&i| self.should_show_hypothesis(i))
@@ -151,13 +151,13 @@ impl GoalsColumn<'_> {
         buf: &mut Buffer,
         state: &mut GoalsColumnState,
         selection: Option<Selection>,
-        node_id: Option<u32>,
+        node_id: Option<NodeId>,
     ) {
         let visible_goals = self.state.goals.iter().enumerate().take(goal_area.height as usize);
 
         for (goal_idx, g) in visible_goals {
             let is_selected = matches!(selection, Some(Selection::Goal { goal_idx: sel, .. }) if sel == goal_idx);
-            let is_active = self.active_goal_name.is_some_and(|name| g.username.as_str() == Some(name));
+            let is_active = self.active_goal_name.is_some_and(|name| g.username_str() == Some(name));
             let line_area = Rect::new(goal_area.x, goal_area.y + goal_idx as u16, goal_area.width, 1);
 
             let line = render_goal_line(g, is_selected, is_active);
@@ -201,7 +201,7 @@ fn render_goal_line(g: &GoalInfo, is_selected: bool, is_active: bool) -> Line<'s
         style.fg(Theme::GOAL_TYPE)
     };
 
-    let prefix = g.username.as_str().map_or_else(
+    let prefix = g.username_str().map_or_else(
         || "⊢ ".to_string(),
         |name| format!("case {name} ⊢ "),
     );

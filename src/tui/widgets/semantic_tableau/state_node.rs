@@ -14,7 +14,7 @@ use super::{
     ClickRegion, Selection,
 };
 use crate::{
-    lean_rpc::{ProofDagNode, ProofState},
+    tui::protocol::{ProofDagNode, ProofState},
     tui::widgets::theme::Theme,
 };
 
@@ -100,10 +100,10 @@ impl<'a> StateNode<'a> {
             .iter()
             .enumerate()
             .filter_map(|(i, &hyp_idx)| {
-                let h = self.node.state_after.hypotheses.get(hyp_idx)?;
+                let h = self.node.state_after.hypotheses.get(hyp_idx as usize)?;
                 let selected = matches!(
                     self.selection,
-                    Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx
+                    Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx as usize
                 );
                 let (fg, bg) = hyp_style_colors(h.is_proof);
                 let style = Style::new()
@@ -174,7 +174,7 @@ impl<'a> StateNode<'a> {
             };
             let goal_type = truncate_str(&g.type_.to_plain_text(), 35);
 
-            if let Some(name) = g.username.as_str() {
+            if let Some(name) = g.username_str() {
                 spans.push(Span::styled(
                     format!("{name}: "),
                     Style::new().fg(Color::Cyan).add_modifier(underline),
@@ -205,7 +205,7 @@ impl<'a> StateNode<'a> {
             };
             let goal_type = truncate_str(&g.type_.to_plain_text(), 35);
 
-            if let Some(name) = g.username.as_str() {
+            if let Some(name) = g.username_str() {
                 spans.push(Span::styled(
                     format!("{name}: "),
                     Style::new().fg(Color::Cyan).add_modifier(underline),
@@ -250,7 +250,7 @@ impl<'a> StateNode<'a> {
                     area: Rect::new(inner.x, hyps_y, inner.width, 1),
                     selection: Selection::Hyp {
                         node_id: self.node.id,
-                        hyp_idx,
+                        hyp_idx: hyp_idx as usize,
                     },
                 });
             }

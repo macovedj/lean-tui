@@ -8,7 +8,7 @@ use ratatui::{
 
 use super::Mode;
 use crate::{
-    lean_rpc::{ProofDag, ProofState},
+    tui::protocol::{NodeId, ProofDag, ProofState},
     tui::{
         app::DefinitionInfo,
         widgets::{
@@ -39,7 +39,7 @@ pub struct BeforeAfterMode {
     definition: Option<DefinitionInfo>,
     error: Option<String>,
     /// Current node ID in the DAG (for building selections).
-    current_node_id: Option<u32>,
+    current_node_id: Option<NodeId>,
     /// Name of the goal the cursor's tactic is working on.
     active_goal_name: Option<String>,
     filters: HypothesisFilters,
@@ -132,7 +132,7 @@ impl InteractiveComponent for BeforeAfterMode {
         self.current_node_id = current_node_id;
         self.active_goal_name = current_node
             .and_then(|node| node.state_before.goals.first())
-            .and_then(|g| g.username.as_str().map(String::from));
+            .and_then(|g| g.username_str().map(String::from));
         if state_changed {
             self.selection.reset(self.selectable_items().len());
         }

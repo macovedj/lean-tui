@@ -11,6 +11,8 @@ version = "0.1.0"
 [lints.clippy]
 absolute_paths = { level = "warn", priority = 2 }
 cast_possible_truncation = { level = "allow", priority = 2 }
+# Generated protocol types use i64 for indices; conversions to usize are safe
+cast_sign_loss = { level = "allow", priority = 2 }
 excessive_nesting = { level = "warn", priority = 2 }
 missing_errors_doc = { level = "allow", priority = -1 }
 nursery = "warn"
@@ -20,11 +22,6 @@ pedantic = "deny"
 # Async runtime
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.7", features = ["compat"] }
-
-# LSP
-async-lsp = { version = "0.2", features = ["forward", "tracing", "tokio"] }
-tower-service = "0.3"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -34,10 +31,16 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# CLI
-clap = { version = "4", features = ["derive"] }
+# Paths
 dirs = "6"
 
 # TUI
 crossterm = { version = "0.29", features = ["event-stream", "osc52"] }
 ratatui = "0.29"
+
+[build-dependencies]
+typify = "0.4"
+serde_json = "1"
+prettyplease = "0.2"
+syn = "2"
+dirs = "6"

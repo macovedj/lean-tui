@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use super::{ClickRegion, Selection};
-use crate::{lean_rpc::HypothesisInfo, tui::widgets::theme::Theme};
+use crate::tui::{protocol::HypothesisInfo, widgets::theme::Theme};
 
 /// State for the given pane.
 #[derive(Default)]

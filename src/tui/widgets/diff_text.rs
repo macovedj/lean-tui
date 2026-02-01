@@ -5,7 +5,7 @@ use ratatui::{
     text::Span,
 };
 
-use crate::lean_rpc::{DiffTag, TaggedText};
+use crate::tui::protocol::{DiffTag, TaggedText};
 
 pub const fn diff_tag_style(tag: DiffTag, base_style: Style) -> Style {
     match tag {

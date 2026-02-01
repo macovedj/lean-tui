@@ -1,7 +1,10 @@
 //! TUI for displaying Lean proof goals.
 
 pub mod app;
+mod connection;
+mod error;
 mod modes;
+pub mod protocol;
 mod widgets;
 
 use std::{io::stdout, time::Duration};
@@ -16,7 +19,7 @@ use futures::StreamExt;
 use ratatui::prelude::*;
 use tokio::time::sleep;
 
-use crate::{error::Result, tui_ipc::spawn_socket_handler};
+pub use error::Result;
 
 pub async fn run() -> Result<()> {
     enable_raw_mode()?;
@@ -25,7 +28,7 @@ pub async fn run() -> Result<()> {
         .execute(EnableMouseCapture)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
-    let mut socket = spawn_socket_handler();
+    let mut conn = connection::spawn();
     let mut app = App::default();
     let mut event_stream = EventStream::new();
 
@@ -34,8 +37,7 @@ pub async fn run() -> Result<()> {
         terminal.draw(|frame| app.render(frame))?;
 
         tokio::select! {
-            Some(msg) = socket.rx.recv() => {
-                // ProofDag messages now come directly from lean-dag via TCP
+            Some(msg) = conn.rx.recv() => {
                 app.handle_message(msg);
             }
             Some(Ok(event)) = event_stream.next() => {
@@ -43,7 +45,7 @@ pub async fn run() -> Result<()> {
             }
             () = sleep(Duration::from_millis(50)) => {
                 for cmd in app.take_commands() {
-                    let _ = socket.tx.send(cmd).await;
+                    let _ = conn.tx.send(cmd).await;
                 }
             }
         }

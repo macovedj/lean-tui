@@ -1,6 +1,6 @@
 //! Tree layout calculation for the semantic tableau.
 
-use crate::lean_rpc::{NodeId, ProofDag, ProofDagNode};
+use crate::tui::protocol::{NodeId, ProofDag, ProofDagNode};
 
 pub const MIN_NODE_WIDTH: u16 = 25;
 pub const MAX_NODE_WIDTH: u16 = 60;
@@ -58,7 +58,7 @@ pub fn node_content_width(node: &ProofDagNode) -> u16 {
 
     // Hypothesis widths: " name: type "
     for &hyp_idx in &node.new_hypotheses {
-        if let Some(h) = node.state_after.hypotheses.get(hyp_idx) {
+        if let Some(h) = node.state_after.hypotheses.get(hyp_idx as usize) {
             let hyp_width = h.name.len() + h.type_.to_plain_text().len() + 5;
             max_width = max_width.max(hyp_width);
         }

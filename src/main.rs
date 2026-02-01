@@ -1,49 +1,12 @@
-mod error;
-mod lean_rpc;
-mod proxy;
 mod tui;
-mod tui_ipc;
 
 use std::{fs, path::PathBuf, process};
 
-use clap::{Parser, Subcommand};
-
-#[derive(Parser)]
-#[command(name = "lean-tui")]
-#[command(about = "Standalone TUI infoview for Lean 4")]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Run as LSP proxy between editor and lake serve
-    Proxy {
-        /// Use standalone lean-dag binary instead of library mode.
-        /// In library mode (default), users must `import LeanDag` in their Lean
-        /// files. In standalone mode, the lean-dag binary provides RPC
-        /// methods directly.
-        #[arg(long)]
-        standalone: bool,
-    },
-    /// Run TUI viewer (connects to proxy)
-    View,
-}
-
 #[tokio::main]
 async fn main() {
-    let cli = Cli::parse();
-
-    // Init tracing to log file (separate files for proxy and TUI)
-    let log_filename = match &cli.command {
-        Commands::Proxy { .. } => "proxy.log",
-        Commands::View => "tui.log",
-    };
     let log_path = dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("lean-tui")
-        .join(log_filename);
+        .join("lean-tui/tui.log");
 
     if let Some(parent) = log_path.parent() {
         let _ = fs::create_dir_all(parent);
@@ -64,12 +27,7 @@ async fn main() {
             .init();
     }
 
-    let result = match cli.command {
-        Commands::Proxy { standalone } => proxy::run(standalone).await,
-        Commands::View => tui::run().await,
-    };
-
-    if let Err(e) = result {
+    if let Err(e) = tui::run().await {
         eprintln!("Error: {e}");
         process::exit(1);
     }

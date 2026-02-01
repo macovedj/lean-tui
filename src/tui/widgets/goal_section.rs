@@ -14,7 +14,7 @@ use ratatui::{
 };
 
 use crate::{
-    lean_rpc::{GoalInfo, ProofState},
+    tui::protocol::{GoalInfo, NodeId, ProofState},
     tui::widgets::{
         diff_text::TaggedTextExt, layout_metrics::LayoutMetrics, theme::Theme, ClickRegion,
         Selection,
@@ -28,7 +28,7 @@ pub struct GoalSectionState {
     selection: Option<Selection>,
     spawned_goal_ids: HashSet<String>,
     /// Node ID for creating click region selections.
-    node_id: Option<u32>,
+    node_id: Option<NodeId>,
     /// Name of the goal the cursor's tactic is working on.
     active_goal_name: Option<String>,
     click_regions: Vec<ClickRegion>,
@@ -51,7 +51,7 @@ impl GoalSectionState {
         state: &ProofState,
         selection: Option<Selection>,
         spawned_goal_ids: HashSet<String>,
-        node_id: Option<u32>,
+        node_id: Option<NodeId>,
         active_goal_name: Option<String>,
     ) {
         self.goals.clone_from(&state.goals);
@@ -142,12 +142,10 @@ impl StatefulWidget for GoalSection {
                     Some(Selection::Goal { goal_idx: gi, .. }) if gi == goal_idx
                 );
                 let is_spawned = goal
-                    .username
-                    .as_str()
+                    .username_str()
                     .is_some_and(|name| state.spawned_goal_ids.contains(name));
                 let is_active = goal
-                    .username
-                    .as_str()
+                    .username_str()
                     .is_some_and(|name| state.active_goal_name.as_deref() == Some(name));
                 goal_row(goal, is_selected, is_spawned, is_active)
             })
@@ -185,7 +183,7 @@ impl StatefulWidget for GoalSection {
 
 fn track_goal_click_regions(
     click_regions: &mut Vec<ClickRegion>,
-    node_id: u32,
+    node_id: NodeId,
     layout: &GoalClickLayout,
 ) {
     for goal_idx in 0..layout.goal_count {
@@ -219,8 +217,7 @@ fn goal_row(
 
     // Column 1: case label (e.g. "Expected:" or "h.mpr:")
     let case_label = goal
-        .username
-        .as_str()
+        .username_str()
         .map_or(String::new(), |n| format!("{n}: "));
     let col1 = Cell::from(Line::from(vec![Span::styled(case_label, style)]));
 
