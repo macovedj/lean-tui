@@ -88,6 +88,18 @@ pub enum Message {
     },
 }
 
+impl Message {
+    /// Get a string describing the message type for logging.
+    pub fn message_type(&self) -> &'static str {
+        match self {
+            Self::Connected { .. } => "Connected",
+            Self::Cursor(_) => "Cursor",
+            Self::ProofDag { .. } => "ProofDag",
+            Self::Error { .. } => "Error",
+        }
+    }
+}
+
 /// Commands sent from TUI to proxy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
