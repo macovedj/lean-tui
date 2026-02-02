@@ -12,11 +12,11 @@ use tracing::trace;
 use super::Mode;
 use crate::{
     app::DefinitionInfo,
-    protocol::{CompleteProofDag, TacticProofState},
+    protocol::{CompleteFunctionalDag, CompleteProofDag, TacticProofState},
     widgets::{
         render_helpers::{render_error, render_no_goals},
-        semantic_tableau::{
-            navigation::{find_nearest_in_direction, Direction},
+        tableau::{
+            find_nearest_in_direction, Direction, FunctionalTableauLayout, FunctionalTableauState,
             SemanticTableauLayout, SemanticTableauState,
         },
         FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
@@ -29,6 +29,7 @@ pub struct DeductionTreeModeInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
+    pub functional_dag: Option<CompleteFunctionalDag>,
 }
 
 /// Deduction Tree display mode - semantic tree visualization.
@@ -37,6 +38,7 @@ pub struct SemanticTableau {
     definition: Option<DefinitionInfo>,
     error: Option<String>,
     proof_dag: Option<CompleteProofDag>,
+    functional_dag: Option<CompleteFunctionalDag>,
     filters: HypothesisFilters,
     /// Flat index into `tree_selectable_items()`.
     selected_idx: Option<usize>,
@@ -44,6 +46,8 @@ pub struct SemanticTableau {
     tree_top_down: bool,
     /// State for the semantic tableau widget.
     tableau_state: SemanticTableauState,
+    /// State for the functional tableau widget.
+    functional_tableau_state: FunctionalTableauState,
 }
 
 impl Default for SemanticTableau {
@@ -53,10 +57,12 @@ impl Default for SemanticTableau {
             definition: None,
             error: None,
             proof_dag: None,
+            functional_dag: None,
             filters: HypothesisFilters::default(),
             selected_idx: None,
             tree_top_down: true,
             tableau_state: SemanticTableauState::default(),
+            functional_tableau_state: FunctionalTableauState::default(),
         }
     }
 }
@@ -66,8 +72,18 @@ impl SemanticTableau {
         self.filters
     }
 
-    /// Build list of all selectable items in the tree from `proof_dag`.
+    /// Check if we're displaying a functional DAG.
+    fn is_functional_mode(&self) -> bool {
+        self.functional_dag.is_some()
+    }
+
+    /// Build list of all selectable items in the tree from `proof_dag` or
+    /// `functional_dag`.
     fn tree_selectable_items(&self) -> Vec<Selection> {
+        if let Some(dag) = &self.functional_dag {
+            return Self::functional_selectable_items(dag);
+        }
+
         let Some(dag) = &self.proof_dag else {
             return Vec::new();
         };
@@ -109,6 +125,46 @@ impl SemanticTableau {
         items
     }
 
+    /// Build selectable items for functional DAG.
+    fn functional_selectable_items(dag: &CompleteFunctionalDag) -> Vec<Selection> {
+        if dag.is_empty() {
+            return Vec::new();
+        }
+
+        let mut items = Vec::new();
+
+        // Initial bindings (function parameters)
+        for (idx, b) in dag.initial_bindings.iter().enumerate() {
+            if !b.is_implicit && !b.is_instance {
+                items.push(Selection::InitialHyp { hyp_idx: idx });
+            }
+        }
+
+        // For each node: new bindings and expected type
+        for node in dag.dfs_iter() {
+            let node_id = node.id;
+
+            // New bindings introduced by this step
+            for &binding_idx in &node.new_binding_indices {
+                items.push(Selection::Hyp {
+                    node_id,
+                    hyp_idx: binding_idx as usize,
+                });
+            }
+
+            // Expected type (like a goal)
+            items.push(Selection::Goal {
+                node_id,
+                goal_idx: 0,
+            });
+        }
+
+        // Definition type (like theorem)
+        items.push(Selection::Theorem);
+
+        items
+    }
+
     fn current_tree_selection(&self) -> Option<Selection> {
         let items = self.tree_selectable_items();
         self.selected_idx.and_then(|idx| items.get(idx).copied())
@@ -123,6 +179,14 @@ impl SemanticTableau {
 
     /// Get the active goal selection (first goal of the current node).
     fn active_goal_selection(&self) -> Option<Selection> {
+        if let Some(dag) = &self.functional_dag {
+            let current_node_id = dag.current_node_id?;
+            return Some(Selection::Goal {
+                node_id: current_node_id,
+                goal_idx: 0,
+            });
+        }
+
         let dag = self.proof_dag.as_ref()?;
         let current_node_id = dag.current_node_id?;
         Some(Selection::Goal {
@@ -147,8 +211,14 @@ impl SemanticTableau {
             return false;
         };
 
-        let navigation_regions = self.tableau_state.proof.navigation_regions();
         let items = self.tree_selectable_items();
+
+        // Use the appropriate navigation based on which DAG is active
+        let navigation_regions = if self.is_functional_mode() {
+            self.functional_tableau_state.navigation_regions()
+        } else {
+            self.tableau_state.proof.navigation_regions()
+        };
 
         trace!(
             ?current_sel,
@@ -159,6 +229,7 @@ impl SemanticTableau {
         );
 
         let result = find_nearest_in_direction(navigation_regions, current_sel, direction);
+
         trace!(?result, "Navigation result in move_in_direction");
 
         result.is_some_and(|sel| {
@@ -176,22 +247,58 @@ impl InteractiveComponent for SemanticTableau {
 
     fn update(&mut self, input: Self::Input) {
         // Detect changes to proof tree or goals
-        let old_count = self.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
-        let new_count = input.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
-        let old_current = self.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
-        let new_current = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
+        let old_proof_count = self.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
+        let new_proof_count = input.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
+        let old_functional_count = self
+            .functional_dag
+            .as_ref()
+            .map_or(0, CompleteFunctionalDag::len);
+        let new_functional_count = input
+            .functional_dag
+            .as_ref()
+            .map_or(0, CompleteFunctionalDag::len);
 
-        let tree_changed = old_count != new_count || old_current != new_current;
+        let old_current = self
+            .proof_dag
+            .as_ref()
+            .and_then(|dag| dag.current_node_id)
+            .or_else(|| {
+                self.functional_dag
+                    .as_ref()
+                    .and_then(|dag| dag.current_node_id)
+            });
+        let new_current = input
+            .proof_dag
+            .as_ref()
+            .and_then(|dag| dag.current_node_id)
+            .or_else(|| {
+                input
+                    .functional_dag
+                    .as_ref()
+                    .and_then(|dag| dag.current_node_id)
+            });
+
+        let tree_changed = old_proof_count != new_proof_count
+            || old_functional_count != new_functional_count
+            || old_current != new_current;
         let state_changed = self.state.goals.len() != input.state.goals.len()
             || self.state.hypotheses.len() != input.state.hypotheses.len();
 
         // Update state when current node changes
-        self.tableau_state.update_current_node(new_current);
+        self.tableau_state
+            .update_current_node(input.proof_dag.as_ref().and_then(|dag| dag.current_node_id));
+        self.functional_tableau_state.update_current_node(
+            input
+                .functional_dag
+                .as_ref()
+                .and_then(|dag| dag.current_node_id),
+        );
 
         self.state = input.state;
         self.definition = input.definition;
         self.error = input.error;
         self.proof_dag = input.proof_dag;
+        self.functional_dag = input.functional_dag;
 
         // Auto-select active goal when tree or goals change
         if tree_changed || state_changed {
@@ -217,10 +324,17 @@ impl InteractiveComponent for SemanticTableau {
                 _ => false,
             },
             KeyMouseEvent::Mouse(mouse) => {
-                let is_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
-                let clicked = is_click
-                    .then(|| self.tableau_state.find_click_at(mouse.column, mouse.row))
-                    .flatten();
+                if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+                    return false;
+                }
+
+                let clicked = if self.is_functional_mode() {
+                    self.functional_tableau_state
+                        .find_click_at(mouse.column, mouse.row)
+                } else {
+                    self.tableau_state.find_click_at(mouse.column, mouse.row)
+                };
+
                 if let Some(sel) = clicked {
                     self.select_by_selection(sel);
                     return true;
@@ -233,7 +347,19 @@ impl InteractiveComponent for SemanticTableau {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        if self.state.goals.is_empty() {
+        // Render functional DAG if present
+        if let Some(ref dag) = self.functional_dag {
+            let widget = FunctionalTableauLayout::new(
+                dag,
+                self.tree_top_down,
+                self.current_tree_selection(),
+            );
+            frame.render_stateful_widget(widget, content_area, &mut self.functional_tableau_state);
+            return;
+        }
+
+        // Render proof DAG if present
+        if self.state.goals.is_empty() && self.proof_dag.is_none() {
             render_no_goals(frame, content_area);
             return;
         }

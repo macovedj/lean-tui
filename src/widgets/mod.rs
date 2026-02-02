@@ -13,11 +13,12 @@ pub mod open_goal_list;
 pub mod proof_steps_sidebar;
 pub mod render_helpers;
 pub mod selection;
-pub mod semantic_tableau;
 pub mod status_bar;
+pub mod tableau;
 pub mod tactic_row;
 pub mod theme;
 pub mod welcome;
+pub mod worker_selector;
 
 pub use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;

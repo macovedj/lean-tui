@@ -17,9 +17,42 @@ use ratatui::{layout::Rect, Frame};
 pub use steps_view::StepsModeInput;
 use steps_view::TacticTree;
 
-use crate::widgets::{
-    FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+use crate::{
+    protocol::{CompleteFunctionalDag, CompleteProofDag},
+    widgets::{FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection},
 };
+
+/// DAG state - either proof mode or functional mode.
+#[derive(Clone, Default)]
+pub enum DagState {
+    #[default]
+    None,
+    Proof(CompleteProofDag),
+    Functional(CompleteFunctionalDag),
+}
+
+impl DagState {
+    /// Check if any DAG is present.
+    pub const fn is_some(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    /// Get proof DAG if in proof mode.
+    pub const fn proof(&self) -> Option<&CompleteProofDag> {
+        match self {
+            Self::Proof(dag) => Some(dag),
+            _ => None,
+        }
+    }
+
+    /// Get functional DAG if in functional mode.
+    pub const fn functional(&self) -> Option<&CompleteFunctionalDag> {
+        match self {
+            Self::Functional(dag) => Some(dag),
+            _ => None,
+        }
+    }
+}
 
 /// Trait for display modes in the TUI.
 pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent> {
@@ -32,148 +65,168 @@ pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent>
     fn current_selection(&self) -> Option<Selection>;
 }
 
-/// Display mode with embedded state.
-pub enum DisplayMode {
+/// Mode variant - the actual display mode implementation.
+enum ModeVariant {
     OpenGoalList(PlainList),
     BeforeAfter(BeforeAfterMode),
     StepsView(TacticTree),
     DeductionTree(SemanticTableau),
 }
 
-impl Default for DisplayMode {
+impl Default for ModeVariant {
     fn default() -> Self {
         Self::DeductionTree(SemanticTableau::default())
     }
 }
 
+/// Display mode with embedded state and shared DAG.
+pub struct DisplayMode {
+    /// The active mode variant.
+    mode: ModeVariant,
+    /// Shared DAG state (proof or functional).
+    pub dag: DagState,
+}
+
+impl Default for DisplayMode {
+    fn default() -> Self {
+        Self {
+            mode: ModeVariant::default(),
+            dag: DagState::None,
+        }
+    }
+}
+
 impl DisplayMode {
-    /// Cycle to the next display mode, preserving state.
+    /// Cycle to the next display mode, preserving DAG state.
     pub fn next(&mut self) {
-        *self = match take(self) {
-            Self::OpenGoalList(_) => Self::BeforeAfter(BeforeAfterMode::default()),
-            Self::BeforeAfter(_) => Self::StepsView(TacticTree::default()),
-            Self::StepsView(_) => Self::DeductionTree(SemanticTableau::default()),
-            Self::DeductionTree(_) => Self::OpenGoalList(PlainList::default()),
+        self.mode = match take(&mut self.mode) {
+            ModeVariant::OpenGoalList(_) => ModeVariant::BeforeAfter(BeforeAfterMode::default()),
+            ModeVariant::BeforeAfter(_) => ModeVariant::StepsView(TacticTree::default()),
+            ModeVariant::StepsView(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
+            ModeVariant::DeductionTree(_) => ModeVariant::OpenGoalList(PlainList::default()),
         };
     }
 
-    /// Cycle to the previous display mode, preserving state.
+    /// Cycle to the previous display mode, preserving DAG state.
     pub fn prev(&mut self) {
-        *self = match take(self) {
-            Self::OpenGoalList(_) => Self::DeductionTree(SemanticTableau::default()),
-            Self::BeforeAfter(_) => Self::OpenGoalList(PlainList::default()),
-            Self::StepsView(_) => Self::BeforeAfter(BeforeAfterMode::default()),
-            Self::DeductionTree(_) => Self::StepsView(TacticTree::default()),
+        self.mode = match take(&mut self.mode) {
+            ModeVariant::OpenGoalList(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
+            ModeVariant::BeforeAfter(_) => ModeVariant::OpenGoalList(PlainList::default()),
+            ModeVariant::StepsView(_) => ModeVariant::BeforeAfter(BeforeAfterMode::default()),
+            ModeVariant::DeductionTree(_) => ModeVariant::StepsView(TacticTree::default()),
         };
     }
 
     /// Get the display name of the current mode.
-    pub const fn name(&self) -> &'static str {
-        match self {
-            Self::OpenGoalList(_) => PlainList::NAME,
-            Self::BeforeAfter(_) => BeforeAfterMode::NAME,
-            Self::StepsView(_) => TacticTree::NAME,
-            Self::DeductionTree(_) => SemanticTableau::NAME,
+    pub fn name(&self) -> &'static str {
+        match &self.mode {
+            ModeVariant::OpenGoalList(_) => PlainList::NAME,
+            ModeVariant::BeforeAfter(_) => BeforeAfterMode::NAME,
+            ModeVariant::StepsView(_) => TacticTree::NAME,
+            ModeVariant::DeductionTree(_) => match &self.dag {
+                DagState::Functional(_) => "Functional tableau",
+                _ => SemanticTableau::NAME,
+            },
         }
     }
 
     /// Get mode-specific keybindings.
     pub const fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
-        match self {
-            Self::OpenGoalList(_) => PlainList::KEYBINDINGS,
-            Self::BeforeAfter(_) => BeforeAfterMode::KEYBINDINGS,
-            Self::StepsView(_) => TacticTree::KEYBINDINGS,
-            Self::DeductionTree(_) => SemanticTableau::KEYBINDINGS,
+        match &self.mode {
+            ModeVariant::OpenGoalList(_) => PlainList::KEYBINDINGS,
+            ModeVariant::BeforeAfter(_) => BeforeAfterMode::KEYBINDINGS,
+            ModeVariant::StepsView(_) => TacticTree::KEYBINDINGS,
+            ModeVariant::DeductionTree(_) => SemanticTableau::KEYBINDINGS,
         }
     }
 
     /// Get supported filter toggles.
     pub const fn supported_filters(&self) -> &'static [FilterToggle] {
-        match self {
-            Self::OpenGoalList(_) => PlainList::SUPPORTED_FILTERS,
-            Self::BeforeAfter(_) => BeforeAfterMode::SUPPORTED_FILTERS,
-            Self::StepsView(_) => TacticTree::SUPPORTED_FILTERS,
-            Self::DeductionTree(_) => SemanticTableau::SUPPORTED_FILTERS,
+        match &self.mode {
+            ModeVariant::OpenGoalList(_) => PlainList::SUPPORTED_FILTERS,
+            ModeVariant::BeforeAfter(_) => BeforeAfterMode::SUPPORTED_FILTERS,
+            ModeVariant::StepsView(_) => TacticTree::SUPPORTED_FILTERS,
+            ModeVariant::DeductionTree(_) => SemanticTableau::SUPPORTED_FILTERS,
         }
     }
 
     /// Get current selection from active mode.
     pub fn current_selection(&self) -> Option<Selection> {
-        match self {
-            Self::OpenGoalList(m) => m.current_selection(),
-            Self::BeforeAfter(m) => m.current_selection(),
-            Self::StepsView(m) => m.current_selection(),
-            Self::DeductionTree(m) => m.current_selection(),
+        match &self.mode {
+            ModeVariant::OpenGoalList(m) => m.current_selection(),
+            ModeVariant::BeforeAfter(m) => m.current_selection(),
+            ModeVariant::StepsView(m) => m.current_selection(),
+            ModeVariant::DeductionTree(m) => m.current_selection(),
         }
     }
 
     /// Get filters from active mode.
     pub const fn filters(&self) -> HypothesisFilters {
-        match self {
-            Self::OpenGoalList(m) => m.filters(),
-            Self::BeforeAfter(m) => m.filters(),
-            Self::StepsView(m) => m.filters(),
-            Self::DeductionTree(m) => m.filters(),
+        match &self.mode {
+            ModeVariant::OpenGoalList(m) => m.filters(),
+            ModeVariant::BeforeAfter(m) => m.filters(),
+            ModeVariant::StepsView(m) => m.filters(),
+            ModeVariant::DeductionTree(m) => m.filters(),
         }
     }
 
     /// Whether to show the previous column (`BeforeAfter` mode only).
     pub const fn show_previous(&self) -> bool {
-        match self {
-            Self::BeforeAfter(m) => m.show_previous(),
+        match &self.mode {
+            ModeVariant::BeforeAfter(m) => m.show_previous(),
             _ => false,
         }
     }
 
     /// Whether to show the next column (`BeforeAfter` mode only).
     pub const fn show_next(&self) -> bool {
-        match self {
-            Self::BeforeAfter(m) => m.show_next(),
+        match &self.mode {
+            ModeVariant::BeforeAfter(m) => m.show_next(),
             _ => false,
         }
     }
 
     /// Handle event for active mode.
     pub fn handle_event(&mut self, event: KeyMouseEvent) -> bool {
-        match self {
-            Self::OpenGoalList(m) => m.handle_event(event),
-            Self::BeforeAfter(m) => m.handle_event(event),
-            Self::StepsView(m) => m.handle_event(event),
-            Self::DeductionTree(m) => m.handle_event(event),
+        match &mut self.mode {
+            ModeVariant::OpenGoalList(m) => m.handle_event(event),
+            ModeVariant::BeforeAfter(m) => m.handle_event(event),
+            ModeVariant::StepsView(m) => m.handle_event(event),
+            ModeVariant::DeductionTree(m) => m.handle_event(event),
         }
     }
 
     /// Render active mode.
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
-        match self {
-            Self::OpenGoalList(m) => m.render(frame, area),
-            Self::BeforeAfter(m) => m.render(frame, area),
-            Self::StepsView(m) => m.render(frame, area),
-            Self::DeductionTree(m) => m.render(frame, area),
+        match &mut self.mode {
+            ModeVariant::OpenGoalList(m) => m.render(frame, area),
+            ModeVariant::BeforeAfter(m) => m.render(frame, area),
+            ModeVariant::StepsView(m) => m.render(frame, area),
+            ModeVariant::DeductionTree(m) => m.render(frame, area),
         }
     }
 
     /// Update active mode with appropriate input.
     pub fn update_open_goal_list(&mut self, input: PlainListInput) {
-        if let Self::OpenGoalList(m) = self {
+        if let ModeVariant::OpenGoalList(m) = &mut self.mode {
             m.update(input);
         }
     }
 
     pub fn update_before_after(&mut self, input: BeforeAfterModeInput) {
-        if let Self::BeforeAfter(m) = self {
+        if let ModeVariant::BeforeAfter(m) = &mut self.mode {
             m.update(input);
         }
     }
 
     pub fn update_steps(&mut self, input: StepsModeInput) {
-        if let Self::StepsView(m) = self {
+        if let ModeVariant::StepsView(m) = &mut self.mode {
             m.update(input);
         }
     }
 
     pub fn update_deduction_tree(&mut self, input: DeductionTreeModeInput) {
-        if let Self::DeductionTree(m) = self {
+        if let ModeVariant::DeductionTree(m) = &mut self.mode {
             m.update(input);
         }
     }

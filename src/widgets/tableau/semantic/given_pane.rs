@@ -8,27 +8,22 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
 };
 
-use super::{ClickRegion, Selection};
-use crate::{protocol::ProofContextHypothesis, widgets::theme::Theme};
+use crate::{
+    protocol::ProofContextHypothesis,
+    widgets::{tableau::truncate_str, theme::Theme, ClickRegion, Selection},
+};
 
 /// State for the given pane.
 #[derive(Default)]
 pub struct GivenPaneState {
-    /// Click regions from last render.
     pub click_regions: Vec<ClickRegion>,
 }
 
 impl GivenPaneState {
-    /// Find click at position.
     pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
         self.click_regions
             .iter()
-            .find(|r| {
-                x >= r.area.x
-                    && x < r.area.x + r.area.width
-                    && y >= r.area.y
-                    && y < r.area.y + r.area.height
-            })
+            .find(|r| r.area.intersects(Rect::new(x, y, 1, 1)))
             .map(|r| r.selection)
     }
 }
@@ -115,7 +110,6 @@ impl StatefulWidget for GivenPane<'_> {
                 let text = format!(" {}: {} ", h.name, truncated_type);
                 let text_width = text.chars().count() as u16;
 
-                // Track click region
                 state.click_regions.push(ClickRegion {
                     area: Rect::new(x_offset, inner.y, text_width.min(inner.width), 1),
                     selection: Selection::InitialHyp { hyp_idx: *hyp_idx },
@@ -139,18 +133,6 @@ impl StatefulWidget for GivenPane<'_> {
         };
 
         Paragraph::new(line).render(inner, buf);
-    }
-}
-
-/// Truncate a string to max length with ellipsis.
-pub fn truncate_str(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        s.to_string()
-    } else {
-        format!(
-            "{}...",
-            s.chars().take(max.saturating_sub(3)).collect::<String>()
-        )
     }
 }
 
