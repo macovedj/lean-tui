@@ -43,6 +43,9 @@ If you are interested in your proof as it evolves (like a directed acyclic graph
 - Tactic tree: tree of the tactic structure next to active hypotheses and goals
 - Semantic tableau: proof shown as a semantic tableau
 
+
+Try it out by opening one of the samples in [`samples/`](./samples).
+
 ## Installation
 
 ### 1. Install `lean-tui` from Crates.io
@@ -57,14 +60,14 @@ If `~/.cargo/bin` is in your path, you can now run this program with `lean-tui`.
 
 ### 2. Add `LeanDag` Dependency
 
-Add [LeanDag](https://github.com/wvhulle/lean-dag) as a Lake dependency.
+Add [LeanDag](https://codeberg.org/wvhulle/lean-dag) as a Lake dependency.
 
 In your `lakefile.toml`:
 
 ```toml
 [[require]]
 name = "LeanDag"
-git = "https://github.com/wvhulle/lean-dag.git"
+git = "https://codeberg.org/wvhulle/lean-dag.git"
 rev = "main"
 ```
 
@@ -103,14 +106,14 @@ name = "lean"
 
 You can choose between:
 
-- Using multiple terminals (emulator windows) side-by-side (a terminal app is typically provided on Windows/Linux/MacOS)
+- Using multiple terminals (emulator windows) side-by-side (a terminal app is typically provided on Windows/Linux/Mac)
 - Using a single terminal window with a terminal multiplexer (you'll need to install `zellij` or `tmux` with your system package manager)
 
 Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one).
 
 Split terminal. Launch the TUI in same directory in the second terminal with `lean-tui`.
 
-### 2. Start writing proofs
+### 2. Start Writing Proofs
 
 Switch back to your editor:
 
@@ -138,7 +141,7 @@ For the **VS Code users**: I don't like VS Code and vendor lock-in, but I like t
 
 For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
 
-For the **NeoVim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ..) since the Lean plugin relies on NeoVim specific features. It is not a generic one.
+For the **Neovim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ...) since the Lean plugin relies on Neovim specific features. It is not a generic one.
 
 The `lean-dag` LSP server and this front-end is my attempt at a more generic one, not bound to any editor in particular, and usable from any terminal window.
 

@@ -5,7 +5,7 @@ package «lean-tui-test» where
   version := v!"0.1.0"
 
 require LeanDag from git
-  "https://github.com/wvhulle/lean-dag.git" @ "main"
+  "https://codeberg.org/wvhulle/lean-dag.git" @ "main"
 
 
 require mathlib from git
