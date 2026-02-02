@@ -34,7 +34,7 @@ def validateAndCompute (input : String) : Option String := do
   let n ← parseNumber input
   guard (n > 0)
   let result ← computation n 3 5
-  pure s!"Result: {result}"
+  -- pure s!"Result: {result}"
 
 inductive Expr where
   | num : Int → Expr

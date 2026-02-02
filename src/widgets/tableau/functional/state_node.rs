@@ -50,20 +50,16 @@ impl<'a> FunctionalStateNode<'a> {
     }
 
     fn border_color(&self) -> Color {
-        match (
-            self.is_current,
-            self.is_leaf(),
-            self.node.expected_type.is_some(),
-        ) {
+        match (self.is_current, self.is_leaf(), self.node.is_complete) {
             (true, _, _) => Theme::CURRENT_NODE_BORDER,
-            (_, true, true) => Theme::INCOMPLETE_NODE_BORDER,
-            (_, true, false) => Theme::COMPLETED_NODE_BORDER,
+            (_, true, false) => Theme::INCOMPLETE_NODE_BORDER, // Incomplete leaf
+            (_, true, true) => Theme::COMPLETED_NODE_BORDER,   // Complete leaf
             _ => Theme::TACTIC_BORDER,
         }
     }
 
     fn title(&self) -> String {
-        let expr_text = truncate_str(&self.node.expression.to_plain_text(), 40);
+        let expr_text = &self.node.expression.to_plain_text();
         match self.node.children.len() {
             n if n > 1 => format!(" {expr_text} [{n}→] "),
             _ => format!(" {expr_text} "),
@@ -207,13 +203,18 @@ impl StatefulWidget for FunctionalStateNode<'_> {
                 Modifier::empty()
             });
 
-        let arrow = if self.top_down { "▼" } else { "▲" };
-
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title(Span::styled(self.title(), title_style))
-            .title_bottom(Span::styled(format!(" {arrow} "), border_style));
+            .title(Span::styled(self.title(), title_style));
+
+        // Only show continuation arrow for non-leaf nodes
+        let block = if self.is_leaf() {
+            block
+        } else {
+            let arrow = if self.top_down { "▼" } else { "▲" };
+            block.title_bottom(Span::styled(format!(" {arrow} "), border_style))
+        };
 
         let inner = block.inner(area);
         block.render(area, buf);

@@ -2,8 +2,6 @@
 
 use crate::protocol::NodeId;
 
-pub const MIN_NODE_WIDTH: u16 = 25;
-pub const MAX_NODE_WIDTH: u16 = 60;
 /// Gap between main tree and orphan nodes.
 pub const ORPHAN_GAP: i32 = 4;
 
