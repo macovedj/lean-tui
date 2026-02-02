@@ -19,8 +19,8 @@ use crate::{
         BeforeAfterModeInput, DeductionTreeModeInput, DisplayMode, PlainListInput, StepsModeInput,
     },
     protocol::{
-        ClientToServerCommand, CompleteProofDag, EditorCursorPosition, LineCharacterPosition,
-        ServerToClientMessage, TacticProofState,
+        ClientToServerCommand, CompleteFunctionalDag, CompleteProofDag, EditorCursorPosition,
+        LineCharacterPosition, ServerToClientMessage, TacticProofState,
     },
     widgets::{
         help_menu::{HelpMenu, HelpMenuWidget},
@@ -59,8 +59,10 @@ pub struct App {
     outgoing_commands: Vec<ClientToServerCommand>,
     /// Current display mode.
     display_mode: DisplayMode,
-    /// Unified proof DAG - single source of truth for all display modes.
+    /// Unified proof DAG - single source of truth for tactic-mode display.
     proof_dag: Option<CompleteProofDag>,
+    /// Functional DAG - single source of truth for term-mode display.
+    functional_dag: Option<CompleteFunctionalDag>,
     /// Status bar component.
     status_bar: StatusBar,
     /// Help menu overlay.
@@ -80,6 +82,7 @@ impl App {
             outgoing_commands: Vec::new(),
             display_mode: DisplayMode::default(),
             proof_dag: None,
+            functional_dag: None,
             status_bar: StatusBar::default(),
             help_menu: HelpMenu::default(),
         }
@@ -148,6 +151,26 @@ impl App {
                     line: None,
                 });
                 self.proof_dag = proof_dag;
+                self.functional_dag = None; // Clear functional DAG when we get a proof DAG
+                self.connected = true;
+                self.error = None;
+            }
+            ServerToClientMessage::FunctionalDag {
+                uri: _,
+                position: _,
+                functional_dag,
+            } => {
+                let definition_name = functional_dag
+                    .as_ref()
+                    .and_then(|dag| dag.definition_name.clone());
+
+                self.definition = definition_name.map(|name| DefinitionInfo {
+                    name,
+                    kind: Some("def".to_string()),
+                    line: None,
+                });
+                self.functional_dag = functional_dag;
+                self.proof_dag = None; // Clear proof DAG when we get a functional DAG
                 self.connected = true;
                 self.error = None;
             }
@@ -315,7 +338,8 @@ impl App {
 
     fn render_main(&mut self, frame: &mut Frame, area: Rect) {
         // Show welcome screen when connected but no data yet
-        let show_welcome = self.connected && self.cursor.is_none() && self.proof_dag.is_none();
+        let has_dag = self.proof_dag.is_some() || self.functional_dag.is_some();
+        let show_welcome = self.connected && self.cursor.is_none() && !has_dag;
 
         if show_welcome {
             frame.render_widget(WelcomeScreen, area);
@@ -373,7 +397,7 @@ impl App {
     }
 
     fn build_backend_display(&self) -> String {
-        if self.proof_dag.is_some() {
+        if self.proof_dag.is_some() || self.functional_dag.is_some() {
             " lean-dag ".to_string()
         } else {
             String::new()
