@@ -4,7 +4,7 @@ use std::{io::stdout, mem};
 
 use crossterm::{
     clipboard::CopyToClipboard,
-    event::{Event, KeyCode, KeyEventKind},
+    event::{Event, KeyCode, KeyEvent, KeyEventKind},
     ExecutableCommand,
 };
 use ratatui::{
@@ -16,16 +16,18 @@ use ratatui::{
 
 use crate::{
     modes::{
-        BeforeAfterModeInput, DeductionTreeModeInput, DisplayMode, PlainListInput, StepsModeInput,
+        BeforeAfterModeInput, DagState, DeductionTreeModeInput, DisplayMode, PlainListInput,
+        StepsModeInput,
     },
     protocol::{
-        ClientToServerCommand, CompleteFunctionalDag, CompleteProofDag, EditorCursorPosition,
-        LineCharacterPosition, ServerToClientMessage, TacticProofState,
+        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ServerToClientMessage,
+        TacticProofState,
     },
     widgets::{
         help_menu::{HelpMenu, HelpMenuWidget},
         status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
         welcome::WelcomeScreen,
+        worker_selector::{WorkerInfo, WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
         InteractiveStatefulWidget, KeyMouseEvent, Selection,
     },
 };
@@ -57,16 +59,20 @@ pub struct App {
     pub should_exit: bool,
     /// Outgoing commands queue.
     outgoing_commands: Vec<ClientToServerCommand>,
-    /// Current display mode.
+    /// Current display mode (includes DAG state).
     display_mode: DisplayMode,
-    /// Unified proof DAG - single source of truth for tactic-mode display.
-    proof_dag: Option<CompleteProofDag>,
-    /// Functional DAG - single source of truth for term-mode display.
-    functional_dag: Option<CompleteFunctionalDag>,
     /// Status bar component.
     status_bar: StatusBar,
     /// Help menu overlay.
     help_menu: HelpMenu,
+    /// Worker selector dialog.
+    worker_selector: WorkerSelector,
+    /// File URI of the currently connected worker.
+    pub connected_file_uri: Option<String>,
+    /// Pending port to switch to (set by worker selector).
+    pending_port_switch: Option<u16>,
+    /// Whether a port scan is requested.
+    pub scan_requested: bool,
 }
 
 impl App {
@@ -81,29 +87,61 @@ impl App {
             should_exit: false,
             outgoing_commands: Vec::new(),
             display_mode: DisplayMode::default(),
-            proof_dag: None,
-            functional_dag: None,
             status_bar: StatusBar::default(),
             help_menu: HelpMenu::default(),
+            worker_selector: WorkerSelector::default(),
+            connected_file_uri: None,
+            pending_port_switch: None,
+            scan_requested: false,
         }
+    }
+
+    /// Take a pending port switch request, if any.
+    pub fn take_port_switch(&mut self) -> Option<u16> {
+        self.pending_port_switch.take()
+    }
+
+    /// Clear state when switching to a new worker.
+    /// This ensures old data doesn't persist when connecting to a different
+    /// file.
+    pub fn clear_for_worker_switch(&mut self) {
+        self.cursor = None;
+        self.definition = None;
+        self.error = None;
+        self.connected = false;
+        self.connected_file_uri = None;
+        self.display_mode.dag = DagState::None;
+    }
+
+    /// Set discovered workers in the selector.
+    pub fn set_discovered_workers(&mut self, workers: Vec<WorkerInfo>) {
+        self.worker_selector.set_workers(workers);
+        self.scan_requested = false;
+    }
+
+    /// Get the port range for scanning.
+    pub const fn port_range(&self) -> (u16, u16) {
+        self.worker_selector.port_range
     }
 
     /// Get current proof state from the DAG.
     pub fn proof_state(&self) -> TacticProofState {
-        self.proof_dag
-            .as_ref()
+        self.display_mode
+            .dag
+            .proof()
             .and_then(|dag| dag.current_node_id)
-            .and_then(|id| self.proof_dag.as_ref()?.get(id))
+            .and_then(|id| self.display_mode.dag.proof()?.get(id))
             .map(|node| node.proof_state_after.clone())
             .unwrap_or_default()
     }
 
     /// Get position where current goals were fetched.
     pub fn goals_position(&self) -> Option<LineCharacterPosition> {
-        self.proof_dag
-            .as_ref()
+        self.display_mode
+            .dag
+            .proof()
             .and_then(|dag| dag.current_node_id)
-            .and_then(|id| self.proof_dag.as_ref()?.get(id))
+            .and_then(|id| self.display_mode.dag.proof()?.get(id))
             .map(|node| node.position)
     }
 
@@ -120,14 +158,33 @@ impl App {
     /// Handle incoming message from lean-dag server.
     pub fn handle_message(&mut self, msg: ServerToClientMessage) {
         match msg {
-            ServerToClientMessage::Connected { .. } => {
+            ServerToClientMessage::Connected {
+                file_uri,
+                port_range_min,
+                port_range_max,
+                ..
+            } => {
                 self.connected = true;
+                self.connected_file_uri = file_uri;
+                // Update port range if provided
+                if let (Some(min), Some(max)) = (port_range_min, port_range_max) {
+                    let min_port = u16::try_from(min.get()).unwrap_or(9742);
+                    let max_port = u16::try_from(max.get()).unwrap_or(9752);
+                    self.worker_selector.set_port_range(min_port, max_port);
+                }
             }
             ServerToClientMessage::Cursor {
                 uri,
                 position,
                 method,
             } => {
+                tracing::debug!(
+                    "Cursor: uri={}, pos={}:{}, method={}",
+                    uri,
+                    position.line,
+                    position.character,
+                    method
+                );
                 self.cursor = Some(EditorCursorPosition {
                     method,
                     position,
@@ -136,41 +193,47 @@ impl App {
                 self.connected = true;
                 self.error = None;
             }
-            ServerToClientMessage::ProofDag {
-                uri: _,
-                position: _,
-                proof_dag,
-            } => {
-                let definition_name = proof_dag
-                    .as_ref()
-                    .and_then(|dag| dag.definition_name.clone());
+            ServerToClientMessage::ProofDag { uri, position, dag } => {
+                tracing::debug!(
+                    "ProofDag: uri={}, pos={}:{}, dag={}",
+                    uri,
+                    position.line,
+                    position.character,
+                    dag.as_ref().map_or_else(
+                        || "None".to_string(),
+                        |d| format!("{} nodes", d.nodes.len())
+                    )
+                );
+                let definition_name = dag.as_ref().and_then(|dag| dag.definition_name.clone());
 
                 self.definition = definition_name.map(|name| DefinitionInfo {
                     name,
                     kind: None,
                     line: None,
                 });
-                self.proof_dag = proof_dag;
-                self.functional_dag = None; // Clear functional DAG when we get a proof DAG
+                self.display_mode.dag = dag.map_or(DagState::None, DagState::Proof);
                 self.connected = true;
                 self.error = None;
             }
-            ServerToClientMessage::FunctionalDag {
-                uri: _,
-                position: _,
-                functional_dag,
-            } => {
-                let definition_name = functional_dag
-                    .as_ref()
-                    .and_then(|dag| dag.definition_name.clone());
+            ServerToClientMessage::FunctionalDag { uri, position, dag } => {
+                tracing::debug!(
+                    "FunctionalDag: uri={}, pos={}:{}, dag={}",
+                    uri,
+                    position.line,
+                    position.character,
+                    dag.as_ref().map_or_else(
+                        || "None".to_string(),
+                        |d| format!("{} nodes", d.nodes.len())
+                    )
+                );
+                let definition_name = dag.as_ref().and_then(|dag| dag.definition_name.clone());
 
                 self.definition = definition_name.map(|name| DefinitionInfo {
                     name,
                     kind: Some("def".to_string()),
                     line: None,
                 });
-                self.functional_dag = functional_dag;
-                self.proof_dag = None; // Clear proof DAG when we get a functional DAG
+                self.display_mode.dag = dag.map_or(DagState::None, DagState::Functional);
                 self.connected = true;
                 self.error = None;
             }
@@ -197,7 +260,7 @@ impl App {
             return;
         };
 
-        let dag = self.proof_dag.as_ref();
+        let dag = self.display_mode.dag.proof();
         let fallback_pos = self.goals_position().unwrap_or(cursor.position);
 
         // Resolve navigation location based on selection type
@@ -225,7 +288,7 @@ impl App {
 
     /// Get the text of the currently selected item (hypothesis or goal).
     fn get_selection_text(&self, selection: Option<Selection>) -> Option<String> {
-        let dag = self.proof_dag.as_ref()?;
+        let dag = self.display_mode.dag.proof()?;
 
         match selection? {
             Selection::InitialHyp { hyp_idx } => dag
@@ -271,18 +334,20 @@ impl App {
     }
 
     fn update_display_mode(&mut self) {
+        let proof_dag = self.display_mode.dag.proof().cloned();
+        let functional_dag = self.display_mode.dag.functional().cloned();
+
         self.display_mode.update_open_goal_list(PlainListInput {
             state: self.proof_state(),
             definition: self.definition.clone(),
             error: self.error.clone(),
-            proof_dag: self.proof_dag.clone(),
+            proof_dag: proof_dag.clone(),
         });
         // Derive before/after states from the CompleteProofDag
-        let current_node = self
-            .proof_dag
+        let current_node = proof_dag
             .as_ref()
             .and_then(|dag| dag.current_node_id)
-            .and_then(|id| self.proof_dag.as_ref()?.get(id));
+            .and_then(|id| proof_dag.as_ref()?.get(id));
 
         let previous_state = self
             .display_mode
@@ -296,7 +361,7 @@ impl App {
             .then(|| {
                 current_node
                     .and_then(|n| n.children.first())
-                    .and_then(|&child_id| self.proof_dag.as_ref()?.get(child_id))
+                    .and_then(|&child_id| proof_dag.as_ref()?.get(child_id))
                     .map(|child| child.proof_state_after.clone())
             })
             .flatten();
@@ -309,20 +374,21 @@ impl App {
             next_state,
             definition: self.definition.clone(),
             error: self.error.clone(),
-            proof_dag: self.proof_dag.clone(),
+            proof_dag: proof_dag.clone(),
         });
         self.display_mode.update_steps(StepsModeInput {
             state: self.proof_state(),
             definition: self.definition.clone(),
             error: self.error.clone(),
-            proof_dag: self.proof_dag.clone(),
+            proof_dag: proof_dag.clone(),
         });
         self.display_mode
             .update_deduction_tree(DeductionTreeModeInput {
                 state: self.proof_state(),
                 definition: self.definition.clone(),
                 error: self.error.clone(),
-                proof_dag: self.proof_dag.clone(),
+                proof_dag,
+                functional_dag,
             });
     }
 
@@ -334,11 +400,16 @@ impl App {
         self.render_main(frame, main_area);
         frame.render_stateful_widget(StatusBarWidget, status_area, &mut self.status_bar);
         frame.render_stateful_widget(HelpMenuWidget, frame.area(), &mut self.help_menu);
+        frame.render_stateful_widget(
+            WorkerSelectorWidget,
+            frame.area(),
+            &mut self.worker_selector,
+        );
     }
 
     fn render_main(&mut self, frame: &mut Frame, area: Rect) {
         // Show welcome screen when connected but no data yet
-        let has_dag = self.proof_dag.is_some() || self.functional_dag.is_some();
+        let has_dag = self.display_mode.dag.is_some();
         let show_welcome = self.connected && self.cursor.is_none() && !has_dag;
 
         if show_welcome {
@@ -397,7 +468,7 @@ impl App {
     }
 
     fn build_backend_display(&self) -> String {
-        if self.proof_dag.is_some() || self.functional_dag.is_some() {
+        if self.display_mode.dag.is_some() {
             " lean-dag ".to_string()
         } else {
             String::new()
@@ -408,15 +479,36 @@ impl App {
     pub fn handle_event(&mut self, event: &Event) {
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
-                if HelpMenuWidget::handle_event(&mut self.help_menu, *key) {
-                    return;
-                }
-                if !self.handle_global_key(key.code) {
-                    self.display_mode.handle_event(KeyMouseEvent::Key(*key));
-                }
+                self.handle_key_event(*key);
             }
             Event::Mouse(mouse) => {
                 self.display_mode.handle_event(KeyMouseEvent::Mouse(*mouse));
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_key_event(&mut self, key: KeyEvent) {
+        // Worker selector takes priority when visible
+        if WorkerSelectorWidget::handle_event(&mut self.worker_selector, key) {
+            self.process_worker_selector_result();
+            return;
+        }
+        if HelpMenuWidget::handle_event(&mut self.help_menu, key) {
+            return;
+        }
+        if !self.handle_global_key(key.code) {
+            self.display_mode.handle_event(KeyMouseEvent::Key(key));
+        }
+    }
+
+    fn process_worker_selector_result(&mut self) {
+        match self.worker_selector.take_result() {
+            WorkerSelectorResult::Selected(port) => {
+                self.pending_port_switch = Some(port);
+            }
+            WorkerSelectorResult::Rescan => {
+                self.scan_requested = true;
             }
             _ => {}
         }
@@ -430,6 +522,12 @@ impl App {
             }
             KeyCode::Char('?') => {
                 self.help_menu.toggle();
+                true
+            }
+            KeyCode::Char('w') => {
+                // Open worker selector
+                self.worker_selector.show();
+                self.scan_requested = true;
                 true
             }
             KeyCode::Char(']') => {

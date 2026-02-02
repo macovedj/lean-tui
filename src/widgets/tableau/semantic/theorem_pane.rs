@@ -8,27 +8,19 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use super::{ClickRegion, Selection};
-use crate::widgets::theme::Theme;
+use crate::widgets::{theme::Theme, ClickRegion, Selection};
 
 /// State for the theorem pane.
 #[derive(Default)]
 pub struct TheoremPaneState {
-    /// Click regions from last render.
     pub click_regions: Vec<ClickRegion>,
 }
 
 impl TheoremPaneState {
-    /// Find click at position.
     pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
         self.click_regions
             .iter()
-            .find(|r| {
-                x >= r.area.x
-                    && x < r.area.x + r.area.width
-                    && y >= r.area.y
-                    && y < r.area.y + r.area.height
-            })
+            .find(|r| r.area.intersects(Rect::new(x, y, 1, 1)))
             .map(|r| r.selection)
     }
 }
@@ -69,10 +61,13 @@ impl StatefulWidget for TheoremPane<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let mut style = Style::new().fg(Theme::GOAL_FG);
-        if is_selected {
-            style = style.add_modifier(Modifier::UNDERLINED);
-        }
+        let style = Style::new()
+            .fg(Theme::GOAL_FG)
+            .add_modifier(if is_selected {
+                Modifier::UNDERLINED
+            } else {
+                Modifier::empty()
+            });
 
         Paragraph::new(Line::from(vec![Span::styled(
             format!("⊢ {}", self.goal),

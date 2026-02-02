@@ -1,6 +1,6 @@
 //! TCP connection to lean-dag server.
 
-use std::io;
+use std::{io, time::Duration};
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
@@ -8,9 +8,13 @@ use tokio::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
     },
+    time::timeout,
 };
 
-use crate::protocol::{ClientToServerCommand, ServerToClientMessage};
+use crate::{
+    protocol::{ClientToServerCommand, ServerToClientMessage},
+    widgets::worker_selector::WorkerInfo,
+};
 
 /// TCP connection state machine.
 pub enum Connection {
@@ -44,6 +48,11 @@ impl Connection {
         matches!(self, Self::Connected { .. })
     }
 
+    /// Disconnect from the server.
+    pub fn disconnect(&mut self) {
+        *self = Self::Disconnected;
+    }
+
     /// Try to receive a message. Returns None if disconnected or no data ready.
     pub async fn recv(&mut self) -> Option<ServerToClientMessage> {
         let Self::Connected { reader, .. } = self else {
@@ -53,11 +62,12 @@ impl Connection {
         match reader.next_line().await {
             Ok(Some(line)) => match serde_json::from_str::<ServerToClientMessage>(&line) {
                 Ok(msg) => {
-                    tracing::trace!("Received message: {:?}", msg.message_type());
+                    tracing::debug!("Received message: {:?}", msg.message_type());
                     Some(msg)
                 }
                 Err(e) => {
                     tracing::warn!("Failed to parse message: {e}");
+                    tracing::debug!("Raw message: {}", &line[..line.len().min(500)]);
                     None
                 }
             },
@@ -91,4 +101,62 @@ impl Connection {
         }
         Ok(())
     }
+}
+
+/// Probe a single port to check if a lean-dag worker is listening.
+/// Returns [`WorkerInfo`] if successful.
+async fn probe_port(port: u16) -> Option<WorkerInfo> {
+    let addr = format!("127.0.0.1:{port}");
+
+    // Try to connect with a short timeout
+    let Ok(Ok(stream)) = timeout(Duration::from_millis(100), TcpStream::connect(&addr)).await
+    else {
+        return None;
+    };
+
+    let (reader, _writer) = stream.into_split();
+    let mut reader = BufReader::new(reader).lines();
+
+    // Try to read the Connected message with timeout
+    let Ok(Ok(Some(line))) = timeout(Duration::from_millis(200), reader.next_line()).await else {
+        return None;
+    };
+
+    // Parse the message
+    let msg: ServerToClientMessage = serde_json::from_str(&line).ok()?;
+
+    match msg {
+        ServerToClientMessage::Connected {
+            file_uri,
+            server_mode,
+            ..
+        } => Some(WorkerInfo {
+            port,
+            file_uri,
+            server_mode: server_mode.map(|m| format!("{m:?}")),
+        }),
+        _ => None,
+    }
+}
+
+/// Scan a range of ports to discover active lean-dag workers.
+pub async fn discover_workers(port_min: u16, port_max: u16) -> Vec<WorkerInfo> {
+    tracing::info!("Scanning ports {port_min}–{port_max} for workers");
+
+    let mut handles = Vec::new();
+    for port in port_min..=port_max {
+        handles.push(tokio::spawn(probe_port(port)));
+    }
+
+    let mut workers = Vec::new();
+    for handle in handles {
+        if let Ok(Some(info)) = handle.await {
+            tracing::info!("Found worker: {:?}", info);
+            workers.push(info);
+        }
+    }
+
+    // Sort by port
+    workers.sort_by_key(|w| w.port);
+    workers
 }

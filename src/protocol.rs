@@ -20,7 +20,7 @@ mod generated {
 pub use generated::*;
 
 /// Type alias for node IDs.
-pub type NodeId = i64;
+pub type NodeId = u64;
 
 impl ServerToClientMessage {
     /// Get a string describing the message type for logging.
@@ -162,28 +162,6 @@ impl CompleteFunctionalDag {
     /// Check if a node is the current node (closest to cursor).
     pub fn is_current(&self, node_id: NodeId) -> bool {
         self.current_node_id == Some(node_id)
-    }
-}
-
-impl FunctionalDagNode {
-    /// No children in tree.
-    pub fn is_leaf(&self) -> bool {
-        self.children.is_empty()
-    }
-
-    /// Get the new bindings introduced at this node.
-    pub fn new_bindings(&self) -> Vec<&LocalBinding> {
-        self.new_binding_indices
-            .iter()
-            .filter_map(|&idx| self.bindings_after.get(idx as usize))
-            .collect()
-    }
-}
-
-impl LocalBinding {
-    /// Get navigation locations with default if missing.
-    pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
-        self.navigation_locations.clone().unwrap_or_default()
     }
 }
 

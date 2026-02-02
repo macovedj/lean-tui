@@ -21,15 +21,15 @@ impl VirtualCanvas {
         }
     }
 
-    /// Center the viewport on a target position.
-    pub fn scroll_to_center(
-        &mut self,
+    /// Center the viewport on a target position (builder style).
+    pub fn centered_on(
+        mut self,
         target_x: i32,
         target_y: i32,
         target_w: u16,
         target_h: u16,
         viewport: Rect,
-    ) {
+    ) -> Self {
         let center_x = target_x + i32::from(target_w) / 2;
         let center_y = target_y + i32::from(target_h) / 2;
 
@@ -38,6 +38,16 @@ impl VirtualCanvas {
 
         self.scroll_x = (center_x - i32::from(viewport.width) / 2).clamp(0, max_x);
         self.scroll_y = (center_y - i32::from(viewport.height) / 2).clamp(0, max_y);
+        self
+    }
+
+    /// Set scroll position with bounds checking (builder style).
+    pub fn with_scroll(mut self, scroll_x: i32, scroll_y: i32, viewport: Rect) -> Self {
+        let max_x = (self.content_width - i32::from(viewport.width)).max(0);
+        let max_y = (self.content_height - i32::from(viewport.height)).max(0);
+        self.scroll_x = scroll_x.clamp(0, max_x);
+        self.scroll_y = scroll_y.clamp(0, max_y);
+        self
     }
 
     pub fn needs_horizontal_scroll(&self, viewport: Rect) -> bool {
@@ -60,12 +70,12 @@ impl VirtualCanvas {
         let rel_x = x - self.scroll_x;
         let rel_y = y - self.scroll_y;
 
-        // Outside viewport?
-        if rel_x >= i32::from(viewport.width)
-            || rel_y >= i32::from(viewport.height)
-            || rel_x + i32::from(width) <= 0
-            || rel_y + i32::from(height) <= 0
-        {
+        let vp_w = i32::from(viewport.width);
+        let vp_h = i32::from(viewport.height);
+        let w = i32::from(width);
+        let h = i32::from(height);
+
+        if rel_x >= vp_w || rel_y >= vp_h || rel_x + w <= 0 || rel_y + h <= 0 {
             return None;
         }
 

@@ -9,19 +9,15 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use super::{
-    given_pane::{hyp_style_colors, truncate_str},
-    ClickRegion, Selection,
-};
+use super::given_pane::hyp_style_colors;
 use crate::{
     protocol::{ProofDagTacticNode, TacticProofState},
-    widgets::theme::Theme,
+    widgets::{tableau::truncate_str, theme::Theme, ClickRegion, Selection},
 };
 
 /// State for a single state node widget.
 #[derive(Default)]
 pub struct StateNodeState {
-    /// Click regions generated during rendering.
     pub click_regions: Vec<ClickRegion>,
 }
 
@@ -31,7 +27,6 @@ pub struct StateNode<'a> {
     is_current: bool,
     selection: Option<Selection>,
     top_down: bool,
-    /// Override state from LSP (for current node).
     override_state: Option<&'a TacticProofState>,
 }
 
@@ -52,30 +47,26 @@ impl<'a> StateNode<'a> {
         }
     }
 
-    /// Determine if the node should show as complete.
     fn is_effective_complete(&self) -> bool {
         self.override_state
             .map_or_else(|| self.node.is_complete(), |s| s.goals.is_empty())
     }
 
-    /// Get the border color for this node.
     fn border_color(&self) -> Color {
-        let effective_complete = self.is_effective_complete();
-        if self.is_current {
-            Theme::CURRENT_NODE_BORDER
-        } else if self.node.has_unsolved_spawned_goals {
-            // Node has inline proofs (spawned goals) that were never solved
-            Theme::INCOMPLETE_NODE_BORDER
-        } else if self.node.is_leaf() && !effective_complete {
-            Theme::INCOMPLETE_NODE_BORDER
-        } else if self.node.is_leaf() && effective_complete {
-            Theme::COMPLETED_NODE_BORDER
-        } else {
-            Theme::TACTIC_BORDER
+        let dominated_vars = (
+            self.is_current,
+            self.node.is_leaf(),
+            self.is_effective_complete(),
+        );
+        match dominated_vars {
+            (true, _, _) => Theme::CURRENT_NODE_BORDER,
+            (_, true, true) => Theme::COMPLETED_NODE_BORDER,
+            _ if self.node.has_unsolved_spawned_goals => Theme::INCOMPLETE_NODE_BORDER,
+            (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
+            _ => Theme::TACTIC_BORDER,
         }
     }
 
-    /// Build the title string for the node.
     fn build_title(&self) -> String {
         if self.node.children.len() > 1 {
             format!(
@@ -88,7 +79,6 @@ impl<'a> StateNode<'a> {
         }
     }
 
-    /// Build the hypothesis line (horizontal layout).
     fn build_hyps_line(&self) -> Option<Line<'static>> {
         if self.node.new_hypothesis_indices.is_empty() {
             return None;
@@ -124,7 +114,6 @@ impl<'a> StateNode<'a> {
         Some(Line::from(spans))
     }
 
-    /// Build the goals line.
     fn build_goals_line(&self) -> Line<'static> {
         if self.is_effective_complete() {
             return Line::from(vec![Span::styled(
@@ -143,7 +132,6 @@ impl<'a> StateNode<'a> {
             ));
         }
 
-        // Use override state if provided
         if let Some(state) = self.override_state {
             self.append_goal_spans_from_state(&mut spans, state);
         } else {
@@ -156,7 +144,6 @@ impl<'a> StateNode<'a> {
         Line::from(spans)
     }
 
-    /// Append goal spans from override state.
     fn append_goal_spans_from_state(
         &self,
         spans: &mut Vec<Span<'static>>,
@@ -191,7 +178,6 @@ impl<'a> StateNode<'a> {
         }
     }
 
-    /// Append goal spans from node's `state_after`.
     fn append_goal_spans_from_node(&self, spans: &mut Vec<Span<'static>>) {
         for (goal_idx, g) in self.node.proof_state_after.goals.iter().enumerate() {
             if goal_idx > 0 {
@@ -222,7 +208,6 @@ impl<'a> StateNode<'a> {
         }
     }
 
-    /// Build click regions for goals and hypotheses.
     fn build_click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
         let mut regions = Vec::new();
         let has_hyps = !self.node.new_hypothesis_indices.is_empty();
@@ -233,7 +218,6 @@ impl<'a> StateNode<'a> {
             (if has_hyps { inner.y + 1 } else { inner.y }, inner.y)
         };
 
-        // Goal click regions
         let goal_count = self
             .override_state
             .map_or(self.node.proof_state_after.goals.len(), |s| s.goals.len());
@@ -247,7 +231,6 @@ impl<'a> StateNode<'a> {
             });
         }
 
-        // Hypothesis click regions
         if has_hyps {
             for &hyp_idx in &self.node.new_hypothesis_indices {
                 regions.push(ClickRegion {
@@ -307,7 +290,6 @@ impl StatefulWidget for StateNode<'_> {
             return;
         }
 
-        // Build content lines
         let hyps_line = self.build_hyps_line();
         let goals_line = self.build_goals_line();
 
@@ -321,7 +303,6 @@ impl StatefulWidget for StateNode<'_> {
             .wrap(Wrap { trim: true })
             .render(inner, buf);
 
-        // Build click regions
         state.click_regions = self.build_click_regions(inner);
     }
 }
