@@ -28,7 +28,7 @@ fn color_legend_lines() -> Vec<Line<'static>> {
             Span::raw(" hypothesis"),
         ]),
         Line::from(vec![
-            Span::styled("■", Style::new().fg(Theme::GOAL_TYPE)),
+            Span::styled("■", Style::new().fg(Theme::GOAL_FG)),
             Span::raw(" goal"),
         ]),
         Line::from(vec![
