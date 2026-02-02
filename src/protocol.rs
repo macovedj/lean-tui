@@ -29,6 +29,7 @@ impl ServerToClientMessage {
             Self::Connected { .. } => "Connected",
             Self::Cursor { .. } => "Cursor",
             Self::ProofDag { .. } => "ProofDag",
+            Self::FunctionalDag { .. } => "FunctionalDag",
             Self::Error { .. } => "Error",
         }
     }
@@ -129,6 +130,79 @@ impl ProofContextHypothesis {
     /// Get navigation locations with default if missing.
     pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
         self.navigation_locations.clone().unwrap_or_default()
+    }
+}
+
+// --- Functional DAG helpers ---
+
+impl CompleteFunctionalDag {
+    /// Get a node by ID.
+    pub fn get(&self, id: NodeId) -> Option<&FunctionalDagNode> {
+        self.nodes.get(id as usize)
+    }
+
+    /// Iterate nodes in depth-first order.
+    pub fn dfs_iter(&self) -> impl Iterator<Item = &FunctionalDagNode> {
+        FunctionalDfsIterator {
+            dag: self,
+            stack: self.root_node_id.into_iter().collect(),
+        }
+    }
+
+    /// Check if the DAG is empty.
+    pub const fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// Get number of nodes.
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Check if a node is the current node (closest to cursor).
+    pub fn is_current(&self, node_id: NodeId) -> bool {
+        self.current_node_id == Some(node_id)
+    }
+}
+
+impl FunctionalDagNode {
+    /// No children in tree.
+    pub fn is_leaf(&self) -> bool {
+        self.children.is_empty()
+    }
+
+    /// Get the new bindings introduced at this node.
+    pub fn new_bindings(&self) -> Vec<&LocalBinding> {
+        self.new_binding_indices
+            .iter()
+            .filter_map(|&idx| self.bindings_after.get(idx as usize))
+            .collect()
+    }
+}
+
+impl LocalBinding {
+    /// Get navigation locations with default if missing.
+    pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
+        self.navigation_locations.clone().unwrap_or_default()
+    }
+}
+
+/// Depth-first iterator over functional DAG nodes.
+struct FunctionalDfsIterator<'a> {
+    dag: &'a CompleteFunctionalDag,
+    stack: Vec<NodeId>,
+}
+
+impl<'a> Iterator for FunctionalDfsIterator<'a> {
+    type Item = &'a FunctionalDagNode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.stack.pop()?;
+        let node = self.dag.get(id)?;
+        for &child_id in node.children.iter().rev() {
+            self.stack.push(child_id);
+        }
+        Some(node)
     }
 }
 
