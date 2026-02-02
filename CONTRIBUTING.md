@@ -75,3 +75,7 @@ Some editors also have debug logs for the LSP client. For Helix:
 ```bash
 tail -f ~/.cache/helix/helix.log
 ```
+
+## Development
+
+Don't forget to update the commit hash in `build.rs` when the JSON schema changes upstream.

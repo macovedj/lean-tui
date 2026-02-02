@@ -1,45 +1,31 @@
 use std::{env, fs, path::PathBuf};
 
-/// Pinned commit hash for lean-dag protocol schema.
-const LEAN_DAG_COMMIT: &str = "5bea0535c6d3970539b5d3aee75257ddd86ac02d";
+const LEAN_DAG_COMMIT: &str = "c083a960fdcdf0e27580288859a6fe5790d89b24";
 
 fn main() {
-    let schema_content = fetch_schema();
-
-    let schema: serde_json::Value = serde_json::from_str(&schema_content)
-        .unwrap_or_else(|e| panic!("Failed to parse schema JSON: {e}"));
+    let schema_json = env::var("LEAN_DAG_SCHEMA")
+        .map(PathBuf::from)
+        .ok()
+        .filter(|p| p.exists())
+        .map_or_else(
+            || {
+                let url = format!(
+                    "https://codeberg.org/wvhulle/lean-dag/raw/commit/{LEAN_DAG_COMMIT}/protocol-schema.json"
+                );
+                ureq::get(&url).call().expect("fetch schema").into_string().expect("read response")
+            },
+            |p| {
+                println!("cargo:rerun-if-changed={}", p.display());
+                fs::read_to_string(&p).expect("read local schema")
+            },
+        );
 
     let mut type_space = typify::TypeSpace::default();
-
     type_space
-        .add_root_schema(serde_json::from_value(schema).unwrap())
-        .unwrap();
-
-    let contents = prettyplease::unparse(&syn::parse2(type_space.to_stream()).unwrap());
+        .add_root_schema(serde_json::from_str(&schema_json).expect("parse schema"))
+        .expect("add schema");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    fs::write(out_dir.join("protocol_types.rs"), contents).unwrap();
-}
-
-fn fetch_schema() -> String {
-    // Allow override via environment variable for local development
-    if let Ok(path) = env::var("LEAN_DAG_SCHEMA") {
-        let path = PathBuf::from(path);
-        if path.exists() {
-            println!("cargo:rerun-if-changed={}", path.display());
-            return fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("Failed to read schema at {}: {e}", path.display()));
-        }
-    }
-
-    // Fetch from GitHub
-    let url = format!(
-        "https://raw.githubusercontent.com/wvhulle/lean-dag/{LEAN_DAG_COMMIT}/protocol-schema.json"
-    );
-
-    ureq::get(&url)
-        .call()
-        .unwrap_or_else(|e| panic!("Failed to fetch schema from {url}: {e}"))
-        .into_string()
-        .unwrap_or_else(|e| panic!("Failed to read schema response: {e}"))
+    let code = prettyplease::unparse(&syn::parse2(type_space.to_stream()).unwrap());
+    fs::write(out_dir.join("protocol_types.rs"), code).unwrap();
 }
