@@ -1,9 +1,6 @@
 {
-  description = "Standalone TUI infoview for Lean 4 theorem prover";
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     crane.url = "github:ipetkov/crane";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -14,62 +11,47 @@
   outputs =
     {
       self,
-      nixpkgs,
-      flake-utils,
-      crane,
       rust-overlay,
+      nixpkgs,
+      crane,
     }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [ rust-overlay.overlays.default ];
-        };
-
-        rustNightly = pkgs.rust-bin.nightly.latest.default;
-        craneLib = (crane.mkLib pkgs).overrideToolchain rustNightly;
-
-        src = craneLib.cleanCargoSource ./.;
-
-        commonArgs = {
-          inherit src;
-          strictDeps = true;
-          nativeBuildInputs = [
-            pkgs.pkg-config
-            pkgs.tree-sitter
-            pkgs.nodejs
-          ];
-        };
-
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-
-        lean-tui = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
-      in
-      {
-        packages.default = lean-tui;
-
-        checks = {
-          inherit lean-tui;
-          clippy = craneLib.cargoClippy (
-            commonArgs
-            // {
-              inherit cargoArtifacts;
-              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-            }
-          );
-          fmt = craneLib.cargoFmt { src = ./.; };
-        };
-
-        devShells.default = craneLib.devShell {
-          checks = self.checks.${system};
-          packages = with pkgs; [
-            tree-sitter
-            nodejs
-            elan
-          ];
-          MATHLIB_NO_CACHE_ON_UPDATE = "1";
-        };
-      }
-    );
+    let
+      forEachSystem =
+        f:
+        nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ] (
+          system:
+          f rec {
+            inherit system;
+            pkgs = import nixpkgs {
+              inherit system;
+              overlays = [ (import rust-overlay) ];
+            };
+            craneLib = (crane.mkLib pkgs).overrideToolchain (
+              pkgs.rust-bin.selectLatestNightlyWith (
+                t:
+                t.default.override {
+                  extensions = [ "rust-src" ];
+                }
+              )
+            );
+          }
+        );
+    in
+    {
+      packages = forEachSystem (
+        { craneLib, ... }:
+        {
+          default = craneLib.buildPackage (craneLib.cleanCargoSource ./.);
+        }
+      );
+      devShells = forEachSystem (
+        { pkgs, craneLib, ... }:
+        {
+          default = craneLib.devShell {
+            packages = [ pkgs.elan ];
+            MATHLIB_NO_CACHE_ON_UPDATE = "1";
+          };
+        }
+      );
+    };
 }
