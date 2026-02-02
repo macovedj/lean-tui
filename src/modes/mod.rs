@@ -1,6 +1,7 @@
 //! Display modes for the TUI.
 
 mod before_after;
+mod data_flow;
 pub mod deduction_tree;
 mod open_goal_list;
 mod steps_view;
@@ -9,6 +10,8 @@ use std::mem::take;
 
 use before_after::BeforeAfterMode;
 pub use before_after::BeforeAfterModeInput;
+use data_flow::DataFlowMode;
+pub use data_flow::DataFlowModeInput;
 pub use deduction_tree::DeductionTreeModeInput;
 use deduction_tree::SemanticTableau;
 use open_goal_list::PlainList;
@@ -71,6 +74,7 @@ enum ModeVariant {
     BeforeAfter(BeforeAfterMode),
     StepsView(TacticTree),
     DeductionTree(SemanticTableau),
+    DataFlow(DataFlowMode),
 }
 
 impl Default for ModeVariant {
@@ -103,17 +107,19 @@ impl DisplayMode {
             ModeVariant::OpenGoalList(_) => ModeVariant::BeforeAfter(BeforeAfterMode::default()),
             ModeVariant::BeforeAfter(_) => ModeVariant::StepsView(TacticTree::default()),
             ModeVariant::StepsView(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
-            ModeVariant::DeductionTree(_) => ModeVariant::OpenGoalList(PlainList::default()),
+            ModeVariant::DeductionTree(_) => ModeVariant::DataFlow(DataFlowMode::default()),
+            ModeVariant::DataFlow(_) => ModeVariant::OpenGoalList(PlainList::default()),
         };
     }
 
     /// Cycle to the previous display mode, preserving DAG state.
     pub fn prev(&mut self) {
         self.mode = match take(&mut self.mode) {
-            ModeVariant::OpenGoalList(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
+            ModeVariant::OpenGoalList(_) => ModeVariant::DataFlow(DataFlowMode::default()),
             ModeVariant::BeforeAfter(_) => ModeVariant::OpenGoalList(PlainList::default()),
             ModeVariant::StepsView(_) => ModeVariant::BeforeAfter(BeforeAfterMode::default()),
             ModeVariant::DeductionTree(_) => ModeVariant::StepsView(TacticTree::default()),
+            ModeVariant::DataFlow(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
         };
     }
 
@@ -123,10 +129,8 @@ impl DisplayMode {
             ModeVariant::OpenGoalList(_) => PlainList::NAME,
             ModeVariant::BeforeAfter(_) => BeforeAfterMode::NAME,
             ModeVariant::StepsView(_) => TacticTree::NAME,
-            ModeVariant::DeductionTree(_) => match &self.dag {
-                DagState::Functional(_) => "Functional tableau",
-                _ => SemanticTableau::NAME,
-            },
+            ModeVariant::DeductionTree(_) => SemanticTableau::NAME,
+            ModeVariant::DataFlow(_) => DataFlowMode::NAME,
         }
     }
 
@@ -137,6 +141,7 @@ impl DisplayMode {
             ModeVariant::BeforeAfter(_) => BeforeAfterMode::KEYBINDINGS,
             ModeVariant::StepsView(_) => TacticTree::KEYBINDINGS,
             ModeVariant::DeductionTree(_) => SemanticTableau::KEYBINDINGS,
+            ModeVariant::DataFlow(_) => DataFlowMode::KEYBINDINGS,
         }
     }
 
@@ -147,6 +152,7 @@ impl DisplayMode {
             ModeVariant::BeforeAfter(_) => BeforeAfterMode::SUPPORTED_FILTERS,
             ModeVariant::StepsView(_) => TacticTree::SUPPORTED_FILTERS,
             ModeVariant::DeductionTree(_) => SemanticTableau::SUPPORTED_FILTERS,
+            ModeVariant::DataFlow(_) => DataFlowMode::SUPPORTED_FILTERS,
         }
     }
 
@@ -157,6 +163,7 @@ impl DisplayMode {
             ModeVariant::BeforeAfter(m) => m.current_selection(),
             ModeVariant::StepsView(m) => m.current_selection(),
             ModeVariant::DeductionTree(m) => m.current_selection(),
+            ModeVariant::DataFlow(m) => m.current_selection(),
         }
     }
 
@@ -167,6 +174,7 @@ impl DisplayMode {
             ModeVariant::BeforeAfter(m) => m.filters(),
             ModeVariant::StepsView(m) => m.filters(),
             ModeVariant::DeductionTree(m) => m.filters(),
+            ModeVariant::DataFlow(m) => m.filters(),
         }
     }
 
@@ -193,6 +201,7 @@ impl DisplayMode {
             ModeVariant::BeforeAfter(m) => m.handle_event(event),
             ModeVariant::StepsView(m) => m.handle_event(event),
             ModeVariant::DeductionTree(m) => m.handle_event(event),
+            ModeVariant::DataFlow(m) => m.handle_event(event),
         }
     }
 
@@ -203,6 +212,7 @@ impl DisplayMode {
             ModeVariant::BeforeAfter(m) => m.render(frame, area),
             ModeVariant::StepsView(m) => m.render(frame, area),
             ModeVariant::DeductionTree(m) => m.render(frame, area),
+            ModeVariant::DataFlow(m) => m.render(frame, area),
         }
     }
 
@@ -227,6 +237,12 @@ impl DisplayMode {
 
     pub fn update_deduction_tree(&mut self, input: DeductionTreeModeInput) {
         if let ModeVariant::DeductionTree(m) = &mut self.mode {
+            m.update(input);
+        }
+    }
+
+    pub fn update_data_flow(&mut self, input: DataFlowModeInput) {
+        if let ModeVariant::DataFlow(m) = &mut self.mode {
             m.update(input);
         }
     }

@@ -17,7 +17,7 @@ pub use canvas::VirtualCanvas;
 pub use functional::{FunctionalTableauLayout, FunctionalTableauState};
 pub use navigation::{find_nearest_in_direction, Direction, NavigationRegion};
 pub use semantic::{SemanticTableauLayout, SemanticTableauState};
-pub use tree_layout::{NodePosition, TreeLayout, MAX_NODE_WIDTH, MIN_NODE_WIDTH, ORPHAN_GAP};
+pub use tree_layout::{NodePosition, TreeLayout, ORPHAN_GAP};
 
 /// Truncate a string to max length with ellipsis.
 pub fn truncate_str(s: &str, max: usize) -> String {

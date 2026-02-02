@@ -4,7 +4,7 @@ use std::iter::once;
 
 use crate::{
     protocol::{CompleteFunctionalDag, FunctionalDagNode, NodeId},
-    widgets::tableau::{NodePosition, TreeLayout, MAX_NODE_WIDTH, MIN_NODE_WIDTH, ORPHAN_GAP},
+    widgets::tableau::{NodePosition, TreeLayout, ORPHAN_GAP},
 };
 
 /// Calculate height for a node box based on content.
@@ -34,7 +34,7 @@ pub fn node_content_width(node: &FunctionalDagNode) -> u16 {
         .max()
         .unwrap_or(0);
 
-    ((max_width + 4) as u16).clamp(MIN_NODE_WIDTH, MAX_NODE_WIDTH)
+    (max_width + 4) as u16
 }
 
 /// Calculate subtree dimensions (width, height).

@@ -16,8 +16,8 @@ use ratatui::{
 
 use crate::{
     modes::{
-        BeforeAfterModeInput, DagState, DeductionTreeModeInput, DisplayMode, PlainListInput,
-        StepsModeInput,
+        BeforeAfterModeInput, DagState, DataFlowModeInput, DeductionTreeModeInput, DisplayMode,
+        PlainListInput, StepsModeInput,
     },
     protocol::{
         ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ProofContextHypothesis,
@@ -387,8 +387,12 @@ impl App {
                 definition: self.definition.clone(),
                 error: self.error.clone(),
                 proof_dag,
-                functional_dag,
             });
+        self.display_mode.update_data_flow(DataFlowModeInput {
+            definition: self.definition.clone(),
+            error: self.error.clone(),
+            functional_dag,
+        });
     }
 
     /// Render the entire UI.

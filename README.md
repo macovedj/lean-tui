@@ -43,6 +43,11 @@ If you are interested in your proof as it evolves (like a directed acyclic graph
 - Tactic tree: tree of the tactic structure next to active hypotheses and goals
 - Semantic tableau: proof shown as a semantic tableau
 
+There is also a 'data flow' display mode focused on functional programming:
+
+| Pure                       | Monadic                 |
+| -------------------------- | ----------------------- |
+| ![](./imgs/functional.png) | ![](./imgs/monadic.png) |
 
 Try it out by opening one of the samples in [`samples/`](./samples).
 

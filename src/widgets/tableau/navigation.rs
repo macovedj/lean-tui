@@ -83,7 +83,7 @@ pub fn find_nearest_in_direction(
 mod tests {
     use super::*;
 
-    fn hyp_region(node_id: i64, hyp_idx: usize, x: i32, y: i32) -> NavigationRegion {
+    fn hyp_region(node_id: u64, hyp_idx: usize, x: i32, y: i32) -> NavigationRegion {
         NavigationRegion {
             x,
             y,
@@ -93,7 +93,7 @@ mod tests {
         }
     }
 
-    fn goal_region(node_id: i64, goal_idx: usize, x: i32, y: i32, width: u16) -> NavigationRegion {
+    fn goal_region(node_id: u64, goal_idx: usize, x: i32, y: i32, width: u16) -> NavigationRegion {
         NavigationRegion {
             x,
             y,
