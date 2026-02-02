@@ -20,8 +20,8 @@ use crate::{
         StepsModeInput,
     },
     protocol::{
-        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ServerToClientMessage,
-        TacticProofState,
+        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ProofContextHypothesis,
+        ServerToClientMessage, TacticProofState,
     },
     widgets::{
         help_menu::{HelpMenu, HelpMenuWidget},
@@ -267,14 +267,13 @@ impl App {
         let nav_location: Option<(String, LineCharacterPosition)> =
             selection.and_then(|sel| match sel {
                 Selection::InitialHyp { hyp_idx } => dag
-                    .and_then(|d| d.initial_proof_state.as_ref())
-                    .and_then(|s| s.hypotheses.get(hyp_idx))
-                    .and_then(|h| h.navigation_locations().definition)
+                    .and_then(|d| d.initial_proof_state.hypotheses.get(hyp_idx))
+                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
                     .map(|loc| (loc.uri, loc.position)),
                 Selection::Hyp { node_id, hyp_idx } => dag
                     .and_then(|d| d.get(node_id))
                     .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
-                    .and_then(|h| h.navigation_locations().definition)
+                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
                     .map(|loc| (loc.uri, loc.position)),
                 Selection::Goal { node_id, .. } => dag
                     .and_then(|d| d.get(node_id))

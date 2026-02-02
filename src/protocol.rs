@@ -95,9 +95,9 @@ impl CompleteProofDag {
         self.current_node_id == Some(node_id)
     }
 
-    /// Get initial state with default if missing.
-    pub fn initial_proof_state(&self) -> TacticProofState {
-        self.initial_proof_state.clone().unwrap_or_default()
+    /// Get initial proof state.
+    pub fn initial_proof_state(&self) -> &TacticProofState {
+        &self.initial_proof_state
     }
 }
 
