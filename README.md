@@ -43,11 +43,16 @@ If you are interested in your proof as it evolves (like a directed acyclic graph
 - Tactic tree: tree of the tactic structure next to active hypotheses and goals
 - Semantic tableau: proof shown as a semantic tableau
 
-There is also a 'data flow' display mode focused on functional programming:
+There are display modes focused on functional programming:
 
 | Pure                       | Monadic                 |
 | -------------------------- | ----------------------- |
 | ![](./imgs/functional.png) | ![](./imgs/monadic.png) |
+
+I split them into:
+
+- Data flow: for normal functional programs. It shows a graph of the local bindings and expected types throughout the program (but not yet supporting all control flow)
+- Effect flow: inspired by [Aeneas](github.com/AeneasVerif/aeneas) and separation logic. Shows how monadic / effectful computations affect before and after state
 
 Try it out by opening one of the samples in [`samples/`](./samples).
 

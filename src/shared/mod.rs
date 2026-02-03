@@ -10,6 +10,7 @@ pub mod hyp_layer;
 pub mod hyp_section;
 pub mod interactive;
 pub mod layout_metrics;
+pub mod legend;
 pub mod navigation;
 pub mod render_helpers;
 pub mod selection;

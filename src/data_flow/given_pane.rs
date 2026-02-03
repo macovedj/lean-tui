@@ -1,6 +1,3 @@
-//! Given pane for functional tableau - displays initial bindings (function
-//! parameters).
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

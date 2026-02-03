@@ -1,5 +1,3 @@
-//! Common render helper functions for modes.
-
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     prelude::Stylize,

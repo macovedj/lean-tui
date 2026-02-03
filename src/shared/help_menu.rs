@@ -1,5 +1,3 @@
-//! Help menu overlay.
-
 use crossterm::event::KeyCode;
 use ratatui::{
     buffer::Buffer,
@@ -9,7 +7,7 @@ use ratatui::{
     widgets::{Block, Clear, Paragraph, StatefulWidget, Widget},
 };
 
-use super::{theme::Theme, InteractiveStatefulWidget, KeyEvent};
+use super::{InteractiveStatefulWidget, KeyEvent};
 
 const KEYBINDINGS: &[(&str, &str)] = &[
     ("[/]", "cycle display mode"),
@@ -17,30 +15,10 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("g", "goto origin"),
     ("y", "copy to clipboard"),
     ("f", "select file"),
+    ("L", "legend"),
     ("?", "close help"),
     ("q", "quit"),
 ];
-
-fn color_legend_lines() -> Vec<Line<'static>> {
-    vec![
-        Line::from(vec![
-            Span::styled("■", Style::new().fg(Theme::HYP_NAME)),
-            Span::raw(" hypothesis"),
-        ]),
-        Line::from(vec![
-            Span::styled("■", Style::new().fg(Theme::GOAL_FG)),
-            Span::raw(" goal"),
-        ]),
-        Line::from(vec![
-            Span::styled("■", Style::new().fg(Theme::COMPLETED_GOAL_FG)),
-            Span::raw(" completed"),
-        ]),
-        Line::from(vec![
-            Span::styled("■", Style::new().fg(Theme::INCOMPLETE_NODE_BORDER)),
-            Span::raw(" incomplete"),
-        ]),
-    ]
-}
 
 /// State for the help menu widget.
 #[derive(Default)]
@@ -65,11 +43,9 @@ impl StatefulWidget for HelpMenuWidget {
             return;
         }
 
-        let legend_lines = color_legend_lines();
         let key_style = Style::new().fg(Color::Cyan);
-        let dim_style = Style::new().fg(Color::DarkGray);
 
-        let mut lines: Vec<Line> = KEYBINDINGS
+        let lines: Vec<Line> = KEYBINDINGS
             .iter()
             .map(|(key, desc)| {
                 Line::from(vec![
@@ -78,12 +54,6 @@ impl StatefulWidget for HelpMenuWidget {
                 ])
             })
             .collect();
-
-        lines.push(Line::from(Span::styled(
-            "──────────────────────────",
-            dim_style,
-        )));
-        lines.extend(legend_lines);
 
         let width = 28u16;
         let height = (lines.len() as u16) + 2;

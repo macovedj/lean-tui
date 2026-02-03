@@ -1,5 +1,3 @@
-//! Diff-aware text rendering.
-
 use ratatui::{
     style::{Color, Modifier, Style},
     text::Span,

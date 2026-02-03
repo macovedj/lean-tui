@@ -1,14 +1,5 @@
-//! Data flow types.
-//!
-//! Helper types and extension traits for working with GenericDag in dataflow
-//! display style.
-
 use crate::protocol::{AnnotatedTextTree, GenericDag, GraphNode, LocalBinding};
 
-/// Type alias for node IDs.
-pub type NodeId = u64;
-
-/// Extension trait for GenericDag in dataflow mode.
 pub trait DataFlowDagExt {
     /// Get bindings from the initial context, filtering implicit and instance
     /// bindings.
@@ -24,15 +15,11 @@ impl DataFlowDagExt for GenericDag {
     }
 }
 
-/// Extension trait for GraphNode in dataflow mode.
 pub trait DataFlowNodeExt {
-    /// Get bindings_after from node metadata.
     fn bindings_after(&self) -> Vec<LocalBinding>;
 
-    /// Get new_binding_indices from node metadata.
     fn new_binding_indices(&self) -> Vec<u64>;
 
-    /// Get expected_type from node metadata.
     fn expected_type(&self) -> Option<AnnotatedTextTree>;
 
     /// Check if this is a leaf node (no children).

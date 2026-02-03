@@ -10,10 +10,13 @@ use crate::{
     before_after::BeforeAfterMode,
     data_flow::DataFlowMode,
     deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
-    effect_flow::EffectFlowMode,
+    effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode},
     plain_goal::PlainList,
     protocol::GenericDag,
-    shared::{FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection},
+    shared::{
+        legend::LegendSection, FilterToggle, HypothesisFilters, InteractiveComponent,
+        KeyMouseEvent, Selection,
+    },
     tactic_tree::TacticTree,
 };
 pub use crate::{
@@ -30,21 +33,37 @@ pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent>
     const SUPPORTED_FILTERS: &'static [FilterToggle];
 
     fn current_selection(&self) -> Option<Selection>;
+
+    /// Get legend sections for this mode.
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        Vec::new()
+    }
 }
 
-/// DAG state - either proof mode or dataflow mode.
+/// DAG state - either proof mode, dataflow mode, or effectflow mode.
 #[derive(Clone, Default)]
 pub enum DagState {
     #[default]
     None,
     Proof(CompleteProofDag),
     Dataflow(GenericDag),
+    Effectflow(EffectFlowDag),
 }
 
 impl DagState {
     /// Check if any DAG is present.
     pub const fn is_some(&self) -> bool {
         !matches!(self, Self::None)
+    }
+
+    /// Get the display style name of the current DAG.
+    pub const fn style_name(&self) -> Option<&'static str> {
+        match self {
+            Self::None => None,
+            Self::Proof(_) => Some("proof"),
+            Self::Dataflow(_) => Some("dataflow"),
+            Self::Effectflow(_) => Some("effectflow"),
+        }
     }
 
     /// Get proof DAG if in proof mode.
@@ -55,7 +74,7 @@ impl DagState {
         }
     }
 
-    /// Get generic DAG if in dataflow/effectflow mode.
+    /// Get generic DAG if in dataflow mode.
     pub const fn dataflow(&self) -> Option<&GenericDag> {
         match self {
             Self::Dataflow(dag) => Some(dag),
@@ -63,16 +82,46 @@ impl DagState {
         }
     }
 
-    /// Create DagState from a GenericDag, converting to appropriate typed DAG.
-    pub fn from_generic(dag: GenericDag) -> Result<Self, ProofDagConversionError> {
+    /// Get effect flow DAG if in effectflow mode.
+    pub const fn effectflow(&self) -> Option<&EffectFlowDag> {
+        match self {
+            Self::Effectflow(dag) => Some(dag),
+            _ => None,
+        }
+    }
+
+    pub fn from_generic(dag: GenericDag) -> Result<Self, DagConversionError> {
         use crate::protocol::DisplayStyle;
 
         match dag.display_style {
-            DisplayStyle::Proof => CompleteProofDag::try_from(dag).map(Self::Proof),
-            DisplayStyle::Dataflow | DisplayStyle::Effectflow => Ok(Self::Dataflow(dag)),
+            DisplayStyle::Proof => CompleteProofDag::try_from(dag)
+                .map(Self::Proof)
+                .map_err(DagConversionError::Proof),
+            DisplayStyle::Dataflow => Ok(Self::Dataflow(dag)),
+            DisplayStyle::Effectflow => EffectFlowDag::try_from(dag)
+                .map(Self::Effectflow)
+                .map_err(DagConversionError::Effectflow),
         }
     }
 }
+
+/// Error when converting a `GenericDag` to a specific DAG type.
+#[derive(Debug)]
+pub enum DagConversionError {
+    Proof(ProofDagConversionError),
+    Effectflow(EffectFlowConversionError),
+}
+
+impl std::fmt::Display for DagConversionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Proof(e) => write!(f, "{e}"),
+            Self::Effectflow(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for DagConversionError {}
 
 /// Mode variant - the actual display mode implementation.
 enum ModeVariant {
@@ -108,6 +157,32 @@ impl Default for DisplayMode {
 }
 
 impl DisplayMode {
+    /// Get an error message if the current mode is incompatible with the DAG.
+    /// Returns None if compatible or no DAG is present.
+    pub fn incompatibility_error(&self) -> Option<String> {
+        let dag_style = self.dag.style_name()?;
+
+        let expected_style = match &self.mode {
+            ModeVariant::PlainGoal(_)
+            | ModeVariant::BeforeAfter(_)
+            | ModeVariant::TacticTree(_)
+            | ModeVariant::DeductionTree(_) => "proof",
+            ModeVariant::DataFlow(_) => "dataflow",
+            ModeVariant::EffectFlow(_) => "effectflow",
+        };
+
+        if dag_style != expected_style {
+            Some(format!(
+                "Mode '{}' expects '{}' DAG, but received '{}' DAG",
+                self.name(),
+                expected_style,
+                dag_style
+            ))
+        } else {
+            None
+        }
+    }
+
     /// Cycle to the next display mode, preserving DAG state.
     pub fn next(&mut self) {
         self.mode = match take(&mut self.mode) {
@@ -177,6 +252,18 @@ impl DisplayMode {
             ModeVariant::DeductionTree(m) => m.current_selection(),
             ModeVariant::DataFlow(m) => m.current_selection(),
             ModeVariant::EffectFlow(m) => m.current_selection(),
+        }
+    }
+
+    /// Get legend sections from active mode.
+    pub fn legend_sections(&self) -> Vec<LegendSection> {
+        match &self.mode {
+            ModeVariant::PlainGoal(m) => m.legend_sections(),
+            ModeVariant::BeforeAfter(m) => m.legend_sections(),
+            ModeVariant::TacticTree(m) => m.legend_sections(),
+            ModeVariant::DeductionTree(m) => m.legend_sections(),
+            ModeVariant::DataFlow(m) => m.legend_sections(),
+            ModeVariant::EffectFlow(m) => m.legend_sections(),
         }
     }
 

@@ -1,5 +1,3 @@
-//! Steps mode - sidebar with proof steps plus hypotheses and goals sections.
-
 use std::collections::HashSet;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};

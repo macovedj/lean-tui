@@ -1,5 +1,3 @@
-//! Welcome screen shown when no goals are available.
-
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},

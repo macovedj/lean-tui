@@ -1,9 +1,7 @@
-//! Effect flow display style - monadic effect decomposition visualization.
-//!
-//! This style visualizes effect flow using forward/backward function
-//! decomposition, inspired by Aeneas.
-
+mod layout;
 mod mode;
+mod state_node;
 pub mod types;
 
 pub use mode::{EffectFlowMode, EffectFlowModeInput};
+pub use types::{EffectFlowConversionError, EffectFlowDag};
