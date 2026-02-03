@@ -54,8 +54,9 @@ impl Connection {
         *self = Self::Disconnected;
     }
 
-    /// Try to receive a message. Returns `Ok(None)` if disconnected or no data ready.
-    /// Returns `Err` on parse errors to allow the UI to display them.
+    /// Try to receive a message. Returns `Ok(None)` if disconnected or no data
+    /// ready. Returns `Err` on parse errors to allow the UI to display
+    /// them.
     pub async fn recv(&mut self) -> Result<Option<ServerToClientMessage>> {
         let Self::Connected { reader, .. } = self else {
             return Ok(None);
@@ -68,9 +69,13 @@ impl Connection {
                     Ok(Some(msg))
                 }
                 Err(e) => {
+                    let raw_preview: String = line.chars().take(500).collect();
                     tracing::warn!("Failed to parse message: {e}");
-                    tracing::debug!("Raw message: {}", &line[..line.len().min(500)]);
-                    Err(Error::Json(e))
+                    tracing::debug!("Raw message: {raw_preview}");
+                    Err(Error::ProtocolParse {
+                        message: e.to_string(),
+                        raw_preview,
+                    })
                 }
             },
             Ok(None) => {

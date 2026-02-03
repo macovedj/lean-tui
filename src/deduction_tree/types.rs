@@ -119,18 +119,32 @@ impl CompleteProofDag {
 
 /// Error when converting from GenericDag to CompleteProofDag.
 #[derive(Debug, Clone)]
-pub struct ProofDagConversionError {
-    pub expected_style: DisplayStyle,
-    pub actual_style: DisplayStyle,
+pub enum ProofDagConversionError {
+    WrongDisplayStyle {
+        expected: DisplayStyle,
+        actual: DisplayStyle,
+    },
+    MetadataParse {
+        node_id: u64,
+        field: &'static str,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ProofDagConversionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Expected display_style {:?}, got {:?}",
-            self.expected_style, self.actual_style
-        )
+        match self {
+            Self::WrongDisplayStyle { expected, actual } => {
+                write!(f, "Expected display_style {expected:?}, got {actual:?}")
+            }
+            Self::MetadataParse {
+                node_id,
+                field,
+                message,
+            } => {
+                write!(f, "Node {node_id}: failed to parse {field}: {message}")
+            }
+        }
     }
 }
 
@@ -141,40 +155,62 @@ impl TryFrom<GenericDag> for CompleteProofDag {
 
     fn try_from(dag: GenericDag) -> Result<Self, Self::Error> {
         if dag.display_style != DisplayStyle::Proof {
-            return Err(ProofDagConversionError {
-                expected_style: DisplayStyle::Proof,
-                actual_style: dag.display_style,
+            return Err(ProofDagConversionError::WrongDisplayStyle {
+                expected: DisplayStyle::Proof,
+                actual: dag.display_style,
             });
         }
 
-        let nodes: Vec<ProofDagTacticNode> = dag
+        let nodes: Result<Vec<ProofDagTacticNode>, Self::Error> = dag
             .nodes
             .iter()
             .map(|node| {
-                let proof_state_before: TacticProofState = node
-                    .metadata
-                    .get("proof_state_before")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_default();
+                // Debug: log metadata keys and first proof_state_after content
+                tracing::debug!(
+                    "Node {}: metadata keys = {:?}",
+                    node.id,
+                    node.metadata.keys().collect::<Vec<_>>()
+                );
+                if let Some(ps) = node.metadata.get("proof_state_after") {
+                    tracing::debug!("Node {}: proof_state_after = {}", node.id, ps);
+                }
 
-                let proof_state_after: TacticProofState = node
-                    .metadata
-                    .get("proof_state_after")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_default();
+                let parse_field = |field: &'static str| -> Result<_, Self::Error> {
+                    node.metadata
+                        .get(field)
+                        .map(|v| {
+                            serde_json::from_value(v.clone()).map_err(|e| {
+                                ProofDagConversionError::MetadataParse {
+                                    node_id: node.id,
+                                    field,
+                                    message: e.to_string(),
+                                }
+                            })
+                        })
+                        .transpose()
+                };
 
+                let proof_state_before: TacticProofState =
+                    parse_field("proof_state_before")?.unwrap_or_default();
+                let proof_state_after: TacticProofState =
+                    parse_field("proof_state_after")?.unwrap_or_default();
+
+                tracing::debug!(
+                    "Node {}: parsed {} goals, {} hypotheses",
+                    node.id,
+                    proof_state_after.goals.len(),
+                    proof_state_after.hypotheses.len()
+                );
                 let new_hypothesis_indices: Vec<u64> = node
                     .metadata
                     .get("new_hypothesis_indices")
                     .and_then(|v| serde_json::from_value(v.clone()).ok())
                     .unwrap_or_default();
-
                 let hypothesis_dependencies: Vec<String> = node
                     .metadata
                     .get("hypothesis_dependencies")
                     .and_then(|v| serde_json::from_value(v.clone()).ok())
                     .unwrap_or_default();
-
                 let referenced_theorems: Vec<String> = node
                     .metadata
                     .get("referenced_theorems")
@@ -183,7 +219,7 @@ impl TryFrom<GenericDag> for CompleteProofDag {
 
                 let children: Vec<NodeId> = node.edges.iter().map(|e| e.target).collect();
 
-                ProofDagTacticNode {
+                Ok(ProofDagTacticNode {
                     id: node.id,
                     tactic: TacticText {
                         text: node.content.to_plain_text(),
@@ -198,9 +234,11 @@ impl TryFrom<GenericDag> for CompleteProofDag {
                     new_hypothesis_indices,
                     hypothesis_dependencies,
                     referenced_theorems,
-                }
+                })
             })
             .collect();
+
+        let nodes = nodes?;
 
         let initial_proof_state = nodes
             .first()
@@ -250,8 +288,10 @@ impl DagNode for ProofDagTacticNode {
     }
 
     fn box_height(&self) -> u16 {
-        // Border (2) + content line (1)
-        3
+        // Border (2) + goals line (1) + optional hypotheses line (1)
+        let has_new_hyps = !self.new_hypothesis_indices.is_empty();
+        let content_lines = if has_new_hyps { 2 } else { 1 };
+        2 + content_lines
     }
 
     fn content_width(&self) -> u16 {

@@ -10,4 +10,6 @@ pub mod types;
 
 pub use layout::{SemanticTableauLayout, SemanticTableauState};
 pub use mode::{DeductionTreeModeInput, SemanticTableau};
-pub use types::{CompleteProofDag, NodeId, ProofDagTacticNode, TacticText};
+pub use types::{
+    CompleteProofDag, NodeId, ProofDagConversionError, ProofDagTacticNode, TacticText,
+};

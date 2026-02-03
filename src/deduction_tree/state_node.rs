@@ -305,10 +305,10 @@ impl StatefulWidget for StateNode<'_> {
         let hyps_line = self.build_hyps_line();
         let goals_line = self.build_goals_line();
 
-        let lines: Vec<Line> = match (self.top_down, hyps_line) {
-            (true, Some(h)) => vec![h, goals_line],
-            (false, Some(h)) => vec![goals_line, h],
-            (_, None) => vec![goals_line],
+        // Hypotheses first, then goals
+        let lines: Vec<Line> = match hyps_line {
+            Some(h) => vec![h, goals_line],
+            None => vec![goals_line],
         };
 
         Paragraph::new(lines)
