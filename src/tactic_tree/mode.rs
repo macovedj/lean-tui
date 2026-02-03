@@ -8,9 +8,12 @@ use ratatui::{
 
 use crate::{
     app::DefinitionInfo,
-    deduction_tree::types::{CompleteProofDag, ProofDagTacticNode},
+    deduction_tree::{
+        types::{CompleteProofDag, ProofDagTacticNode},
+        TacticProofState,
+    },
     display_mode::Mode,
-    protocol::{NodeId, TacticProofState},
+    protocol::NodeId,
     shared::{
         goal_section::{GoalSection, GoalSectionState},
         hyp_section::{HypSection, HypSectionState},
@@ -31,6 +34,55 @@ pub struct StepsModeInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
+}
+
+impl StepsModeInput {
+    /// Create a builder for this input type.
+    pub fn builder() -> StepsModeInputBuilder {
+        StepsModeInputBuilder::default()
+    }
+}
+
+/// Builder for `StepsModeInput`.
+#[derive(Default)]
+pub struct StepsModeInputBuilder {
+    dag: Option<CompleteProofDag>,
+    definition: Option<DefinitionInfo>,
+    error: Option<String>,
+}
+
+impl StepsModeInputBuilder {
+    pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
+        self.dag = Some(dag.clone());
+        self
+    }
+
+    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
+        self.definition = definition;
+        self
+    }
+
+    pub fn error(mut self, error: Option<String>) -> Self {
+        self.error = error;
+        self
+    }
+
+    pub fn build(self) -> StepsModeInput {
+        let state = self
+            .dag
+            .as_ref()
+            .and_then(|d| d.current_node_id)
+            .and_then(|id| self.dag.as_ref()?.get(id))
+            .map(|node| node.proof_state_after.clone())
+            .unwrap_or_default();
+
+        StepsModeInput {
+            state,
+            definition: self.definition,
+            error: self.error,
+            proof_dag: self.dag,
+        }
+    }
 }
 
 /// Steps display mode - sidebar + hypotheses + goals.

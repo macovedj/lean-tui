@@ -1,8 +1,3 @@
-//! Effect flow types.
-//!
-//! Helper types and extension traits for working with `GenericDag` in
-//! effectflow display style.
-
 use ratatui::style::Color;
 
 use crate::{
@@ -11,30 +6,20 @@ use crate::{
 };
 
 /// Effect node kinds from the lean-dag backend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectKind {
-    /// Monadic bind operation (>>=, do notation)
     EffectBind,
-    /// State read (get)
     StateRead,
-    /// State write (set/put)
     StateWrite,
-    /// State modify
     StateModify,
-    /// Pure return value
     EffectReturn,
-    /// Throw/error
     EffectThrow,
-    /// Catch/try-catch
     EffectCatch,
-    /// Pure value
     Pure,
-    /// Unknown effect kind
-    Unknown,
+    Custom(String),
 }
 
 impl EffectKind {
-    /// Parse from a node kind string.
     pub fn from_str(s: &str) -> Self {
         match s {
             "effectBind" => Self::EffectBind,
@@ -45,12 +30,11 @@ impl EffectKind {
             "effectThrow" => Self::EffectThrow,
             "effectCatch" => Self::EffectCatch,
             "pure" => Self::Pure,
-            _ => Self::Unknown,
+            other => Self::Custom(other.to_owned()),
         }
     }
 
-    /// Get an icon/symbol for this effect kind.
-    pub const fn icon(self) -> &'static str {
+    pub fn icon(&self) -> &str {
         match self {
             Self::EffectBind => "⊛",
             Self::StateRead => "◁",
@@ -60,12 +44,11 @@ impl EffectKind {
             Self::EffectThrow => "⚡",
             Self::EffectCatch => "⛨",
             Self::Pure => "●",
-            Self::Unknown => "?",
+            Self::Custom(_) => "◆",
         }
     }
 
-    /// Get the color for this effect kind (from Theme).
-    pub const fn color(self) -> Color {
+    pub fn color(&self) -> Color {
         match self {
             Self::EffectBind => Theme::EFFECT_BIND,
             Self::StateRead => Theme::EFFECT_STATE_READ,
@@ -75,12 +58,11 @@ impl EffectKind {
             Self::EffectThrow => Theme::EFFECT_THROW,
             Self::EffectCatch => Theme::EFFECT_CATCH,
             Self::Pure => Theme::EFFECT_PURE,
-            Self::Unknown => Color::DarkGray,
+            Self::Custom(_) => Color::Gray,
         }
     }
 
-    /// Get a short description of this effect kind.
-    pub const fn description(self) -> &'static str {
+    pub fn description(&self) -> &str {
         match self {
             Self::EffectBind => "bind",
             Self::StateRead => "read",
@@ -90,7 +72,7 @@ impl EffectKind {
             Self::EffectThrow => "throw",
             Self::EffectCatch => "catch",
             Self::Pure => "pure",
-            Self::Unknown => "?",
+            Self::Custom(s) => s,
         }
     }
 }
@@ -134,18 +116,6 @@ impl EdgeKind {
             Self::ErrorPropagation => Theme::EDGE_ERROR_PROPAGATION,
             Self::EarlyReturn => Theme::EDGE_EARLY_RETURN,
             Self::Unknown => Color::DarkGray,
-        }
-    }
-
-    /// Get the line style character for this edge kind.
-    pub const fn line_char(self) -> char {
-        match self {
-            Self::DataFlow => '─',
-            Self::ControlFlow => '━',
-            Self::EffectFlow => '┄',
-            Self::ErrorPropagation => '╌',
-            Self::EarlyReturn => '┈',
-            Self::Unknown => '-',
         }
     }
 
@@ -215,7 +185,7 @@ impl EffectFlowNodeExt for GraphNode {
     fn effect_kind(&self) -> EffectKind {
         self.kind
             .as_deref()
-            .map_or(EffectKind::Unknown, EffectKind::from_str)
+            .map_or_else(|| EffectKind::Custom(String::new()), EffectKind::from_str)
     }
 
     fn has_effect_metadata(&self) -> bool {
@@ -253,7 +223,7 @@ impl EffectFlowNodeExt for GraphNode {
 
 // --- Validated EffectFlowDag ---
 
-use std::fmt;
+use std::{error::Error, fmt, ops::Deref};
 
 use crate::protocol::DisplayStyle;
 
@@ -285,7 +255,7 @@ impl fmt::Display for EffectFlowConversionError {
     }
 }
 
-impl std::error::Error for EffectFlowConversionError {}
+impl Error for EffectFlowConversionError {}
 
 /// Validated effect flow DAG - guarantees all nodes have effect metadata.
 #[derive(Debug, Clone)]
@@ -311,7 +281,7 @@ impl EffectFlowDag {
     }
 }
 
-impl std::ops::Deref for EffectFlowDag {
+impl Deref for EffectFlowDag {
     type Target = GenericDag;
 
     fn deref(&self) -> &Self::Target {

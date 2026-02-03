@@ -7,7 +7,8 @@ use ratatui::{
 };
 
 use crate::{
-    protocol::{NodeId, ProofContextHypothesis, ProofObligation, TacticProofState},
+    deduction_tree::{ProofContextHypothesis, ProofObligation, TacticProofState},
+    protocol::NodeId,
     shared::{
         diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, ClickRegion,
         HypothesisFilters, Selection,

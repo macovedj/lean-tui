@@ -1,7 +1,73 @@
+use std::{error::Error, fmt};
+
+use serde::de::DeserializeOwned;
+
 use crate::protocol::{
-    AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, LineCharacterPosition, NavNode,
-    TacticProofState,
+    AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, GraphNode, LineCharacterPosition,
+    NavNode, PreresolvedNavigationTargets,
 };
+
+/// A hypothesis in a proof context.
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProofContextHypothesis {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub type_: AnnotatedTextTree,
+    #[serde(default)]
+    pub value: Option<AnnotatedTextTree>,
+    pub id: String,
+    #[serde(default)]
+    pub is_proof_term: bool,
+    #[serde(default)]
+    pub is_typeclass_instance: bool,
+    #[serde(default)]
+    pub is_implicit: bool,
+    #[serde(default)]
+    pub is_instance: bool,
+    #[serde(default)]
+    pub is_removed: bool,
+    #[serde(default)]
+    pub navigation_locations: Option<PreresolvedNavigationTargets>,
+}
+
+impl ProofContextHypothesis {
+    /// Get navigation locations with default if missing.
+    pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
+        self.navigation_locations.clone().unwrap_or_default()
+    }
+}
+
+/// A proof obligation (goal) to be proven.
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProofObligation {
+    #[serde(rename = "type")]
+    pub type_: AnnotatedTextTree,
+    #[serde(default)]
+    pub username: Option<String>,
+    pub id: String,
+    #[serde(default)]
+    pub is_removed: bool,
+    #[serde(default)]
+    pub navigation_locations: Option<PreresolvedNavigationTargets>,
+}
+
+impl ProofObligation {
+    /// Get username as string slice.
+    pub fn username_str(&self) -> Option<&str> {
+        self.username.as_deref()
+    }
+}
+
+/// A proof state containing goals and hypotheses.
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+pub struct TacticProofState {
+    #[serde(default)]
+    pub goals: Vec<ProofObligation>,
+    #[serde(default)]
+    pub hypotheses: Vec<ProofContextHypothesis>,
+}
 
 /// Type alias for node IDs.
 pub type NodeId = u64;
@@ -106,8 +172,8 @@ pub enum ProofDagConversionError {
     },
 }
 
-impl std::fmt::Display for ProofDagConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ProofDagConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::WrongDisplayStyle { expected, actual } => {
                 write!(f, "Expected display_style {expected:?}, got {actual:?}")
@@ -123,7 +189,82 @@ impl std::fmt::Display for ProofDagConversionError {
     }
 }
 
-impl std::error::Error for ProofDagConversionError {}
+impl Error for ProofDagConversionError {}
+
+fn parse_metadata_field<T: DeserializeOwned>(
+    metadata: &serde_json::Map<String, serde_json::Value>,
+    node_id: u64,
+    field: &'static str,
+) -> Result<Option<T>, ProofDagConversionError> {
+    let Some(value) = metadata.get(field) else {
+        return Ok(None);
+    };
+    serde_json::from_value(value.clone())
+        .map(Some)
+        .map_err(|e| ProofDagConversionError::MetadataParse {
+            node_id,
+            field,
+            message: e.to_string(),
+        })
+}
+
+fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConversionError> {
+    tracing::debug!(
+        "Node {}: metadata keys = {:?}",
+        node.id,
+        node.metadata.keys().collect::<Vec<_>>()
+    );
+    if let Some(ps) = node.metadata.get("proof_state_after") {
+        tracing::debug!("Node {}: proof_state_after = {}", node.id, ps);
+    }
+
+    let proof_state_before: TacticProofState =
+        parse_metadata_field(&node.metadata, node.id, "proof_state_before")?.unwrap_or_default();
+    let proof_state_after: TacticProofState =
+        parse_metadata_field(&node.metadata, node.id, "proof_state_after")?.unwrap_or_default();
+
+    tracing::debug!(
+        "Node {}: parsed {} goals, {} hypotheses",
+        node.id,
+        proof_state_after.goals.len(),
+        proof_state_after.hypotheses.len()
+    );
+
+    let new_hypothesis_indices: Vec<u64> = node
+        .metadata
+        .get("new_hypothesis_indices")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    let hypothesis_dependencies: Vec<String> = node
+        .metadata
+        .get("hypothesis_dependencies")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    let referenced_theorems: Vec<String> = node
+        .metadata
+        .get("referenced_theorems")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+
+    let children: Vec<NodeId> = node.edges.iter().map(|e| e.target).collect();
+
+    Ok(ProofDagTacticNode {
+        id: node.id,
+        tactic: TacticText {
+            text: node.content.to_plain_text(),
+            position: node.position,
+        },
+        position: node.position,
+        proof_state_before,
+        proof_state_after,
+        children,
+        parent: node.parent,
+        depth: node.depth,
+        new_hypothesis_indices,
+        hypothesis_dependencies,
+        referenced_theorems,
+    })
+}
 
 impl TryFrom<GenericDag> for CompleteProofDag {
     type Error = ProofDagConversionError;
@@ -136,83 +277,8 @@ impl TryFrom<GenericDag> for CompleteProofDag {
             });
         }
 
-        let nodes: Result<Vec<ProofDagTacticNode>, Self::Error> = dag
-            .nodes
-            .iter()
-            .map(|node| {
-                // Debug: log metadata keys and first proof_state_after content
-                tracing::debug!(
-                    "Node {}: metadata keys = {:?}",
-                    node.id,
-                    node.metadata.keys().collect::<Vec<_>>()
-                );
-                if let Some(ps) = node.metadata.get("proof_state_after") {
-                    tracing::debug!("Node {}: proof_state_after = {}", node.id, ps);
-                }
-
-                let parse_field = |field: &'static str| -> Result<_, Self::Error> {
-                    node.metadata
-                        .get(field)
-                        .map(|v| {
-                            serde_json::from_value(v.clone()).map_err(|e| {
-                                ProofDagConversionError::MetadataParse {
-                                    node_id: node.id,
-                                    field,
-                                    message: e.to_string(),
-                                }
-                            })
-                        })
-                        .transpose()
-                };
-
-                let proof_state_before: TacticProofState =
-                    parse_field("proof_state_before")?.unwrap_or_default();
-                let proof_state_after: TacticProofState =
-                    parse_field("proof_state_after")?.unwrap_or_default();
-
-                tracing::debug!(
-                    "Node {}: parsed {} goals, {} hypotheses",
-                    node.id,
-                    proof_state_after.goals.len(),
-                    proof_state_after.hypotheses.len()
-                );
-                let new_hypothesis_indices: Vec<u64> = node
-                    .metadata
-                    .get("new_hypothesis_indices")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_default();
-                let hypothesis_dependencies: Vec<String> = node
-                    .metadata
-                    .get("hypothesis_dependencies")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_default();
-                let referenced_theorems: Vec<String> = node
-                    .metadata
-                    .get("referenced_theorems")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_default();
-
-                let children: Vec<NodeId> = node.edges.iter().map(|e| e.target).collect();
-
-                Ok(ProofDagTacticNode {
-                    id: node.id,
-                    tactic: TacticText {
-                        text: node.content.to_plain_text(),
-                        position: node.position,
-                    },
-                    position: node.position,
-                    proof_state_before,
-                    proof_state_after,
-                    children,
-                    parent: node.parent,
-                    depth: node.depth,
-                    new_hypothesis_indices,
-                    hypothesis_dependencies,
-                    referenced_theorems,
-                })
-            })
-            .collect();
-
+        let nodes: Result<Vec<ProofDagTacticNode>, Self::Error> =
+            dag.nodes.iter().map(parse_graph_node).collect();
         let nodes = nodes?;
 
         let initial_proof_state = nodes

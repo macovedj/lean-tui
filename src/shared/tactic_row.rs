@@ -1,5 +1,3 @@
-//! Tactic row component - displays divider between hypotheses and goals.
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

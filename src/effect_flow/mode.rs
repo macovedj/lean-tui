@@ -13,10 +13,7 @@ use crate::{
     display_mode::Mode,
     effect_flow::{
         layout::{EffectTableauLayout, EffectTableauState},
-        types::{
-            EdgeKind, EffectFlowDag, EffectFlowDagExt, EffectFlowEdgeExt, EffectFlowNodeExt,
-            EffectKind,
-        },
+        types::{EdgeKind, EffectFlowDag, EffectFlowDagExt, EffectKind},
     },
     shared::{
         find_nearest_in_direction,
@@ -32,6 +29,46 @@ pub struct EffectFlowModeInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub effect_dag: Option<EffectFlowDag>,
+}
+
+impl EffectFlowModeInput {
+    /// Create a builder for this input type.
+    pub fn builder() -> EffectFlowModeInputBuilder {
+        EffectFlowModeInputBuilder::default()
+    }
+}
+
+/// Builder for `EffectFlowModeInput`.
+#[derive(Default)]
+pub struct EffectFlowModeInputBuilder {
+    effect_dag: Option<EffectFlowDag>,
+    definition: Option<DefinitionInfo>,
+    error: Option<String>,
+}
+
+impl EffectFlowModeInputBuilder {
+    pub fn effect_dag(mut self, dag: &EffectFlowDag) -> Self {
+        self.effect_dag = Some(dag.clone());
+        self
+    }
+
+    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
+        self.definition = definition;
+        self
+    }
+
+    pub fn error(mut self, error: Option<String>) -> Self {
+        self.error = error;
+        self
+    }
+
+    pub fn build(self) -> EffectFlowModeInput {
+        EffectFlowModeInput {
+            definition: self.definition,
+            error: self.error,
+            effect_dag: self.effect_dag,
+        }
+    }
 }
 
 /// Effect Flow display mode - monadic effect visualization.
@@ -191,136 +228,6 @@ impl EffectFlowMode {
             area
         }
     }
-
-    /// Render effect interpretation info for the selected node.
-    fn render_interpretations(&self, frame: &mut Frame, area: Rect) -> Rect {
-        if !self.show_interpretations {
-            return area;
-        }
-
-        let Some(dag) = &self.effect_dag else {
-            return area;
-        };
-
-        // Get the selected node
-        let selected_node_id = match self.current_tree_selection() {
-            Some(Selection::Goal { node_id, .. }) => Some(node_id),
-            _ => dag.current_node_id,
-        };
-
-        let Some(node_id) = selected_node_id else {
-            return area;
-        };
-
-        let Some(node) = dag.get(node_id) else {
-            return area;
-        };
-
-        let mut lines = Vec::new();
-
-        // Effect kind header with icon
-        let effect_kind = node.effect_kind();
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("{} ", effect_kind.icon()),
-                Style::new().fg(effect_kind.color()),
-            ),
-            Span::styled(
-                effect_kind.description(),
-                Style::new()
-                    .fg(effect_kind.color())
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!(" ({})", node.content.to_plain_text()),
-                Style::new().fg(Color::DarkGray),
-            ),
-        ]));
-
-        // Forward/backward interpretations
-        if let Some(forward) = node.forward() {
-            lines.push(Line::from(vec![
-                Span::styled("  fwd: ", Style::new().fg(Color::Green)),
-                Span::styled(forward, Style::new().fg(Color::White)),
-            ]));
-        }
-
-        if let Some(backward) = node.backward() {
-            lines.push(Line::from(vec![
-                Span::styled("  bwd: ", Style::new().fg(Color::Magenta)),
-                Span::styled(backward, Style::new().fg(Color::White)),
-            ]));
-        }
-
-        // Bindings read/written
-        let bindings_read = node.bindings_read();
-        if !bindings_read.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("  reads: ", Style::new().fg(Color::Cyan)),
-                Span::styled(bindings_read.join(", "), Style::new().fg(Color::White)),
-            ]));
-        }
-
-        let bindings_written = node.bindings_written();
-        if !bindings_written.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("  writes: ", Style::new().fg(Color::Yellow)),
-                Span::styled(bindings_written.join(", "), Style::new().fg(Color::White)),
-            ]));
-        }
-
-        // Outgoing edges with their kinds
-        if !node.edges.is_empty() {
-            lines.push(render_edge_line(&node.edges));
-        }
-
-        if lines.is_empty() {
-            return area;
-        }
-
-        let height = lines.len() as u16;
-        let info_area = Rect::new(area.x, area.y, area.width, height.min(area.height));
-        frame.render_widget(Paragraph::new(lines), info_area);
-
-        // Return remaining area
-        if area.height > height {
-            Rect::new(area.x, area.y + height, area.width, area.height - height)
-        } else {
-            Rect::new(area.x, area.y + area.height, area.width, 0)
-        }
-    }
-}
-
-/// Render a line showing edge information.
-fn render_edge_line(edges: &[crate::protocol::GraphEdge]) -> Line<'static> {
-    let edge_spans: Vec<Span> = edges
-        .iter()
-        .enumerate()
-        .flat_map(|(i, edge)| {
-            let edge_kind = edge.edge_kind();
-            let label = edge.label.as_deref().unwrap_or("");
-            let target_text = if label.is_empty() {
-                format!("→{}", edge.target)
-            } else {
-                format!("{}→{}", label, edge.target)
-            };
-            let mut spans = vec![
-                Span::styled(
-                    edge_kind.icon().to_string(),
-                    Style::new().fg(edge_kind.color()),
-                ),
-                Span::styled(target_text, Style::new().fg(Color::DarkGray)),
-            ];
-            if i < edges.len() - 1 {
-                spans.push(Span::raw(" "));
-            }
-            spans
-        })
-        .collect();
-
-    let mut line_spans = vec![Span::styled("  edges: ", Style::new().fg(Color::Gray))];
-    line_spans.extend(edge_spans);
-    Line::from(line_spans)
 }
 
 impl InteractiveComponent for EffectFlowMode {
@@ -330,6 +237,24 @@ impl InteractiveComponent for EffectFlowMode {
     fn update(&mut self, input: Self::Input) {
         let old_count = self.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
         let new_count = input.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
+
+        if let Some(ref dag) = input.effect_dag {
+            trace!(
+                node_count = dag.len(),
+                root_id = ?dag.root_node_id,
+                current_id = ?dag.current_node_id,
+                "EffectFlowMode received DAG"
+            );
+            for node in dag.dfs_iter() {
+                trace!(
+                    node_id = node.id,
+                    kind = ?node.kind,
+                    edges = node.edges.len(),
+                    content = %node.content.to_plain_text(),
+                    "  Node"
+                );
+            }
+        }
 
         let old_current = self.effect_dag.as_ref().and_then(|dag| dag.current_node_id);
         let new_current = input
@@ -402,18 +327,16 @@ impl InteractiveComponent for EffectFlowMode {
         let content_area = render_error(frame, area, self.error.as_deref());
 
         if let Some(ref dag) = self.effect_dag {
-            // Render monad stack info
+            // Render monad stack info at the top
             let remaining = self.render_monad_stack(frame, content_area);
 
-            // Render forward/backward interpretations
-            let remaining = self.render_interpretations(frame, remaining);
-
-            // Render the DAG tree (use inner GenericDag for layout)
+            // Render the DAG tree with integrated interpretation pane
             let widget = EffectTableauLayout::new(
                 dag.as_generic(),
                 self.tree_top_down,
                 self.effect_tableau_state.stretch_enabled(),
                 self.current_tree_selection(),
+                self.show_interpretations,
             );
             frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
             return;

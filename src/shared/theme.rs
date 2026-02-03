@@ -62,6 +62,12 @@ impl Theme {
     pub const EDGE_EFFECT_FLOW: Color = Color::Magenta;
     pub const EDGE_ERROR_PROPAGATION: Color = Color::Red;
     pub const EDGE_EARLY_RETURN: Color = Color::Yellow;
+
+    // Data flow - node kinds
+    pub const DATAFLOW_BINDING: Color = Color::Cyan;
+    pub const DATAFLOW_LAMBDA: Color = Color::Magenta;
+    pub const DATAFLOW_BRANCH: Color = Color::Yellow;
+    pub const DATAFLOW_CONDITION: Color = Color::Blue;
 }
 
 /// Which pane is currently focused for keyboard navigation.

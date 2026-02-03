@@ -15,13 +15,10 @@ use ratatui::{
 };
 
 use crate::{
-    display_mode::{
-        BeforeAfterModeInput, DagState, DataFlowModeInput, DeductionTreeModeInput, DisplayMode,
-        EffectFlowModeInput, ModeInput, PlainListInput, StepsModeInput,
-    },
+    deduction_tree::ProofContextHypothesis,
+    display_mode::{DagState, DisplayMode},
     protocol::{
-        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ProofContextHypothesis,
-        ServerToClientMessage, TacticProofState,
+        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ServerToClientMessage,
     },
     shared::{
         help_menu::{HelpMenu, HelpMenuWidget},
@@ -138,24 +135,13 @@ impl App {
         self.worker_selector.visible && !self.worker_selector.scanning
     }
 
-    /// Get current proof state from the DAG.
-    pub fn proof_state(&self) -> TacticProofState {
-        self.display_mode
-            .dag
-            .proof()
-            .and_then(|dag| dag.current_node_id)
-            .and_then(|id| self.display_mode.dag.proof()?.get(id))
-            .map(|node| node.proof_state_after.clone())
-            .unwrap_or_default()
-    }
-
     /// Get position where current goals were fetched.
     pub fn goals_position(&self) -> Option<LineCharacterPosition> {
-        self.display_mode
-            .dag
-            .proof()
-            .and_then(|dag| dag.current_node_id)
-            .and_then(|id| self.display_mode.dag.proof()?.get(id))
+        let DagState::Proof(dag) = &self.display_mode.dag else {
+            return None;
+        };
+        dag.current_node_id
+            .and_then(|id| dag.get(id))
             .map(|node| node.position)
     }
 
@@ -269,26 +255,31 @@ impl App {
             return;
         };
 
-        let dag = self.display_mode.dag.proof();
         let fallback_pos = self.goals_position().unwrap_or(cursor.position);
 
         // Resolve navigation location based on selection type
         let nav_location: Option<(String, LineCharacterPosition)> =
-            selection.and_then(|sel| match sel {
-                Selection::InitialHyp { hyp_idx } => dag
-                    .and_then(|d| d.initial_proof_state.hypotheses.get(hyp_idx))
-                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
-                    .map(|loc| (loc.uri, loc.position)),
-                Selection::Hyp { node_id, hyp_idx } => dag
-                    .and_then(|d| d.get(node_id))
-                    .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
-                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
-                    .map(|loc| (loc.uri, loc.position)),
-                Selection::Goal { node_id, .. } => dag
-                    .and_then(|d| d.get(node_id))
-                    .map(|node| (cursor.uri.clone(), node.position)),
-                Selection::Theorem => None,
-            });
+            if let DagState::Proof(dag) = &self.display_mode.dag {
+                selection.and_then(|sel| match sel {
+                    Selection::InitialHyp { hyp_idx } => dag
+                        .initial_proof_state
+                        .hypotheses
+                        .get(hyp_idx)
+                        .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
+                        .map(|loc| (loc.uri, loc.position)),
+                    Selection::Hyp { node_id, hyp_idx } => dag
+                        .get(node_id)
+                        .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
+                        .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
+                        .map(|loc| (loc.uri, loc.position)),
+                    Selection::Goal { node_id, .. } => dag
+                        .get(node_id)
+                        .map(|node| (cursor.uri.clone(), node.position)),
+                    Selection::Theorem => None,
+                })
+            } else {
+                None
+            };
 
         let (uri, position) = nav_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
         self.queue_command(ClientToServerCommand::Navigate { uri, position });
@@ -296,7 +287,9 @@ impl App {
 
     /// Get the text of the currently selected item (hypothesis or goal).
     fn get_selection_text(&self, selection: Option<Selection>) -> Option<String> {
-        let dag = self.display_mode.dag.proof()?;
+        let DagState::Proof(dag) = &self.display_mode.dag else {
+            return None;
+        };
 
         match selection? {
             Selection::InitialHyp { hyp_idx } => dag
@@ -348,82 +341,8 @@ impl App {
     }
 
     fn update_display_mode(&mut self) {
-        // Combine app error with mode incompatibility error
-        let error = self
-            .error
-            .clone()
-            .or_else(|| self.display_mode.incompatibility_error());
-
-        let input = if self.display_mode.is_plain_goal() {
-            ModeInput::PlainGoal(PlainListInput {
-                state: self.proof_state(),
-                definition: self.definition.clone(),
-                error: error.clone(),
-                proof_dag: self.display_mode.dag.proof().cloned(),
-            })
-        } else if self.display_mode.is_before_after() {
-            let proof_dag = self.display_mode.dag.proof().cloned();
-            let current_node = proof_dag
-                .as_ref()
-                .and_then(|dag| dag.current_node_id)
-                .and_then(|id| proof_dag.as_ref()?.get(id));
-
-            let previous_state = self
-                .display_mode
-                .show_previous()
-                .then(|| current_node.map(|n| n.proof_state_before.clone()))
-                .flatten();
-
-            let next_state = self
-                .display_mode
-                .show_next()
-                .then(|| {
-                    current_node
-                        .and_then(|n| n.children.first())
-                        .and_then(|&child_id| proof_dag.as_ref()?.get(child_id))
-                        .map(|child| child.proof_state_after.clone())
-                })
-                .flatten();
-
-            ModeInput::BeforeAfter(BeforeAfterModeInput {
-                previous_state,
-                current_state: current_node
-                    .map(|n| n.proof_state_after.clone())
-                    .unwrap_or_default(),
-                next_state,
-                definition: self.definition.clone(),
-                error: error.clone(),
-                proof_dag,
-            })
-        } else if self.display_mode.is_tactic_tree() {
-            ModeInput::TacticTree(StepsModeInput {
-                state: self.proof_state(),
-                definition: self.definition.clone(),
-                error: error.clone(),
-                proof_dag: self.display_mode.dag.proof().cloned(),
-            })
-        } else if self.display_mode.is_deduction_tree() {
-            ModeInput::DeductionTree(DeductionTreeModeInput {
-                state: self.proof_state(),
-                definition: self.definition.clone(),
-                error: error.clone(),
-                proof_dag: self.display_mode.dag.proof().cloned(),
-            })
-        } else if self.display_mode.is_effect_flow() {
-            ModeInput::EffectFlow(EffectFlowModeInput {
-                definition: self.definition.clone(),
-                error: error.clone(),
-                effect_dag: self.display_mode.dag.effectflow().cloned(),
-            })
-        } else {
-            ModeInput::DataFlow(DataFlowModeInput {
-                definition: self.definition.clone(),
-                error,
-                generic_dag: self.display_mode.dag.dataflow().cloned(),
-            })
-        };
-
-        self.display_mode.update(input);
+        self.display_mode
+            .update(self.definition.clone(), self.error.clone());
     }
 
     /// Render the entire UI.

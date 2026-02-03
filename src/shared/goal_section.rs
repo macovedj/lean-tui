@@ -13,11 +13,11 @@ use ratatui::{
     },
 };
 
-use super::{
-    diff_text::AnnotatedTextTreeExt, layout_metrics::LayoutMetrics, theme::Theme, ClickRegion,
-    Selection,
+use super::{diff_text::AnnotatedTextTreeExt, theme::Theme, ClickRegion, Selection};
+use crate::{
+    deduction_tree::{ProofObligation, TacticProofState},
+    protocol::NodeId,
 };
-use crate::protocol::{NodeId, ProofObligation, TacticProofState};
 
 /// State for the goal section widget.
 #[derive(Default)]
@@ -108,7 +108,7 @@ impl StatefulWidget for GoalSection {
 
         // Calculate scroll position from selection
         if let Some(Selection::Goal { goal_idx, .. }) = state.selection {
-            state.vertical_scroll = LayoutMetrics::scroll_position(goal_idx);
+            state.vertical_scroll = goal_idx;
         }
 
         let total_goals = state.goals.len();

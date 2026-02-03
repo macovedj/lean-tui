@@ -1,27 +1,24 @@
 //! Display mode management - ties together all display styles.
 
-use std::mem::take;
+use std::{error::Error, fmt, mem::take};
 
 use ratatui::{layout::Rect, Frame};
 
-// Re-export mode input types for convenient access
-pub use crate::before_after::BeforeAfterModeInput;
 use crate::{
-    before_after::BeforeAfterMode,
-    data_flow::DataFlowMode,
-    deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
-    effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode},
-    plain_goal::PlainList,
+    app::DefinitionInfo,
+    before_after::{BeforeAfterMode, BeforeAfterModeInput},
+    data_flow::{DataFlowConversionError, DataFlowDag, DataFlowMode, DataFlowModeInput},
+    deduction_tree::{
+        CompleteProofDag, DeductionTreeModeInput, ProofDagConversionError, SemanticTableau,
+    },
+    effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode, EffectFlowModeInput},
+    plain_goal::{PlainList, PlainListInput},
     protocol::GenericDag,
     shared::{
         legend::LegendSection, FilterToggle, HypothesisFilters, InteractiveComponent,
         KeyMouseEvent, Selection,
     },
-    tactic_tree::TacticTree,
-};
-pub use crate::{
-    data_flow::DataFlowModeInput, deduction_tree::DeductionTreeModeInput,
-    effect_flow::EffectFlowModeInput, plain_goal::PlainListInput, tactic_tree::StepsModeInput,
+    tactic_tree::{StepsModeInput, TacticTree},
 };
 
 /// Trait for display modes in the TUI.
@@ -46,7 +43,7 @@ pub enum DagState {
     #[default]
     None,
     Proof(CompleteProofDag),
-    Dataflow(GenericDag),
+    Dataflow(DataFlowDag),
     Effectflow(EffectFlowDag),
 }
 
@@ -66,30 +63,6 @@ impl DagState {
         }
     }
 
-    /// Get proof DAG if in proof mode.
-    pub const fn proof(&self) -> Option<&CompleteProofDag> {
-        match self {
-            Self::Proof(dag) => Some(dag),
-            _ => None,
-        }
-    }
-
-    /// Get generic DAG if in dataflow mode.
-    pub const fn dataflow(&self) -> Option<&GenericDag> {
-        match self {
-            Self::Dataflow(dag) => Some(dag),
-            _ => None,
-        }
-    }
-
-    /// Get effect flow DAG if in effectflow mode.
-    pub const fn effectflow(&self) -> Option<&EffectFlowDag> {
-        match self {
-            Self::Effectflow(dag) => Some(dag),
-            _ => None,
-        }
-    }
-
     pub fn from_generic(dag: GenericDag) -> Result<Self, DagConversionError> {
         use crate::protocol::DisplayStyle;
 
@@ -97,7 +70,9 @@ impl DagState {
             DisplayStyle::Proof => CompleteProofDag::try_from(dag)
                 .map(Self::Proof)
                 .map_err(DagConversionError::Proof),
-            DisplayStyle::Dataflow => Ok(Self::Dataflow(dag)),
+            DisplayStyle::Dataflow => DataFlowDag::try_from(dag)
+                .map(Self::Dataflow)
+                .map_err(DagConversionError::Dataflow),
             DisplayStyle::Effectflow => EffectFlowDag::try_from(dag)
                 .map(Self::Effectflow)
                 .map_err(DagConversionError::Effectflow),
@@ -109,19 +84,21 @@ impl DagState {
 #[derive(Debug)]
 pub enum DagConversionError {
     Proof(ProofDagConversionError),
+    Dataflow(DataFlowConversionError),
     Effectflow(EffectFlowConversionError),
 }
 
-impl std::fmt::Display for DagConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for DagConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Proof(e) => write!(f, "{e}"),
+            Self::Dataflow(e) => write!(f, "{e}"),
             Self::Effectflow(e) => write!(f, "{e}"),
         }
     }
 }
 
-impl std::error::Error for DagConversionError {}
+impl Error for DagConversionError {}
 
 /// Mode variant - the actual display mode implementation.
 enum ModeVariant {
@@ -143,7 +120,7 @@ impl Default for ModeVariant {
 pub struct DisplayMode {
     /// The active mode variant.
     mode: ModeVariant,
-    /// Shared DAG state (proof or dataflow).
+    /// Shared DAG state (proof, dataflow, or effectflow).
     pub dag: DagState,
 }
 
@@ -171,15 +148,15 @@ impl DisplayMode {
             ModeVariant::EffectFlow(_) => "effectflow",
         };
 
-        if dag_style != expected_style {
+        if dag_style == expected_style {
+            None
+        } else {
             Some(format!(
                 "Mode '{}' expects '{}' DAG, but received '{}' DAG",
                 self.name(),
                 expected_style,
                 dag_style
             ))
-        } else {
-            None
         }
     }
 
@@ -279,22 +256,6 @@ impl DisplayMode {
         }
     }
 
-    /// Whether to show the previous column (`BeforeAfter` mode only).
-    pub const fn show_previous(&self) -> bool {
-        match &self.mode {
-            ModeVariant::BeforeAfter(m) => m.show_previous(),
-            _ => false,
-        }
-    }
-
-    /// Whether to show the next column (`BeforeAfter` mode only).
-    pub const fn show_next(&self) -> bool {
-        match &self.mode {
-            ModeVariant::BeforeAfter(m) => m.show_next(),
-            _ => false,
-        }
-    }
-
     /// Handle event for active mode.
     pub fn handle_event(&mut self, event: KeyMouseEvent) -> bool {
         match &mut self.mode {
@@ -307,16 +268,122 @@ impl DisplayMode {
         }
     }
 
-    /// Update active mode with new input data.
-    pub fn update(&mut self, input: ModeInput) {
-        match (&mut self.mode, input) {
-            (ModeVariant::PlainGoal(m), ModeInput::PlainGoal(i)) => m.update(i),
-            (ModeVariant::BeforeAfter(m), ModeInput::BeforeAfter(i)) => m.update(i),
-            (ModeVariant::TacticTree(m), ModeInput::TacticTree(i)) => m.update(i),
-            (ModeVariant::DeductionTree(m), ModeInput::DeductionTree(i)) => m.update(i),
-            (ModeVariant::DataFlow(m), ModeInput::DataFlow(i)) => m.update(i),
-            (ModeVariant::EffectFlow(m), ModeInput::EffectFlow(i)) => m.update(i),
-            _ => {}
+    /// Update active mode. Each mode builds its own input from the DAG.
+    #[allow(clippy::too_many_lines)]
+    pub fn update(&mut self, definition: Option<DefinitionInfo>, error: Option<String>) {
+        // Combine app error with mode incompatibility error
+        let error = error.or_else(|| self.incompatibility_error());
+
+        match (&mut self.mode, &self.dag) {
+            (ModeVariant::PlainGoal(m), DagState::Proof(dag)) => {
+                m.update(
+                    PlainListInput::builder()
+                        .dag(dag)
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+            (ModeVariant::PlainGoal(m), _) => {
+                m.update(
+                    PlainListInput::builder()
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+
+            (ModeVariant::BeforeAfter(m), DagState::Proof(dag)) => {
+                m.update(
+                    BeforeAfterModeInput::builder()
+                        .dag(dag)
+                        .definition(definition)
+                        .error(error)
+                        .show_previous(m.show_previous())
+                        .show_next(m.show_next())
+                        .build(),
+                );
+            }
+            (ModeVariant::BeforeAfter(m), _) => {
+                m.update(
+                    BeforeAfterModeInput::builder()
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+
+            (ModeVariant::TacticTree(m), DagState::Proof(dag)) => {
+                m.update(
+                    StepsModeInput::builder()
+                        .dag(dag)
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+            (ModeVariant::TacticTree(m), _) => {
+                m.update(
+                    StepsModeInput::builder()
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+
+            (ModeVariant::DeductionTree(m), DagState::Proof(dag)) => {
+                m.update(
+                    DeductionTreeModeInput::builder()
+                        .dag(dag)
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+            (ModeVariant::DeductionTree(m), _) => {
+                m.update(
+                    DeductionTreeModeInput::builder()
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+
+            (ModeVariant::DataFlow(m), DagState::Dataflow(dag)) => {
+                m.update(
+                    DataFlowModeInput::builder()
+                        .dag(dag)
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+            (ModeVariant::DataFlow(m), _) => {
+                m.update(
+                    DataFlowModeInput::builder()
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+
+            (ModeVariant::EffectFlow(m), DagState::Effectflow(dag)) => {
+                m.update(
+                    EffectFlowModeInput::builder()
+                        .effect_dag(dag)
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
+            (ModeVariant::EffectFlow(m), _) => {
+                m.update(
+                    EffectFlowModeInput::builder()
+                        .definition(definition)
+                        .error(error)
+                        .build(),
+                );
+            }
         }
     }
 
@@ -331,44 +398,4 @@ impl DisplayMode {
             ModeVariant::EffectFlow(m) => m.render(frame, area),
         }
     }
-
-    /// Check if current mode is plain goal view.
-    pub const fn is_plain_goal(&self) -> bool {
-        matches!(self.mode, ModeVariant::PlainGoal(_))
-    }
-
-    /// Check if current mode is before/after view.
-    pub const fn is_before_after(&self) -> bool {
-        matches!(self.mode, ModeVariant::BeforeAfter(_))
-    }
-
-    /// Check if current mode is tactic tree view.
-    pub const fn is_tactic_tree(&self) -> bool {
-        matches!(self.mode, ModeVariant::TacticTree(_))
-    }
-
-    /// Check if current mode is deduction tree view.
-    pub const fn is_deduction_tree(&self) -> bool {
-        matches!(self.mode, ModeVariant::DeductionTree(_))
-    }
-
-    /// Check if current mode is data flow view.
-    pub const fn is_data_flow(&self) -> bool {
-        matches!(self.mode, ModeVariant::DataFlow(_))
-    }
-
-    /// Check if current mode is effect flow view.
-    pub const fn is_effect_flow(&self) -> bool {
-        matches!(self.mode, ModeVariant::EffectFlow(_))
-    }
-}
-
-/// Input types for different display modes.
-pub enum ModeInput {
-    PlainGoal(PlainListInput),
-    BeforeAfter(BeforeAfterModeInput),
-    TacticTree(StepsModeInput),
-    DeductionTree(DeductionTreeModeInput),
-    DataFlow(DataFlowModeInput),
-    EffectFlow(EffectFlowModeInput),
 }

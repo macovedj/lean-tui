@@ -1,4 +1,5 @@
--- Sample file demonstrating functional sorting algorithms in Lean 4
+import LeanDag
+
 
 def insert (x : Nat) : List Nat → List Nat
   | [] => [x]
