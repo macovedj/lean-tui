@@ -226,9 +226,20 @@ impl App {
                     kind: None,
                     line: None,
                 });
-                self.display_mode.dag = dag.map_or(DagState::None, DagState::from_generic);
+                self.display_mode.dag = match dag {
+                    Some(d) => match DagState::from_generic(d) {
+                        Ok(state) => state,
+                        Err(e) => {
+                            self.error = Some(format!("DAG conversion error: {e}"));
+                            DagState::None
+                        }
+                    },
+                    None => DagState::None,
+                };
                 self.connected = true;
-                self.error = None;
+                if self.error.is_none() {
+                    self.error = None;
+                }
             }
             ServerToClientMessage::Error { error } => {
                 self.error = Some(error);

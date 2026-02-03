@@ -57,10 +57,13 @@ impl Widget for ErrorBanner<'_> {
                 " Error ",
                 Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
             ))
-            .title_top(Line::from(vec![
-                Span::styled("[y]", Style::new().fg(Color::DarkGray)),
-                Span::styled(" copy ", Style::new().fg(Color::Gray)),
-            ]).right_aligned());
+            .title_top(
+                Line::from(vec![
+                    Span::styled("[y]", Style::new().fg(Color::DarkGray)),
+                    Span::styled(" copy ", Style::new().fg(Color::Gray)),
+                ])
+                .right_aligned(),
+            );
 
         let text = Line::from(Span::styled(self.message, Style::new().fg(Color::Red)));
 

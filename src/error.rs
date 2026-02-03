@@ -6,6 +6,13 @@ use std::{error::Error as StdError, fmt, io, result::Result as StdResult};
 pub enum Error {
     Io(io::Error),
     Json(serde_json::Error),
+    /// Protocol parse error with context for display in the UI.
+    ProtocolParse {
+        /// The underlying JSON parse error message.
+        message: String,
+        /// A preview of the raw message that failed to parse.
+        raw_preview: String,
+    },
 }
 
 impl fmt::Display for Error {
@@ -13,6 +20,15 @@ impl fmt::Display for Error {
         match self {
             Self::Io(e) => write!(f, "IO error: {e}"),
             Self::Json(e) => write!(f, "JSON error: {e}"),
+            Self::ProtocolParse {
+                message,
+                raw_preview,
+            } => {
+                write!(
+                    f,
+                    "Protocol error: {message}\n\nRaw message preview:\n{raw_preview}"
+                )
+            }
         }
     }
 }
@@ -22,6 +38,7 @@ impl StdError for Error {
         match self {
             Self::Io(e) => Some(e),
             Self::Json(e) => Some(e),
+            Self::ProtocolParse { .. } => None,
         }
     }
 }

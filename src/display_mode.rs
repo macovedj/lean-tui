@@ -9,7 +9,7 @@ pub use crate::before_after::BeforeAfterModeInput;
 use crate::{
     before_after::BeforeAfterMode,
     data_flow::DataFlowMode,
-    deduction_tree::{CompleteProofDag, SemanticTableau},
+    deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
     effect_flow::EffectFlowMode,
     plain_goal::PlainList,
     protocol::GenericDag,
@@ -64,18 +64,12 @@ impl DagState {
     }
 
     /// Create DagState from a GenericDag, converting to appropriate typed DAG.
-    pub fn from_generic(dag: GenericDag) -> Self {
+    pub fn from_generic(dag: GenericDag) -> Result<Self, ProofDagConversionError> {
         use crate::protocol::DisplayStyle;
 
         match dag.display_style {
-            DisplayStyle::Proof => {
-                // Try to convert to CompleteProofDag
-                match CompleteProofDag::try_from(dag) {
-                    Ok(proof_dag) => Self::Proof(proof_dag),
-                    Err(_) => Self::None,
-                }
-            }
-            DisplayStyle::Dataflow | DisplayStyle::Effectflow => Self::Dataflow(dag),
+            DisplayStyle::Proof => CompleteProofDag::try_from(dag).map(Self::Proof),
+            DisplayStyle::Dataflow | DisplayStyle::Effectflow => Ok(Self::Dataflow(dag)),
         }
     }
 }

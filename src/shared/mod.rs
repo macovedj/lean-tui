@@ -77,13 +77,15 @@ pub fn hypothesis_indices(len: usize, reverse: bool) -> Box<dyn Iterator<Item = 
     }
 }
 
-/// Truncate a string to max length with ellipsis.
+/// Truncate a string to max length with ellipsis (character-safe).
 pub fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    let char_count = s.chars().count();
+    if char_count <= max_len {
         s.to_string()
     } else if max_len <= 3 {
         "...".to_string()
     } else {
-        format!("{}...", &s[..max_len - 3])
+        let truncated: String = s.chars().take(max_len - 3).collect();
+        format!("{truncated}...")
     }
 }
