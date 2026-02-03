@@ -1,6 +1,3 @@
-//! Open Goal List mode - displays hypotheses and goal targets in a navigable
-//! list.
-
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{layout::Rect, Frame};
 

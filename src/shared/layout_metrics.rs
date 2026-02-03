@@ -1,6 +1,3 @@
-//! Shared layout constants for consistent sizing across components.
-
-/// Layout constants for TUI component sizing.
 pub struct LayoutMetrics;
 
 impl LayoutMetrics {

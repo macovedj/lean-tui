@@ -1,9 +1,3 @@
-//! Deduction tree types.
-//!
-//! These types represent the proof DAG structure used by deduction tree
-//! visualization. They can be reconstructed from GenericDag with display_style
-//! = "proof".
-
 use crate::protocol::{
     AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, LineCharacterPosition, NavNode,
     TacticProofState,
@@ -20,7 +14,7 @@ pub struct TacticText {
 }
 
 /// Proof DAG tactic node.
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, Default)]
 pub struct ProofDagTacticNode {
     pub id: NodeId,
     pub tactic: TacticText,
@@ -36,24 +30,6 @@ pub struct ProofDagTacticNode {
     pub hypothesis_dependencies: Vec<String>,
     #[serde(default)]
     pub referenced_theorems: Vec<String>,
-}
-
-impl Default for ProofDagTacticNode {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            tactic: TacticText::default(),
-            position: LineCharacterPosition::default(),
-            proof_state_before: TacticProofState::default(),
-            proof_state_after: TacticProofState::default(),
-            children: Vec::new(),
-            parent: None,
-            depth: 0,
-            new_hypothesis_indices: Vec::new(),
-            hypothesis_dependencies: Vec::new(),
-            referenced_theorems: Vec::new(),
-        }
-    }
 }
 
 impl ProofDagTacticNode {
@@ -117,7 +93,6 @@ impl CompleteProofDag {
     }
 }
 
-/// Error when converting from GenericDag to CompleteProofDag.
 #[derive(Debug, Clone)]
 pub enum ProofDagConversionError {
     WrongDisplayStyle {
@@ -245,7 +220,7 @@ impl TryFrom<GenericDag> for CompleteProofDag {
             .map(|n| n.proof_state_before.clone())
             .unwrap_or_default();
 
-        Ok(CompleteProofDag {
+        Ok(Self {
             nodes,
             root_node_id: dag.root_node_id,
             current_node_id: dag.current_node_id,

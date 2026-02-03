@@ -1,5 +1,3 @@
-//! State node widget for functional tableau - renders a single expression step.
-
 use std::iter::once;
 
 use ratatui::{
@@ -12,7 +10,7 @@ use ratatui::{
 
 use super::given_pane::binding_style_colors;
 use crate::{
-    protocol::{AnnotatedTextTree, BindingKind, GraphNode, LocalBinding},
+    protocol::{AnnotatedTextTree, GraphNode, LocalBinding},
     shared::{theme::Theme, truncate_str, ClickRegion, Selection},
 };
 
@@ -86,7 +84,6 @@ impl<'a> FunctionalStateNode<'a> {
         )
     }
 
-    /// Get bindings_after from node metadata.
     fn bindings_after(&self) -> Vec<LocalBinding> {
         self.node
             .metadata
@@ -95,7 +92,6 @@ impl<'a> FunctionalStateNode<'a> {
             .unwrap_or_default()
     }
 
-    /// Get new_binding_indices from node metadata.
     fn new_binding_indices(&self) -> Vec<u64> {
         self.node
             .metadata
@@ -104,7 +100,6 @@ impl<'a> FunctionalStateNode<'a> {
             .unwrap_or_default()
     }
 
-    /// Get expected_type from node metadata.
     fn expected_type(&self) -> Option<AnnotatedTextTree> {
         self.node
             .metadata

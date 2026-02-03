@@ -1,6 +1,3 @@
-//! Layout for functional tableau - orchestrates the three panes for functional
-//! DAG visualization.
-
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},

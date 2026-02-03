@@ -45,6 +45,23 @@ impl Theme {
     // Semantic tableau - goals
     pub const GOAL_FG: Color = Color::Rgb(200, 140, 140);
     pub const COMPLETED_GOAL_FG: Color = Color::Green;
+
+    // Effect flow - effect kinds
+    pub const EFFECT_BIND: Color = Color::Cyan;
+    pub const EFFECT_STATE_READ: Color = Color::Green;
+    pub const EFFECT_STATE_WRITE: Color = Color::Yellow;
+    pub const EFFECT_STATE_MODIFY: Color = Color::Magenta;
+    pub const EFFECT_RETURN: Color = Color::Blue;
+    pub const EFFECT_THROW: Color = Color::Red;
+    pub const EFFECT_CATCH: Color = Color::LightRed;
+    pub const EFFECT_PURE: Color = Color::White;
+
+    // Effect flow - edge kinds
+    pub const EDGE_DATA_FLOW: Color = Color::Cyan;
+    pub const EDGE_CONTROL_FLOW: Color = Color::White;
+    pub const EDGE_EFFECT_FLOW: Color = Color::Magenta;
+    pub const EDGE_ERROR_PROPAGATION: Color = Color::Red;
+    pub const EDGE_EARLY_RETURN: Color = Color::Yellow;
 }
 
 /// Which pane is currently focused for keyboard navigation.

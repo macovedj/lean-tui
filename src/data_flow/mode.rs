@@ -1,5 +1,3 @@
-//! Data Flow mode - functional DAG visualization.
-
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -15,8 +13,11 @@ use crate::{
     display_mode::Mode,
     protocol::GenericDag,
     shared::{
-        find_nearest_in_direction, render_helpers::render_error, Direction, FilterToggle,
-        HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        find_nearest_in_direction,
+        legend::{LegendItem, LegendSection},
+        render_helpers::render_error,
+        Direction, FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        Theme,
     },
 };
 
@@ -269,5 +270,18 @@ impl Mode for DataFlowMode {
 
     fn current_selection(&self) -> Option<Selection> {
         self.current_tree_selection()
+    }
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![LegendSection::new(
+            "Node States",
+            Color::White,
+            vec![
+                LegendItem::new("■", Theme::HYP_NAME, "binding"),
+                LegendItem::new("■", Theme::GOAL_FG, "expression"),
+                LegendItem::new("■", Theme::COMPLETED_GOAL_FG, "complete"),
+                LegendItem::new("■", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
+            ],
+        )]
     }
 }

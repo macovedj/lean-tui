@@ -1,5 +1,3 @@
-//! Goals column widget for temporal comparison views (Before/After mode).
-
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},

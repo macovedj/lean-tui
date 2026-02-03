@@ -1,8 +1,3 @@
-//! Generic DAG layout calculation for tableau views.
-//!
-//! This module provides layout computation that works with any DAG type
-//! implementing the `Dag` and `DagNode` traits from the protocol module.
-
 use std::iter::once;
 
 use crate::protocol::{Dag, DagNode, NodeId};

@@ -1,5 +1,3 @@
-//! Theorem pane - displays the theorem being proved in the semantic tableau.
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

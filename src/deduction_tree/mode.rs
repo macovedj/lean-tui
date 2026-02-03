@@ -1,5 +1,3 @@
-//! Deduction Tree mode - semantic tree visualization.
-
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -19,8 +17,10 @@ use crate::{
     protocol::TacticProofState,
     shared::{
         find_nearest_in_direction,
+        legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
         Direction, FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        Theme,
     },
 };
 
@@ -269,5 +269,18 @@ impl Mode for SemanticTableau {
 
     fn current_selection(&self) -> Option<Selection> {
         self.current_tree_selection()
+    }
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![LegendSection::new(
+            "Node States",
+            Color::White,
+            vec![
+                LegendItem::new("■", Theme::HYP_NAME, "hypothesis"),
+                LegendItem::new("■", Theme::GOAL_FG, "goal"),
+                LegendItem::new("■", Theme::COMPLETED_GOAL_FG, "completed"),
+                LegendItem::new("■", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
+            ],
+        )]
     }
 }

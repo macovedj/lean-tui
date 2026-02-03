@@ -1,5 +1,3 @@
-//! Before/After mode - three-column temporal comparison view.
-
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::{Constraint, Layout, Rect},

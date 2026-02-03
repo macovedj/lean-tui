@@ -25,6 +25,7 @@ use crate::{
     },
     shared::{
         help_menu::{HelpMenu, HelpMenuWidget},
+        legend::{Legend, LegendWidget},
         status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
         welcome::WelcomeScreen,
         worker_selector::{WorkerInfo, WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
@@ -65,6 +66,8 @@ pub struct App {
     status_bar: StatusBar,
     /// Help menu overlay.
     help_menu: HelpMenu,
+    /// Legend popup overlay.
+    legend: Legend,
     /// Worker selector dialog.
     worker_selector: WorkerSelector,
     /// File URI of the currently connected worker.
@@ -89,6 +92,7 @@ impl App {
             display_mode: DisplayMode::default(),
             status_bar: StatusBar::default(),
             help_menu: HelpMenu::default(),
+            legend: Legend::default(),
             worker_selector: WorkerSelector::default(),
             connected_file_uri: None,
             pending_port_switch: None,
@@ -206,7 +210,8 @@ impl App {
                     uri,
                 });
                 self.connected = true;
-                self.error = None;
+                // Don't clear errors here - they should persist until a new DAG
+                // arrives
             }
             ServerToClientMessage::Dag { uri, position, dag } => {
                 tracing::debug!(
@@ -228,7 +233,10 @@ impl App {
                 });
                 self.display_mode.dag = match dag {
                     Some(d) => match DagState::from_generic(d) {
-                        Ok(state) => state,
+                        Ok(state) => {
+                            self.error = None; // Clear error on successful conversion
+                            state
+                        }
                         Err(e) => {
                             self.error = Some(format!("DAG conversion error: {e}"));
                             DagState::None
@@ -237,9 +245,6 @@ impl App {
                     None => DagState::None,
                 };
                 self.connected = true;
-                if self.error.is_none() {
-                    self.error = None;
-                }
             }
             ServerToClientMessage::Error { error } => {
                 self.error = Some(error);
@@ -343,17 +348,21 @@ impl App {
     }
 
     fn update_display_mode(&mut self) {
-        let proof_dag = self.display_mode.dag.proof().cloned();
-        let generic_dag = self.display_mode.dag.dataflow().cloned();
+        // Combine app error with mode incompatibility error
+        let error = self
+            .error
+            .clone()
+            .or_else(|| self.display_mode.incompatibility_error());
 
         let input = if self.display_mode.is_plain_goal() {
             ModeInput::PlainGoal(PlainListInput {
                 state: self.proof_state(),
                 definition: self.definition.clone(),
-                error: self.error.clone(),
-                proof_dag,
+                error: error.clone(),
+                proof_dag: self.display_mode.dag.proof().cloned(),
             })
         } else if self.display_mode.is_before_after() {
+            let proof_dag = self.display_mode.dag.proof().cloned();
             let current_node = proof_dag
                 .as_ref()
                 .and_then(|dag| dag.current_node_id)
@@ -383,34 +392,34 @@ impl App {
                     .unwrap_or_default(),
                 next_state,
                 definition: self.definition.clone(),
-                error: self.error.clone(),
+                error: error.clone(),
                 proof_dag,
             })
         } else if self.display_mode.is_tactic_tree() {
             ModeInput::TacticTree(StepsModeInput {
                 state: self.proof_state(),
                 definition: self.definition.clone(),
-                error: self.error.clone(),
-                proof_dag,
+                error: error.clone(),
+                proof_dag: self.display_mode.dag.proof().cloned(),
             })
         } else if self.display_mode.is_deduction_tree() {
             ModeInput::DeductionTree(DeductionTreeModeInput {
                 state: self.proof_state(),
                 definition: self.definition.clone(),
-                error: self.error.clone(),
-                proof_dag,
+                error: error.clone(),
+                proof_dag: self.display_mode.dag.proof().cloned(),
             })
         } else if self.display_mode.is_effect_flow() {
             ModeInput::EffectFlow(EffectFlowModeInput {
                 definition: self.definition.clone(),
-                error: self.error.clone(),
-                generic_dag,
+                error: error.clone(),
+                effect_dag: self.display_mode.dag.effectflow().cloned(),
             })
         } else {
             ModeInput::DataFlow(DataFlowModeInput {
                 definition: self.definition.clone(),
-                error: self.error.clone(),
-                generic_dag,
+                error,
+                generic_dag: self.display_mode.dag.dataflow().cloned(),
             })
         };
 
@@ -425,6 +434,12 @@ impl App {
         self.render_main(frame, main_area);
         frame.render_stateful_widget(StatusBarWidget, status_area, &mut self.status_bar);
         frame.render_stateful_widget(HelpMenuWidget, frame.area(), &mut self.help_menu);
+        let legend_sections = self.display_mode.legend_sections();
+        frame.render_stateful_widget(
+            LegendWidget::new(&legend_sections),
+            frame.area(),
+            &mut self.legend,
+        );
         frame.render_stateful_widget(
             WorkerSelectorWidget,
             frame.area(),
@@ -522,6 +537,9 @@ impl App {
         if HelpMenuWidget::handle_event(&mut self.help_menu, key) {
             return;
         }
+        if LegendWidget::handle_event(&mut self.legend, key) {
+            return;
+        }
         if !self.handle_global_key(key.code) {
             self.display_mode.handle_event(KeyMouseEvent::Key(key));
         }
@@ -547,6 +565,10 @@ impl App {
             }
             KeyCode::Char('?') => {
                 self.help_menu.toggle();
+                true
+            }
+            KeyCode::Char('L') => {
+                self.legend.toggle();
                 true
             }
             KeyCode::Char('f') => {

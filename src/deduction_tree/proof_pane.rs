@@ -1,5 +1,3 @@
-//! Proof pane - scrollable proof tree visualization widget.
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

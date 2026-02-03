@@ -1,6 +1,3 @@
-//! State node widget - renders a single proof state node in the semantic
-//! tableau.
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

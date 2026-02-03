@@ -1,5 +1,3 @@
-//! Given pane - displays initial hypotheses in the semantic tableau.
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

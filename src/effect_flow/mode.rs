@@ -1,5 +1,3 @@
-//! Effect Flow mode - monadic effect visualization.
-
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -12,13 +10,20 @@ use tracing::trace;
 
 use crate::{
     app::DefinitionInfo,
-    data_flow::layout::{FunctionalTableauLayout, FunctionalTableauState},
     display_mode::Mode,
-    effect_flow::types::{EffectFlowDagExt, EffectFlowNodeExt},
-    protocol::GenericDag,
+    effect_flow::{
+        layout::{EffectTableauLayout, EffectTableauState},
+        types::{
+            EdgeKind, EffectFlowDag, EffectFlowDagExt, EffectFlowEdgeExt, EffectFlowNodeExt,
+            EffectKind,
+        },
+    },
     shared::{
-        find_nearest_in_direction, render_helpers::render_error, Direction, FilterToggle,
-        HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        find_nearest_in_direction,
+        legend::{LegendItem, LegendSection},
+        render_helpers::render_error,
+        Direction, FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        Theme,
     },
 };
 
@@ -26,7 +31,7 @@ use crate::{
 pub struct EffectFlowModeInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
-    pub generic_dag: Option<GenericDag>,
+    pub effect_dag: Option<EffectFlowDag>,
 }
 
 /// Effect Flow display mode - monadic effect visualization.
@@ -37,12 +42,12 @@ pub struct EffectFlowModeInput {
 pub struct EffectFlowMode {
     definition: Option<DefinitionInfo>,
     error: Option<String>,
-    generic_dag: Option<GenericDag>,
+    effect_dag: Option<EffectFlowDag>,
     filters: HypothesisFilters,
     selected_idx: Option<usize>,
     tree_top_down: bool,
     show_interpretations: bool,
-    functional_tableau_state: FunctionalTableauState,
+    effect_tableau_state: EffectTableauState,
 }
 
 impl Default for EffectFlowMode {
@@ -50,12 +55,12 @@ impl Default for EffectFlowMode {
         Self {
             definition: None,
             error: None,
-            generic_dag: None,
+            effect_dag: None,
             filters: HypothesisFilters::default(),
             selected_idx: None,
             tree_top_down: true,
             show_interpretations: true,
-            functional_tableau_state: FunctionalTableauState::default(),
+            effect_tableau_state: EffectTableauState::default(),
         }
     }
 }
@@ -66,7 +71,7 @@ impl EffectFlowMode {
     }
 
     fn tree_selectable_items(&self) -> Vec<Selection> {
-        let Some(dag) = &self.generic_dag else {
+        let Some(dag) = &self.effect_dag else {
             return Vec::new();
         };
 
@@ -110,7 +115,7 @@ impl EffectFlowMode {
     }
 
     fn active_goal_selection(&self) -> Option<Selection> {
-        let dag = self.generic_dag.as_ref()?;
+        let dag = self.effect_dag.as_ref()?;
         let current_node_id = dag.current_node_id?;
         Some(Selection::Goal {
             node_id: current_node_id,
@@ -134,7 +139,7 @@ impl EffectFlowMode {
         };
 
         let items = self.tree_selectable_items();
-        let navigation_regions = self.functional_tableau_state.navigation_regions();
+        let navigation_regions = self.effect_tableau_state.navigation_regions();
 
         trace!(
             ?current_sel,
@@ -158,7 +163,7 @@ impl EffectFlowMode {
 
     /// Render the monad stack info at the top.
     fn render_monad_stack(&self, frame: &mut Frame, area: Rect) -> Rect {
-        let Some(dag) = &self.generic_dag else {
+        let Some(dag) = &self.effect_dag else {
             return area;
         };
 
@@ -193,7 +198,7 @@ impl EffectFlowMode {
             return area;
         }
 
-        let Some(dag) = &self.generic_dag else {
+        let Some(dag) = &self.effect_dag else {
             return area;
         };
 
@@ -213,24 +218,45 @@ impl EffectFlowMode {
 
         let mut lines = Vec::new();
 
+        // Effect kind header with icon
+        let effect_kind = node.effect_kind();
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{} ", effect_kind.icon()),
+                Style::new().fg(effect_kind.color()),
+            ),
+            Span::styled(
+                effect_kind.description(),
+                Style::new()
+                    .fg(effect_kind.color())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(" ({})", node.content.to_plain_text()),
+                Style::new().fg(Color::DarkGray),
+            ),
+        ]));
+
+        // Forward/backward interpretations
         if let Some(forward) = node.forward() {
             lines.push(Line::from(vec![
-                Span::styled("fwd: ", Style::new().fg(Color::Green)),
+                Span::styled("  fwd: ", Style::new().fg(Color::Green)),
                 Span::styled(forward, Style::new().fg(Color::White)),
             ]));
         }
 
         if let Some(backward) = node.backward() {
             lines.push(Line::from(vec![
-                Span::styled("bwd: ", Style::new().fg(Color::Magenta)),
+                Span::styled("  bwd: ", Style::new().fg(Color::Magenta)),
                 Span::styled(backward, Style::new().fg(Color::White)),
             ]));
         }
 
+        // Bindings read/written
         let bindings_read = node.bindings_read();
         if !bindings_read.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("reads: ", Style::new().fg(Color::Cyan)),
+                Span::styled("  reads: ", Style::new().fg(Color::Cyan)),
                 Span::styled(bindings_read.join(", "), Style::new().fg(Color::White)),
             ]));
         }
@@ -238,9 +264,14 @@ impl EffectFlowMode {
         let bindings_written = node.bindings_written();
         if !bindings_written.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("writes: ", Style::new().fg(Color::Yellow)),
+                Span::styled("  writes: ", Style::new().fg(Color::Yellow)),
                 Span::styled(bindings_written.join(", "), Style::new().fg(Color::White)),
             ]));
+        }
+
+        // Outgoing edges with their kinds
+        if !node.edges.is_empty() {
+            lines.push(render_edge_line(&node.edges));
         }
 
         if lines.is_empty() {
@@ -260,35 +291,64 @@ impl EffectFlowMode {
     }
 }
 
+/// Render a line showing edge information.
+fn render_edge_line(edges: &[crate::protocol::GraphEdge]) -> Line<'static> {
+    let edge_spans: Vec<Span> = edges
+        .iter()
+        .enumerate()
+        .flat_map(|(i, edge)| {
+            let edge_kind = edge.edge_kind();
+            let label = edge.label.as_deref().unwrap_or("");
+            let target_text = if label.is_empty() {
+                format!("→{}", edge.target)
+            } else {
+                format!("{}→{}", label, edge.target)
+            };
+            let mut spans = vec![
+                Span::styled(
+                    edge_kind.icon().to_string(),
+                    Style::new().fg(edge_kind.color()),
+                ),
+                Span::styled(target_text, Style::new().fg(Color::DarkGray)),
+            ];
+            if i < edges.len() - 1 {
+                spans.push(Span::raw(" "));
+            }
+            spans
+        })
+        .collect();
+
+    let mut line_spans = vec![Span::styled("  edges: ", Style::new().fg(Color::Gray))];
+    line_spans.extend(edge_spans);
+    Line::from(line_spans)
+}
+
 impl InteractiveComponent for EffectFlowMode {
     type Input = EffectFlowModeInput;
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
-        let old_count = self.generic_dag.as_ref().map_or(0, GenericDag::len);
-        let new_count = input.generic_dag.as_ref().map_or(0, GenericDag::len);
+        let old_count = self.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
+        let new_count = input.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
 
-        let old_current = self
-            .generic_dag
-            .as_ref()
-            .and_then(|dag| dag.current_node_id);
+        let old_current = self.effect_dag.as_ref().and_then(|dag| dag.current_node_id);
         let new_current = input
-            .generic_dag
+            .effect_dag
             .as_ref()
             .and_then(|dag| dag.current_node_id);
 
         let tree_changed = old_count != new_count || old_current != new_current;
 
-        self.functional_tableau_state.update_current_node(
+        self.effect_tableau_state.update_current_node(
             input
-                .generic_dag
+                .effect_dag
                 .as_ref()
                 .and_then(|dag| dag.current_node_id),
         );
 
         self.definition = input.definition;
         self.error = input.error;
-        self.generic_dag = input.generic_dag;
+        self.effect_dag = input.effect_dag;
 
         if tree_changed {
             if let Some(sel) = self.active_goal_selection() {
@@ -315,7 +375,7 @@ impl InteractiveComponent for EffectFlowMode {
                     true
                 }
                 KeyCode::Char('s') => {
-                    self.functional_tableau_state.toggle_stretch();
+                    self.effect_tableau_state.toggle_stretch();
                     true
                 }
                 _ => false,
@@ -326,7 +386,7 @@ impl InteractiveComponent for EffectFlowMode {
                 }
 
                 let clicked = self
-                    .functional_tableau_state
+                    .effect_tableau_state
                     .find_click_at(mouse.column, mouse.row);
 
                 if let Some(sel) = clicked {
@@ -341,27 +401,26 @@ impl InteractiveComponent for EffectFlowMode {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        if let Some(ref dag) = self.generic_dag {
+        if let Some(ref dag) = self.effect_dag {
             // Render monad stack info
             let remaining = self.render_monad_stack(frame, content_area);
 
             // Render forward/backward interpretations
             let remaining = self.render_interpretations(frame, remaining);
 
-            // Render the DAG tree
-            let widget = FunctionalTableauLayout::new(
-                dag,
+            // Render the DAG tree (use inner GenericDag for layout)
+            let widget = EffectTableauLayout::new(
+                dag.as_generic(),
                 self.tree_top_down,
-                self.functional_tableau_state.stretch_enabled(),
+                self.effect_tableau_state.stretch_enabled(),
                 self.current_tree_selection(),
             );
-            frame.render_stateful_widget(widget, remaining, &mut self.functional_tableau_state);
+            frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
             return;
         }
 
         frame.render_widget(
-            Paragraph::new("No effect flow available (effectflow display style only)")
-                .style(Style::new().fg(Color::DarkGray)),
+            Paragraph::new("No effect flow DAG available").style(Style::new().fg(Color::DarkGray)),
             content_area,
         );
     }
@@ -381,5 +440,71 @@ impl Mode for EffectFlowMode {
 
     fn current_selection(&self) -> Option<Selection> {
         self.current_tree_selection()
+    }
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![
+            LegendSection::new(
+                "Effect Kinds",
+                Color::Cyan,
+                vec![
+                    LegendItem::new(EffectKind::EffectBind.icon(), Theme::EFFECT_BIND, "bind"),
+                    LegendItem::new(
+                        EffectKind::StateRead.icon(),
+                        Theme::EFFECT_STATE_READ,
+                        "read",
+                    ),
+                    LegendItem::new(
+                        EffectKind::StateWrite.icon(),
+                        Theme::EFFECT_STATE_WRITE,
+                        "write",
+                    ),
+                    LegendItem::new(
+                        EffectKind::StateModify.icon(),
+                        Theme::EFFECT_STATE_MODIFY,
+                        "modify",
+                    ),
+                    LegendItem::new(
+                        EffectKind::EffectReturn.icon(),
+                        Theme::EFFECT_RETURN,
+                        "return",
+                    ),
+                    LegendItem::new(EffectKind::EffectThrow.icon(), Theme::EFFECT_THROW, "throw"),
+                    LegendItem::new(EffectKind::EffectCatch.icon(), Theme::EFFECT_CATCH, "catch"),
+                    LegendItem::new(EffectKind::Pure.icon(), Theme::EFFECT_PURE, "pure"),
+                ],
+            ),
+            LegendSection::new(
+                "Edge Kinds",
+                Color::Magenta,
+                vec![
+                    LegendItem::new(
+                        EdgeKind::DataFlow.icon(),
+                        Theme::EDGE_DATA_FLOW,
+                        "data flow",
+                    ),
+                    LegendItem::new(
+                        EdgeKind::ControlFlow.icon(),
+                        Theme::EDGE_CONTROL_FLOW,
+                        "control",
+                    ),
+                    LegendItem::new(
+                        EdgeKind::EffectFlow.icon(),
+                        Theme::EDGE_EFFECT_FLOW,
+                        "effect",
+                    ),
+                    LegendItem::new(
+                        EdgeKind::ErrorPropagation.icon(),
+                        Theme::EDGE_ERROR_PROPAGATION,
+                        "error",
+                    ),
+                    LegendItem::new(
+                        EdgeKind::EarlyReturn.icon(),
+                        Theme::EDGE_EARLY_RETURN,
+                        "early ret",
+                    ),
+                ],
+            ),
+        ]
     }
 }
