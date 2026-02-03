@@ -15,15 +15,15 @@ use ratatui::{
 };
 
 use crate::{
-    modes::{
+    display_mode::{
         BeforeAfterModeInput, DagState, DataFlowModeInput, DeductionTreeModeInput, DisplayMode,
-        PlainListInput, StepsModeInput,
+        EffectFlowModeInput, ModeInput, PlainListInput, StepsModeInput,
     },
     protocol::{
         ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ProofContextHypothesis,
         ServerToClientMessage, TacticProofState,
     },
-    widgets::{
+    shared::{
         help_menu::{HelpMenu, HelpMenuWidget},
         status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
         welcome::WelcomeScreen,
@@ -155,6 +155,11 @@ impl App {
             .map(|node| node.position)
     }
 
+    /// Set an error message to be displayed in the UI.
+    pub fn set_error(&mut self, error: String) {
+        self.error = Some(error);
+    }
+
     /// Queue a command to be sent to the server.
     pub fn queue_command(&mut self, cmd: ClientToServerCommand) {
         self.outgoing_commands.push(cmd);
@@ -203,15 +208,15 @@ impl App {
                 self.connected = true;
                 self.error = None;
             }
-            ServerToClientMessage::ProofDag { uri, position, dag } => {
+            ServerToClientMessage::Dag { uri, position, dag } => {
                 tracing::debug!(
-                    "ProofDag: uri={}, pos={}:{}, dag={}",
+                    "Dag: uri={}, pos={}:{}, dag={}",
                     uri,
                     position.line,
                     position.character,
                     dag.as_ref().map_or_else(
                         || "None".to_string(),
-                        |d| format!("{} nodes", d.nodes.len())
+                        |d| format!("{} nodes, style={:?}", d.nodes.len(), d.display_style)
                     )
                 );
                 let definition_name = dag.as_ref().and_then(|dag| dag.definition_name.clone());
@@ -221,29 +226,7 @@ impl App {
                     kind: None,
                     line: None,
                 });
-                self.display_mode.dag = dag.map_or(DagState::None, DagState::Proof);
-                self.connected = true;
-                self.error = None;
-            }
-            ServerToClientMessage::FunctionalDag { uri, position, dag } => {
-                tracing::debug!(
-                    "FunctionalDag: uri={}, pos={}:{}, dag={}",
-                    uri,
-                    position.line,
-                    position.character,
-                    dag.as_ref().map_or_else(
-                        || "None".to_string(),
-                        |d| format!("{} nodes", d.nodes.len())
-                    )
-                );
-                let definition_name = dag.as_ref().and_then(|dag| dag.definition_name.clone());
-
-                self.definition = definition_name.map(|name| DefinitionInfo {
-                    name,
-                    kind: Some("def".to_string()),
-                    line: None,
-                });
-                self.display_mode.dag = dag.map_or(DagState::None, DagState::Functional);
+                self.display_mode.dag = dag.map_or(DagState::None, DagState::from_generic);
                 self.connected = true;
                 self.error = None;
             }
@@ -321,8 +304,14 @@ impl App {
         }
     }
 
-    /// Copy the selected item's text to the clipboard.
-    fn copy_selection_to_clipboard(&self) {
+    /// Copy the selected item's text (or error message) to the clipboard.
+    fn copy_to_clipboard(&self) {
+        // Prioritize error message if present
+        if let Some(error) = &self.error {
+            let _ = stdout().execute(CopyToClipboard::to_clipboard_from(error.clone()));
+            return;
+        }
+
         let selection = self.display_mode.current_selection();
         if let Some(text) = self.get_selection_text(selection) {
             let _ = stdout().execute(CopyToClipboard::to_clipboard_from(text));
@@ -344,65 +333,77 @@ impl App {
 
     fn update_display_mode(&mut self) {
         let proof_dag = self.display_mode.dag.proof().cloned();
-        let functional_dag = self.display_mode.dag.functional().cloned();
+        let generic_dag = self.display_mode.dag.dataflow().cloned();
 
-        self.display_mode.update_open_goal_list(PlainListInput {
-            state: self.proof_state(),
-            definition: self.definition.clone(),
-            error: self.error.clone(),
-            proof_dag: proof_dag.clone(),
-        });
-        // Derive before/after states from the CompleteProofDag
-        let current_node = proof_dag
-            .as_ref()
-            .and_then(|dag| dag.current_node_id)
-            .and_then(|id| proof_dag.as_ref()?.get(id));
-
-        let previous_state = self
-            .display_mode
-            .show_previous()
-            .then(|| current_node.map(|n| n.proof_state_before.clone()))
-            .flatten();
-
-        let next_state = self
-            .display_mode
-            .show_next()
-            .then(|| {
-                current_node
-                    .and_then(|n| n.children.first())
-                    .and_then(|&child_id| proof_dag.as_ref()?.get(child_id))
-                    .map(|child| child.proof_state_after.clone())
-            })
-            .flatten();
-
-        self.display_mode.update_before_after(BeforeAfterModeInput {
-            previous_state,
-            current_state: current_node
-                .map(|n| n.proof_state_after.clone())
-                .unwrap_or_default(),
-            next_state,
-            definition: self.definition.clone(),
-            error: self.error.clone(),
-            proof_dag: proof_dag.clone(),
-        });
-        self.display_mode.update_steps(StepsModeInput {
-            state: self.proof_state(),
-            definition: self.definition.clone(),
-            error: self.error.clone(),
-            proof_dag: proof_dag.clone(),
-        });
-        self.display_mode
-            .update_deduction_tree(DeductionTreeModeInput {
+        let input = if self.display_mode.is_plain_goal() {
+            ModeInput::PlainGoal(PlainListInput {
                 state: self.proof_state(),
                 definition: self.definition.clone(),
                 error: self.error.clone(),
                 proof_dag,
-            });
-        self.display_mode.update_data_flow(DataFlowModeInput {
-            definition: self.definition.clone(),
-            error: self.error.clone(),
-            functional_dag,
-        });
+            })
+        } else if self.display_mode.is_before_after() {
+            let current_node = proof_dag
+                .as_ref()
+                .and_then(|dag| dag.current_node_id)
+                .and_then(|id| proof_dag.as_ref()?.get(id));
+
+            let previous_state = self
+                .display_mode
+                .show_previous()
+                .then(|| current_node.map(|n| n.proof_state_before.clone()))
+                .flatten();
+
+            let next_state = self
+                .display_mode
+                .show_next()
+                .then(|| {
+                    current_node
+                        .and_then(|n| n.children.first())
+                        .and_then(|&child_id| proof_dag.as_ref()?.get(child_id))
+                        .map(|child| child.proof_state_after.clone())
+                })
+                .flatten();
+
+            ModeInput::BeforeAfter(BeforeAfterModeInput {
+                previous_state,
+                current_state: current_node
+                    .map(|n| n.proof_state_after.clone())
+                    .unwrap_or_default(),
+                next_state,
+                definition: self.definition.clone(),
+                error: self.error.clone(),
+                proof_dag,
+            })
+        } else if self.display_mode.is_tactic_tree() {
+            ModeInput::TacticTree(StepsModeInput {
+                state: self.proof_state(),
+                definition: self.definition.clone(),
+                error: self.error.clone(),
+                proof_dag,
+            })
+        } else if self.display_mode.is_deduction_tree() {
+            ModeInput::DeductionTree(DeductionTreeModeInput {
+                state: self.proof_state(),
+                definition: self.definition.clone(),
+                error: self.error.clone(),
+                proof_dag,
+            })
+        } else if self.display_mode.is_effect_flow() {
+            ModeInput::EffectFlow(EffectFlowModeInput {
+                definition: self.definition.clone(),
+                error: self.error.clone(),
+                generic_dag,
+            })
+        } else {
+            ModeInput::DataFlow(DataFlowModeInput {
+                definition: self.definition.clone(),
+                error: self.error.clone(),
+                generic_dag,
+            })
+        };
+
+        self.display_mode.update(input);
     }
 
     /// Render the entire UI.
@@ -557,7 +558,7 @@ impl App {
                 true
             }
             KeyCode::Char('y') => {
-                self.copy_selection_to_clipboard();
+                self.copy_to_clipboard();
                 true
             }
             _ => false,

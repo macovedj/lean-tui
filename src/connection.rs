@@ -12,8 +12,9 @@ use tokio::{
 };
 
 use crate::{
+    error::{Error, Result},
     protocol::{ClientToServerCommand, ServerToClientMessage},
-    widgets::worker_selector::WorkerInfo,
+    shared::worker_selector::WorkerInfo,
 };
 
 /// TCP connection state machine.
@@ -53,33 +54,34 @@ impl Connection {
         *self = Self::Disconnected;
     }
 
-    /// Try to receive a message. Returns None if disconnected or no data ready.
-    pub async fn recv(&mut self) -> Option<ServerToClientMessage> {
+    /// Try to receive a message. Returns `Ok(None)` if disconnected or no data ready.
+    /// Returns `Err` on parse errors to allow the UI to display them.
+    pub async fn recv(&mut self) -> Result<Option<ServerToClientMessage>> {
         let Self::Connected { reader, .. } = self else {
-            return None;
+            return Ok(None);
         };
 
         match reader.next_line().await {
             Ok(Some(line)) => match serde_json::from_str::<ServerToClientMessage>(&line) {
                 Ok(msg) => {
                     tracing::debug!("Received message: {:?}", msg.message_type());
-                    Some(msg)
+                    Ok(Some(msg))
                 }
                 Err(e) => {
                     tracing::warn!("Failed to parse message: {e}");
                     tracing::debug!("Raw message: {}", &line[..line.len().min(500)]);
-                    None
+                    Err(Error::Json(e))
                 }
             },
             Ok(None) => {
                 tracing::info!("Disconnected from lean-dag");
                 *self = Self::Disconnected;
-                None
+                Ok(None)
             }
             Err(e) => {
                 tracing::warn!("Read error: {e}");
                 *self = Self::Disconnected;
-                None
+                Err(Error::Io(e))
             }
         }
     }

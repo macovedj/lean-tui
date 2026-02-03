@@ -22,18 +22,21 @@ pub use generated::*;
 /// Type alias for node IDs.
 pub type NodeId = u64;
 
+// --- ServerToClientMessage impl ---
+
 impl ServerToClientMessage {
     /// Get a string describing the message type for logging.
     pub const fn message_type(&self) -> &'static str {
         match self {
             Self::Connected { .. } => "Connected",
             Self::Cursor { .. } => "Cursor",
-            Self::ProofDag { .. } => "ProofDag",
-            Self::FunctionalDag { .. } => "FunctionalDag",
+            Self::Dag { .. } => "Dag",
             Self::Error { .. } => "Error",
         }
     }
 }
+
+// --- AnnotatedTextTree impl ---
 
 impl Default for AnnotatedTextTree {
     fn default() -> Self {
@@ -66,52 +69,7 @@ impl AnnotatedTextTree {
     }
 }
 
-impl CompleteProofDag {
-    /// Get a node by ID.
-    pub fn get(&self, id: NodeId) -> Option<&ProofDagTacticNode> {
-        self.nodes.get(id as usize)
-    }
-
-    /// Iterate nodes in depth-first order.
-    pub fn dfs_iter(&self) -> impl Iterator<Item = &ProofDagTacticNode> {
-        DfsIterator {
-            dag: self,
-            stack: self.root_node_id.into_iter().collect(),
-        }
-    }
-
-    /// Check if the DAG is empty.
-    pub const fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-
-    /// Get number of nodes.
-    pub fn len(&self) -> usize {
-        self.nodes.len()
-    }
-
-    /// Check if a node is the current node (closest to cursor).
-    pub fn is_current(&self, node_id: NodeId) -> bool {
-        self.current_node_id == Some(node_id)
-    }
-
-    /// Get initial proof state.
-    pub fn initial_proof_state(&self) -> &TacticProofState {
-        &self.initial_proof_state
-    }
-}
-
-impl ProofDagTacticNode {
-    /// All sub-goals solved (`goals_after` empty).
-    pub fn is_complete(&self) -> bool {
-        self.proof_state_after.goals.is_empty()
-    }
-
-    /// No children in tree.
-    pub fn is_leaf(&self) -> bool {
-        self.children.is_empty()
-    }
-}
+// --- ProofObligation impl ---
 
 impl ProofObligation {
     /// Get username as string slice (compatibility helper).
@@ -126,6 +84,8 @@ impl ProofObligation {
     }
 }
 
+// --- ProofContextHypothesis impl ---
+
 impl ProofContextHypothesis {
     /// Get navigation locations with default if missing.
     pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
@@ -133,17 +93,17 @@ impl ProofContextHypothesis {
     }
 }
 
-// --- Functional DAG helpers ---
+// --- GenericDag impl ---
 
-impl CompleteFunctionalDag {
+impl GenericDag {
     /// Get a node by ID.
-    pub fn get(&self, id: NodeId) -> Option<&FunctionalDagNode> {
-        self.nodes.get(id as usize)
+    pub fn get(&self, id: NodeId) -> Option<&GraphNode> {
+        self.nodes.iter().find(|n| n.id == id)
     }
 
     /// Iterate nodes in depth-first order.
-    pub fn dfs_iter(&self) -> impl Iterator<Item = &FunctionalDagNode> {
-        FunctionalDfsIterator {
+    pub fn dfs_iter(&self) -> impl Iterator<Item = &GraphNode> {
+        GenericDfsIterator {
             dag: self,
             stack: self.root_node_id.into_iter().collect(),
         }
@@ -163,26 +123,52 @@ impl CompleteFunctionalDag {
     pub fn is_current(&self, node_id: NodeId) -> bool {
         self.current_node_id == Some(node_id)
     }
+
+    /// Check if this is a proof-style DAG.
+    pub fn is_proof(&self) -> bool {
+        self.display_style == DisplayStyle::Proof
+    }
+
+    /// Check if this is a dataflow-style DAG.
+    pub fn is_dataflow(&self) -> bool {
+        self.display_style == DisplayStyle::Dataflow
+    }
+
+    /// Check if this is an effectflow-style DAG.
+    pub fn is_effectflow(&self) -> bool {
+        self.display_style == DisplayStyle::Effectflow
+    }
 }
 
-/// Depth-first iterator over functional DAG nodes.
-struct FunctionalDfsIterator<'a> {
-    dag: &'a CompleteFunctionalDag,
+// --- GraphNode impl ---
+
+impl GraphNode {
+    /// Get a metadata value as string.
+    pub fn get_metadata_str(&self, key: &str) -> Option<&str> {
+        self.metadata.get(key).and_then(|v| v.as_str())
+    }
+}
+
+/// Depth-first iterator over generic DAG nodes.
+struct GenericDfsIterator<'a> {
+    dag: &'a GenericDag,
     stack: Vec<NodeId>,
 }
 
-impl<'a> Iterator for FunctionalDfsIterator<'a> {
-    type Item = &'a FunctionalDagNode;
+impl<'a> Iterator for GenericDfsIterator<'a> {
+    type Item = &'a GraphNode;
 
     fn next(&mut self) -> Option<Self::Item> {
         let id = self.stack.pop()?;
         let node = self.dag.get(id)?;
-        for &child_id in node.children.iter().rev() {
+        for child_id in node.edges.iter().map(|e| e.target).rev() {
             self.stack.push(child_id);
         }
         Some(node)
     }
 }
+
+// --- EditorCursorPosition impl ---
 
 impl EditorCursorPosition {
     /// Extract filename from URI.
@@ -191,8 +177,8 @@ impl EditorCursorPosition {
     }
 }
 
-// LineCharacterPosition's generated derive doesn't include Default, so
-// implement manually
+// --- LineCharacterPosition impl ---
+
 #[allow(clippy::derivable_impls)]
 impl Default for LineCharacterPosition {
     fn default() -> Self {
@@ -205,33 +191,14 @@ impl Default for LineCharacterPosition {
 
 impl Copy for LineCharacterPosition {}
 
-/// Depth-first iterator over proof DAG nodes.
-struct DfsIterator<'a> {
-    dag: &'a CompleteProofDag,
-    stack: Vec<NodeId>,
-}
-
-impl<'a> Iterator for DfsIterator<'a> {
-    type Item = &'a ProofDagTacticNode;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let id = self.stack.pop()?;
-        let node = self.dag.get(id)?;
-        for &child_id in node.children.iter().rev() {
-            self.stack.push(child_id);
-        }
-        Some(node)
-    }
-}
-
-// --- Generic DAG traits for layout calculation ---
+// --- Trait implementations for layout calculation ---
 
 /// Trait for DAG node types that can be laid out.
 pub trait DagNode {
     /// Get the node's unique ID.
     fn id(&self) -> NodeId;
     /// Get the node's children IDs.
-    fn children(&self) -> &[NodeId];
+    fn children(&self) -> Vec<NodeId>;
     /// Calculate box height based on content.
     fn box_height(&self) -> u16;
     /// Calculate minimum width needed for content.
@@ -250,54 +217,28 @@ pub trait Dag {
     fn orphan_ids(&self) -> &[NodeId];
 }
 
-impl DagNode for ProofDagTacticNode {
+impl DagNode for GraphNode {
     fn id(&self) -> NodeId {
         self.id
     }
 
-    fn children(&self) -> &[NodeId] {
-        &self.children
+    fn children(&self) -> Vec<NodeId> {
+        self.edges.iter().map(|e| e.target).collect()
     }
 
     fn box_height(&self) -> u16 {
-        // Border (2) + goals line (1) + optional hypotheses line (1)
-        3 + u16::from(!self.new_hypothesis_indices.is_empty())
+        // Border (2) + content line (1)
+        3
     }
 
     fn content_width(&self) -> u16 {
-        use std::iter::once;
-
-        let title_width = self.tactic.text.len() + 8;
-
-        let hypothesis_widths = self.new_hypothesis_indices.iter().filter_map(|&idx| {
-            self.proof_state_after
-                .hypotheses
-                .get(idx as usize)
-                .map(|h| h.name.len() + h.type_.to_plain_text().len() + 5)
-        });
-
-        let goal_widths = if self.proof_state_after.goals.is_empty() {
-            vec![16] // "✓ Goal completed"
-        } else {
-            self.proof_state_after
-                .goals
-                .iter()
-                .map(|g| g.type_.to_plain_text().len() + 4)
-                .collect()
-        };
-
-        let max_width = once(title_width)
-            .chain(hypothesis_widths)
-            .chain(goal_widths)
-            .max()
-            .unwrap_or(0);
-
-        (max_width + 4) as u16
+        let title_width = self.content.to_plain_text().len() + 8;
+        (title_width + 4) as u16
     }
 }
 
-impl Dag for CompleteProofDag {
-    type Node = ProofDagTacticNode;
+impl Dag for GenericDag {
+    type Node = GraphNode;
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
@@ -312,101 +253,31 @@ impl Dag for CompleteProofDag {
     }
 }
 
-impl DagNode for FunctionalDagNode {
-    fn id(&self) -> NodeId {
-        self.id
-    }
-
-    fn children(&self) -> &[NodeId] {
-        &self.children
-    }
-
-    fn box_height(&self) -> u16 {
-        // Border (2) + type line (1) + optional bindings line (1)
-        3 + u16::from(!self.new_binding_indices.is_empty())
-    }
-
-    fn content_width(&self) -> u16 {
-        use std::iter::once;
-
-        let title_width = self.expression.to_plain_text().len() + 8;
-
-        let binding_widths = self.new_binding_indices.iter().filter_map(|&idx| {
-            self.bindings_after
-                .get(idx as usize)
-                .map(|b| b.name.len() + b.type_.to_plain_text().len() + 5)
-        });
-
-        let type_width = self
-            .expected_type
-            .as_ref()
-            .map_or(16, |t| t.to_plain_text().len() + 4); // "✓ Complete"
-
-        let max_width = once(title_width)
-            .chain(binding_widths)
-            .chain(once(type_width))
-            .max()
-            .unwrap_or(0);
-
-        (max_width + 4) as u16
-    }
-}
-
-impl Dag for CompleteFunctionalDag {
-    type Node = FunctionalDagNode;
-
-    fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
-        self.get(id)
-    }
-
-    fn root_id(&self) -> Option<NodeId> {
-        self.root_node_id
-    }
-
-    fn orphan_ids(&self) -> &[NodeId] {
-        &self.orphans
-    }
-}
-
-// --- Navigation traits for building clickable regions ---
+// --- Navigation traits ---
 
 /// Trait for nodes that can have navigable hypothesis/binding regions.
 pub trait NavNode: DagNode {
     /// Indices of new hypotheses/bindings introduced by this node.
-    fn new_hyp_indices(&self) -> &[u64];
+    fn new_hyp_indices(&self) -> Vec<u64>;
     /// Number of goals (0 = complete, 1+ = has goals).
     fn goal_count(&self) -> usize;
-    /// Whether to show goal regions (false if internal node without expected
-    /// type).
+    /// Whether to show goal regions.
     fn has_selectable_goals(&self) -> bool;
 }
 
-impl NavNode for ProofDagTacticNode {
-    fn new_hyp_indices(&self) -> &[u64] {
-        &self.new_hypothesis_indices
+impl NavNode for GraphNode {
+    fn new_hyp_indices(&self) -> Vec<u64> {
+        self.metadata
+            .get("new_binding_indices")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default()
     }
 
     fn goal_count(&self) -> usize {
-        self.proof_state_after.goals.len()
+        usize::from(self.edges.is_empty())
     }
 
     fn has_selectable_goals(&self) -> bool {
-        !self.proof_state_after.goals.is_empty()
-    }
-}
-
-impl NavNode for FunctionalDagNode {
-    fn new_hyp_indices(&self) -> &[u64] {
-        &self.new_binding_indices
-    }
-
-    fn goal_count(&self) -> usize {
-        // Functional nodes have at most one "goal" (expected type)
-        usize::from(self.expected_type.is_some() || self.children.is_empty())
-    }
-
-    fn has_selectable_goals(&self) -> bool {
-        // Show goal region if has expected_type OR is a leaf node
-        self.expected_type.is_some() || self.children.is_empty()
+        self.edges.is_empty()
     }
 }

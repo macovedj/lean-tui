@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-const LEAN_DAG_COMMIT: &str = "d703dde00f08d06a1769156ba1f5c9e8fbb41abe";
+const LEAN_DAG_COMMIT: &str = "14c104eb7dc68317e9e9e9b4bc540a211bc86521";
 
 fn main() {
     let schema_json = env::var("LEAN_DAG_SCHEMA")
@@ -27,5 +27,6 @@ fn main() {
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let code = prettyplease::unparse(&syn::parse2(type_space.to_stream()).unwrap());
+
     fs::write(out_dir.join("protocol_types.rs"), code).unwrap();
 }
