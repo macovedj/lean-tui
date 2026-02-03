@@ -2,9 +2,12 @@ use std::{error::Error, fmt};
 
 use serde::de::DeserializeOwned;
 
-use crate::protocol::{
-    AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, GraphNode, LineCharacterPosition,
-    NavNode, PreresolvedNavigationTargets,
+use crate::{
+    protocol::{
+        AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, GraphNode,
+        LineCharacterPosition, NavNode, PreresolvedNavigationTargets,
+    },
+    shared::LayoutSize,
 };
 
 /// A hypothesis in a proof context.
@@ -317,8 +320,6 @@ impl<'a> Iterator for DfsIterator<'a> {
     }
 }
 
-// --- Layout trait implementations ---
-
 impl DagNode for ProofDagTacticNode {
     fn id(&self) -> NodeId {
         self.id
@@ -327,17 +328,21 @@ impl DagNode for ProofDagTacticNode {
     fn children(&self) -> Vec<NodeId> {
         self.children.clone()
     }
+}
 
-    fn box_height(&self) -> u16 {
-        // Border (2) + goals line (1) + optional hypotheses line (1)
-        let has_new_hyps = !self.new_hypothesis_indices.is_empty();
-        let content_lines = if has_new_hyps { 2 } else { 1 };
-        2 + content_lines
-    }
-
-    fn content_width(&self) -> u16 {
-        let title_width = self.tactic.text.len() + 8;
-        (title_width + 4) as u16
+impl LayoutSize for ProofDagTacticNode {
+    fn layout_size(&self) -> (u16, u16) {
+        let width = {
+            let title_width = self.tactic.text.len() + 8;
+            (title_width + 4) as u16
+        };
+        let height = {
+            // Border (2) + goals line (1) + optional hypotheses line (1)
+            let has_new_hyps = !self.new_hypothesis_indices.is_empty();
+            let content_lines = if has_new_hyps { 2 } else { 1 };
+            2 + content_lines
+        };
+        (width, height)
     }
 }
 

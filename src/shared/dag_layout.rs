@@ -2,10 +2,8 @@ use std::iter::once;
 
 use crate::protocol::{Dag, DagNode, NodeId};
 
-/// Gap between main tree and orphan nodes.
 pub const ORPHAN_GAP: i32 = 4;
 
-/// Position and dimensions of a node in the layout.
 #[derive(Debug, Clone, Copy)]
 pub struct NodePosition {
     pub node_id: NodeId,
@@ -15,16 +13,12 @@ pub struct NodePosition {
     pub height: u16,
 }
 
-/// Configuration for DAG layout calculation.
 #[derive(Clone, Copy, Default)]
 pub struct LayoutConfig {
-    /// When true, tree renders top-down (parent above children).
     pub top_down: bool,
-    /// When true, children stretch to fill parent width equally.
     pub stretch_children: bool,
 }
 
-/// Computed DAG layout with positioned nodes.
 #[derive(Debug, Default)]
 pub struct DagLayout {
     pub nodes: Vec<NodePosition>,
@@ -38,7 +32,11 @@ impl DagLayout {
     }
 }
 
-/// Simple rectangle for layout positioning.
+/// Trait for computing node layout size. Node types implement this directly.
+pub trait LayoutSize {
+    fn layout_size(&self) -> (u16, u16);
+}
+
 #[derive(Clone, Copy)]
 struct Rect {
     x: i32,
@@ -47,18 +45,22 @@ struct Rect {
     h: i32,
 }
 
-/// Context for recursive layout positioning.
-struct LayoutContext<'a, D: Dag> {
+struct LayoutContext<'a, D: Dag>
+where
+    D::Node: LayoutSize,
+{
     dag: &'a D,
     config: LayoutConfig,
 }
 
-impl<D: Dag> LayoutContext<'_, D> {
-    /// Calculate subtree dimensions (width, height).
+impl<D: Dag> LayoutContext<'_, D>
+where
+    D::Node: LayoutSize,
+{
     fn subtree_size(&self, node_id: NodeId) -> (i32, i32) {
         self.dag.get_node(node_id).map_or((0, 0), |node| {
-            let node_h = i32::from(node.box_height());
-            let node_w = i32::from(node.content_width());
+            let (node_w, node_h) = node.layout_size();
+            let (node_w, node_h) = (i32::from(node_w), i32::from(node_h));
 
             if node.children().is_empty() {
                 (node_w, node_h)
@@ -74,12 +76,11 @@ impl<D: Dag> LayoutContext<'_, D> {
         })
     }
 
-    /// Position all nodes in a subtree recursively.
     fn position_subtree(&self, node_id: NodeId, rect: Rect) -> Vec<NodePosition> {
         self.dag.get_node(node_id).map_or_else(Vec::new, |node| {
-            let box_h = i32::from(node.box_height());
+            let (node_w, node_h) = node.layout_size();
+            let box_h = i32::from(node_h);
             let (subtree_w, _) = self.subtree_size(node_id);
-            let node_w = node.content_width();
 
             let node_y = if self.config.top_down {
                 rect.y
@@ -92,7 +93,7 @@ impl<D: Dag> LayoutContext<'_, D> {
                 x: rect.x,
                 y: node_y,
                 width: u16::try_from(rect.w).unwrap_or(node_w).max(node_w),
-                height: node.box_height(),
+                height: node_h,
             };
 
             let child_positions = self.position_children(node, rect, box_h, subtree_w);
@@ -101,7 +102,6 @@ impl<D: Dag> LayoutContext<'_, D> {
         })
     }
 
-    /// Position children of a node.
     fn position_children(
         &self,
         node: &D::Node,
@@ -135,7 +135,6 @@ impl<D: Dag> LayoutContext<'_, D> {
         }
     }
 
-    /// Position children with equal width stretch to fill parent.
     #[allow(clippy::many_single_char_names)]
     fn position_stretched(
         &self,
@@ -167,7 +166,6 @@ impl<D: Dag> LayoutContext<'_, D> {
             .collect()
     }
 
-    /// Position children centered under parent with natural widths.
     fn position_centered(
         &self,
         children: &[(NodeId, (i32, i32))],
@@ -191,7 +189,6 @@ impl<D: Dag> LayoutContext<'_, D> {
             .collect()
     }
 
-    /// Position orphan nodes to the right of the main tree.
     fn position_orphans(
         &self,
         content_width: i32,
@@ -208,8 +205,7 @@ impl<D: Dag> LayoutContext<'_, D> {
             orphans.iter().filter_map(|&id| self.dag.get_node(id)).fold(
                 (Vec::new(), 0i32, content_width),
                 |(mut positions, y, max_w), node| {
-                    let node_w = node.content_width();
-                    let node_h = node.box_height();
+                    let (node_w, node_h) = node.layout_size();
 
                     positions.push(NodePosition {
                         node_id: node.id(),
@@ -226,14 +222,15 @@ impl<D: Dag> LayoutContext<'_, D> {
                 },
             );
 
-        let final_height = content_height.max(final_y);
-
-        (positions, max_width, final_height)
+        (positions, max_width, content_height.max(final_y))
     }
 }
 
-/// Calculate DAG layout with actual content dimensions.
-pub fn calculate_dag_layout<D: Dag>(dag: &D, config: LayoutConfig) -> DagLayout {
+pub fn calculate_dag_layout<D>(dag: &D, config: LayoutConfig) -> DagLayout
+where
+    D: Dag,
+    D::Node: LayoutSize,
+{
     let Some(root_id) = dag.root_id() else {
         return DagLayout::default();
     };

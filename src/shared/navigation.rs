@@ -58,8 +58,6 @@ pub fn ranges_overlap(a_start: i32, a_len: u16, b_start: i32, b_len: u16) -> boo
     a_start < b_end && b_start < a_end
 }
 
-// --- Generic navigation region building ---
-
 /// Width of hypothesis/binding regions.
 const HYP_WIDTH: u16 = 15;
 
@@ -152,7 +150,6 @@ fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Navigatio
         .collect()
 }
 
-/// Find the nearest selectable item in the given direction.
 pub fn find_nearest_in_direction(
     regions: &[NavigationRegion],
     current: Selection,

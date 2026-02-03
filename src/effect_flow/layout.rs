@@ -12,11 +12,11 @@ use ratatui::{
 use super::{
     graph_pane::{render_graph_pane, GraphPaneState},
     interpretation_pane::render_interpretation_pane,
-    result_pane::{render_result_pane, ResultPaneState},
+    types::{EffectFlowDag, EffectFlowNode},
 };
 use crate::{
     data_flow::given_pane::{BindingGivenPane, BindingGivenPaneState},
-    protocol::{GenericDag, GraphNode, NodeId},
+    protocol::NodeId,
     shared::{LayoutConfig, NavigationRegion, Selection},
 };
 
@@ -25,7 +25,6 @@ use crate::{
 pub struct EffectTableauState {
     pub given: BindingGivenPaneState,
     pub graph: GraphPaneState,
-    pub result: ResultPaneState,
 }
 
 impl EffectTableauState {
@@ -33,7 +32,6 @@ impl EffectTableauState {
         self.given
             .find_click_at(x, y)
             .or_else(|| self.graph.find_click_at(x, y))
-            .or_else(|| self.result.find_click_at(x, y))
     }
 
     pub fn update_current_node(&mut self, current_node_id: Option<NodeId>) {
@@ -44,7 +42,6 @@ impl EffectTableauState {
         self.graph.navigation_regions()
     }
 
-    /// Toggle stretch mode for children layout.
     pub fn toggle_stretch(&mut self) {
         self.graph.toggle_stretch();
     }
@@ -57,7 +54,7 @@ impl EffectTableauState {
 
 /// Effect flow tableau layout widget.
 pub struct EffectTableauLayout<'a> {
-    dag: &'a GenericDag,
+    dag: &'a EffectFlowDag,
     config: LayoutConfig,
     selection: Option<Selection>,
     show_interpretations: bool,
@@ -65,7 +62,7 @@ pub struct EffectTableauLayout<'a> {
 
 impl<'a> EffectTableauLayout<'a> {
     pub const fn new(
-        dag: &'a GenericDag,
+        dag: &'a EffectFlowDag,
         top_down: bool,
         stretch_children: bool,
         selection: Option<Selection>,
@@ -84,32 +81,19 @@ impl<'a> EffectTableauLayout<'a> {
 
     /// Compute areas for the 4-section layout: Given, Interpretation, Graph,
     /// Result.
-    fn compute_layout(&self, area: Rect) -> [Rect; 4] {
+    fn compute_layout(&self, area: Rect) -> [Rect; 3] {
         let interp_height = if self.show_interpretations { 4 } else { 0 };
 
-        if self.config.top_down {
-            // Top-down: Given → Interp → Graph → Result
-            Layout::vertical([
-                Constraint::Length(3),             // Given
-                Constraint::Length(interp_height), // Interpretations
-                Constraint::Fill(1),               // Graph (scrollable)
-                Constraint::Length(3),             // Result
-            ])
-            .areas(area)
-        } else {
-            // Bottom-up: Given → Interp → Result → Graph
-            Layout::vertical([
-                Constraint::Length(3),             // Given
-                Constraint::Length(interp_height), // Interpretations
-                Constraint::Length(3),             // Result
-                Constraint::Fill(1),               // Graph
-            ])
-            .areas(area)
-        }
+        Layout::vertical([
+            Constraint::Length(3),             // Given
+            Constraint::Length(interp_height), // Interpretations
+            Constraint::Fill(1),               // Graph (scrollable)
+        ])
+        .areas(area)
     }
 
     /// Get the currently selected node for interpretation display.
-    fn selected_node(&self) -> Option<&GraphNode> {
+    fn selected_node(&self) -> Option<&EffectFlowNode> {
         let node_id = match self.selection {
             Some(Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. }) => Some(node_id),
             _ => self.dag.current_node_id,
@@ -122,7 +106,7 @@ impl StatefulWidget for EffectTableauLayout<'_> {
     type State = EffectTableauState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let [given_area, interp_area, middle_area, bottom_area] = self.compute_layout(area);
+        let [given_area, interp_area, middle_area] = self.compute_layout(area);
 
         // 1. Given pane (function parameters)
         BindingGivenPane::new(&self.dag.initial_context, self.selection).render(
@@ -131,34 +115,17 @@ impl StatefulWidget for EffectTableauLayout<'_> {
             &mut state.given,
         );
 
-        // 2. Interpretation pane (fwd/bwd for selected node)
         if self.show_interpretations && interp_area.height > 0 {
             render_interpretation_pane(self.selected_node(), interp_area, buf);
         }
-
-        // 3. Effect graph pane and Result pane (order depends on top_down)
-        let (graph_area, result_area) = if self.config.top_down {
-            (middle_area, bottom_area)
-        } else {
-            (bottom_area, middle_area)
-        };
 
         render_graph_pane(
             self.dag,
             self.config,
             self.selection,
-            graph_area,
+            middle_area,
             buf,
             &mut state.graph,
-        );
-
-        // 4. Result type pane
-        render_result_pane(
-            self.dag,
-            self.selection,
-            result_area,
-            buf,
-            &mut state.result,
         );
     }
 }

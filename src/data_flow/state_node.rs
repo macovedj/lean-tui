@@ -10,12 +10,9 @@ use ratatui::{
 
 use super::{
     given_pane::binding_style_colors,
-    types::{DataFlowKind, DataFlowNodeExt},
+    types::{DataFlowKind, DataFlowNode},
 };
-use crate::{
-    protocol::GraphNode,
-    shared::{theme::Theme, truncate_str, ClickRegion, Selection},
-};
+use crate::shared::{theme::Theme, truncate_str, ClickRegion, Selection};
 
 /// State for a single functional state node widget.
 #[derive(Default)]
@@ -25,7 +22,7 @@ pub struct FunctionalStateNodeState {
 
 /// A single functional expression node widget.
 pub struct FunctionalStateNode<'a> {
-    node: &'a GraphNode,
+    node: &'a DataFlowNode,
     is_current: bool,
     selection: Option<Selection>,
     top_down: bool,
@@ -33,7 +30,7 @@ pub struct FunctionalStateNode<'a> {
 
 impl<'a> FunctionalStateNode<'a> {
     pub const fn new(
-        node: &'a GraphNode,
+        node: &'a DataFlowNode,
         is_current: bool,
         selection: Option<Selection>,
         top_down: bool,

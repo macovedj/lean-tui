@@ -22,8 +22,6 @@ pub use generated::*;
 /// Type alias for node IDs.
 pub type NodeId = u64;
 
-// --- ServerToClientMessage impl ---
-
 impl ServerToClientMessage {
     /// Get a string describing the message type for logging.
     pub const fn message_type(&self) -> &'static str {
@@ -35,8 +33,6 @@ impl ServerToClientMessage {
         }
     }
 }
-
-// --- AnnotatedTextTree impl ---
 
 impl Default for AnnotatedTextTree {
     fn default() -> Self {
@@ -69,67 +65,18 @@ impl AnnotatedTextTree {
     }
 }
 
-// --- GenericDag impl ---
-
 impl GenericDag {
     /// Get a node by ID.
     pub fn get(&self, id: NodeId) -> Option<&GraphNode> {
         self.nodes.iter().find(|n| n.id == id)
     }
-
-    /// Iterate nodes in depth-first order.
-    pub fn dfs_iter(&self) -> impl Iterator<Item = &GraphNode> {
-        GenericDfsIterator {
-            dag: self,
-            stack: self.root_node_id.into_iter().collect(),
-        }
-    }
-
-    /// Check if the DAG is empty.
-    pub const fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-
-    /// Get number of nodes.
-    pub fn len(&self) -> usize {
-        self.nodes.len()
-    }
-
-    /// Check if a node is the current node (closest to cursor).
-    pub fn is_current(&self, node_id: NodeId) -> bool {
-        self.current_node_id == Some(node_id)
-    }
 }
-
-/// Depth-first iterator over generic DAG nodes.
-struct GenericDfsIterator<'a> {
-    dag: &'a GenericDag,
-    stack: Vec<NodeId>,
-}
-
-impl<'a> Iterator for GenericDfsIterator<'a> {
-    type Item = &'a GraphNode;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let id = self.stack.pop()?;
-        let node = self.dag.get(id)?;
-        for child_id in node.edges.iter().map(|e| e.target).rev() {
-            self.stack.push(child_id);
-        }
-        Some(node)
-    }
-}
-
-// --- EditorCursorPosition impl ---
-
 impl EditorCursorPosition {
     /// Extract filename from URI.
     pub fn filename(&self) -> Option<&str> {
         self.uri.rsplit('/').next()
     }
 }
-
-// --- LineCharacterPosition impl ---
 
 #[allow(clippy::derivable_impls)]
 impl Default for LineCharacterPosition {
@@ -143,21 +90,13 @@ impl Default for LineCharacterPosition {
 
 impl Copy for LineCharacterPosition {}
 
-// --- Trait implementations for layout calculation ---
-
-/// Trait for DAG node types that can be laid out.
+/// Trait for DAG node types that can be lain out.
 pub trait DagNode {
-    /// Get the node's unique ID.
     fn id(&self) -> NodeId;
-    /// Get the node's children IDs.
     fn children(&self) -> Vec<NodeId>;
-    /// Calculate box height based on content.
-    fn box_height(&self) -> u16;
-    /// Calculate minimum width needed for content.
-    fn content_width(&self) -> u16;
 }
 
-/// Trait for DAG containers that can be laid out.
+/// Trait for DAG containers that can be lain out.
 pub trait Dag {
     /// The node type stored in this DAG.
     type Node: DagNode;
@@ -177,16 +116,6 @@ impl DagNode for GraphNode {
     fn children(&self) -> Vec<NodeId> {
         self.edges.iter().map(|e| e.target).collect()
     }
-
-    fn box_height(&self) -> u16 {
-        // Border (2) + content line (1)
-        3
-    }
-
-    fn content_width(&self) -> u16 {
-        let title_width = self.content.to_plain_text().len() + 8;
-        (title_width + 4) as u16
-    }
 }
 
 impl Dag for GenericDag {
@@ -204,8 +133,6 @@ impl Dag for GenericDag {
         &self.orphans
     }
 }
-
-// --- Navigation traits ---
 
 /// Trait for nodes that can have navigable hypothesis/binding regions.
 pub trait NavNode: DagNode {

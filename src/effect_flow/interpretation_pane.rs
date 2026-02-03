@@ -1,5 +1,4 @@
-//! Interpretation pane for effect flow - shows forward/backward
-//! interpretations.
+//! Interpretation pane for effect flow.
 
 use ratatui::{
     buffer::Buffer,
@@ -9,14 +8,11 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
 };
 
-use super::types::EffectFlowNodeExt;
-use crate::{
-    protocol::GraphNode,
-    shared::{theme::Theme, truncate_str},
-};
+use super::types::EffectFlowNode;
+use crate::shared::theme::Theme;
 
-/// Render interpretation pane showing forward/backward for selected node.
-pub fn render_interpretation_pane(node: Option<&GraphNode>, area: Rect, buf: &mut Buffer) {
+/// Render interpretation pane showing backward/forward for selected node.
+pub fn render_interpretation_pane(node: Option<&EffectFlowNode>, area: Rect, buf: &mut Buffer) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::new().fg(Theme::BORDER))
@@ -40,7 +36,7 @@ pub fn render_interpretation_pane(node: Option<&GraphNode>, area: Rect, buf: &mu
     let kind = node.effect_kind();
     let mut lines = Vec::new();
 
-    // Effect kind header
+    // Effect kind header with expression
     lines.push(Line::from(vec![
         Span::styled(format!("{} ", kind.icon()), Style::new().fg(kind.color())),
         Span::styled(
@@ -48,32 +44,25 @@ pub fn render_interpretation_pane(node: Option<&GraphNode>, area: Rect, buf: &mu
             Style::new().fg(kind.color()).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!(" • {}", truncate_str(&node.content.to_plain_text(), 40)),
+            format!(" • {}", node.content.to_plain_text()),
             Style::new().fg(Color::DarkGray),
         ),
     ]));
 
-    // Forward/backward interpretations
-    let mut interp_spans = Vec::new();
-    if let Some(fwd) = node.forward() {
-        interp_spans.push(Span::styled("fwd: ", Style::new().fg(Color::Green)));
-        interp_spans.push(Span::styled(
-            truncate_str(&fwd, 30),
-            Style::new().fg(Color::White),
-        ));
-    }
+    // Backward interpretation (above forward)
     if let Some(bwd) = node.backward() {
-        if !interp_spans.is_empty() {
-            interp_spans.push(Span::raw("  "));
-        }
-        interp_spans.push(Span::styled("bwd: ", Style::new().fg(Color::Magenta)));
-        interp_spans.push(Span::styled(
-            truncate_str(&bwd, 30),
-            Style::new().fg(Color::White),
-        ));
+        lines.push(Line::from(vec![
+            Span::styled("bwd: ", Style::new().fg(Color::Magenta)),
+            Span::raw(bwd),
+        ]));
     }
-    if !interp_spans.is_empty() {
-        lines.push(Line::from(interp_spans));
+
+    // Forward interpretation
+    if let Some(fwd) = node.forward() {
+        lines.push(Line::from(vec![
+            Span::styled("fwd: ", Style::new().fg(Color::Green)),
+            Span::raw(fwd),
+        ]));
     }
 
     Paragraph::new(lines).render(inner, buf);

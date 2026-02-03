@@ -20,7 +20,7 @@ pub mod worker_selector;
 pub use canvas::VirtualCanvas;
 pub use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;
-pub use dag_layout::{calculate_dag_layout, DagLayout, LayoutConfig, NodePosition};
+pub use dag_layout::{calculate_dag_layout, DagLayout, LayoutConfig, LayoutSize, NodePosition};
 pub use interactive::{InteractiveComponent, InteractiveStatefulWidget};
 pub use navigation::{
     build_navigation_regions, find_nearest_in_direction, Direction, NavigationRegion,

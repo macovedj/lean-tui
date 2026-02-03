@@ -1,8 +1,12 @@
+use std::{error::Error, fmt, ops::Deref};
+
 use ratatui::style::Color;
 
 use crate::{
-    protocol::{GenericDag, GraphEdge, GraphNode},
-    shared::Theme,
+    protocol::{
+        self, Dag, DagNode, DisplayStyle, GenericDag, GraphEdge, GraphNode, NavNode, NodeId,
+    },
+    shared::{LayoutSize, Theme},
 };
 
 /// Effect node kinds from the lean-dag backend.
@@ -84,7 +88,7 @@ pub enum EdgeKind {
     DataFlow,
     /// Control flow (branching, sequencing)
     ControlFlow,
-    /// Effect flow (monadic effect propagation)
+    /// Effect flow
     EffectFlow,
     /// Error propagation path
     ErrorPropagation,
@@ -132,102 +136,100 @@ impl EdgeKind {
     }
 }
 
-/// Extension trait for `GraphEdge` in effectflow mode.
-pub trait EffectFlowEdgeExt {
-    /// Get the edge kind.
-    fn edge_kind(&self) -> EdgeKind;
+#[derive(Debug, Clone)]
+pub struct EffectFlowNode {
+    pub inner: GraphNode,
 }
 
-impl EffectFlowEdgeExt for GraphEdge {
-    fn edge_kind(&self) -> EdgeKind {
+impl EffectFlowNode {
+    pub const fn new(inner: GraphNode) -> Self {
+        Self { inner }
+    }
+
+    pub fn effect_kind(&self) -> EffectKind {
+        self.inner
+            .kind
+            .as_deref()
+            .map_or_else(|| EffectKind::Custom(String::new()), EffectKind::from_str)
+    }
+
+    pub fn has_effect_metadata(&self) -> bool {
+        self.inner.kind.is_some()
+    }
+
+    pub fn forward(&self) -> Option<String> {
+        self.inner
+            .metadata
+            .get("forward")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    }
+
+    pub fn backward(&self) -> Option<String> {
+        self.inner
+            .metadata
+            .get("backward")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    }
+
+    pub fn is_leaf(&self) -> bool {
+        self.inner.edges.is_empty()
+    }
+}
+
+impl Deref for EffectFlowNode {
+    type Target = GraphNode;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DagNode for EffectFlowNode {
+    fn id(&self) -> NodeId {
+        self.inner.id
+    }
+
+    fn children(&self) -> Vec<NodeId> {
+        self.inner.edges.iter().map(|e| e.target).collect()
+    }
+}
+
+impl NavNode for EffectFlowNode {
+    fn new_hyp_indices(&self) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn goal_count(&self) -> usize {
+        usize::from(!self.is_leaf())
+    }
+
+    fn has_selectable_goals(&self) -> bool {
+        true
+    }
+}
+
+impl LayoutSize for EffectFlowNode {
+    fn layout_size(&self) -> (u16, u16) {
+        let width = (self.inner.content.to_plain_text().len() + 12) as u16;
+        let content_lines = match (self.forward().is_some(), self.backward().is_some()) {
+            (true, true) => 2,
+            _ => 1,
+        };
+        (width, 2 + content_lines)
+    }
+}
+
+impl GraphEdge {
+    /// Get the edge kind for effect flow rendering.
+    pub fn effect_edge_kind(&self) -> EdgeKind {
         self.kind
             .as_deref()
             .map_or(EdgeKind::Unknown, EdgeKind::from_str)
     }
 }
 
-/// Extension trait for `GenericDag` in effectflow mode.
-pub trait EffectFlowDagExt {
-    /// Get the monad stack from DAG metadata.
-    fn monad_stack(&self) -> Option<Vec<String>>;
-}
-
-impl EffectFlowDagExt for GenericDag {
-    fn monad_stack(&self) -> Option<Vec<String>> {
-        self.metadata
-            .get("monad_stack")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-    }
-}
-
-/// Extension trait for `GraphNode` in effectflow mode.
-pub trait EffectFlowNodeExt {
-    /// Get the effect kind of this node.
-    fn effect_kind(&self) -> EffectKind;
-
-    /// Check if this node has effect metadata (required for effect flow mode).
-    fn has_effect_metadata(&self) -> bool;
-
-    /// Get forward interpretation from node metadata.
-    fn forward(&self) -> Option<String>;
-
-    /// Get backward interpretation from node metadata.
-    fn backward(&self) -> Option<String>;
-
-    /// Get bindings read by this effect.
-    fn bindings_read(&self) -> Vec<String>;
-
-    /// Get bindings written by this effect.
-    fn bindings_written(&self) -> Vec<String>;
-}
-
-impl EffectFlowNodeExt for GraphNode {
-    fn effect_kind(&self) -> EffectKind {
-        self.kind
-            .as_deref()
-            .map_or_else(|| EffectKind::Custom(String::new()), EffectKind::from_str)
-    }
-
-    fn has_effect_metadata(&self) -> bool {
-        self.kind.is_some()
-    }
-
-    fn forward(&self) -> Option<String> {
-        self.metadata
-            .get("forward")
-            .and_then(|v| v.as_str())
-            .map(String::from)
-    }
-
-    fn backward(&self) -> Option<String> {
-        self.metadata
-            .get("backward")
-            .and_then(|v| v.as_str())
-            .map(String::from)
-    }
-
-    fn bindings_read(&self) -> Vec<String> {
-        self.metadata
-            .get("bindings_read")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default()
-    }
-
-    fn bindings_written(&self) -> Vec<String> {
-        self.metadata
-            .get("bindings_written")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default()
-    }
-}
-
-// --- Validated EffectFlowDag ---
-
-use std::{error::Error, fmt, ops::Deref};
-
-use crate::protocol::DisplayStyle;
-
-/// Error when converting a `GenericDag` to `EffectFlowDag`.
 #[derive(Debug)]
 pub enum EffectFlowConversionError {
     /// Wrong display style.
@@ -257,35 +259,68 @@ impl fmt::Display for EffectFlowConversionError {
 
 impl Error for EffectFlowConversionError {}
 
-/// Validated effect flow DAG - guarantees all nodes have effect metadata.
 #[derive(Debug, Clone)]
 pub struct EffectFlowDag {
-    /// The underlying generic DAG.
-    pub inner: GenericDag,
+    pub nodes: Vec<EffectFlowNode>,
+    pub root_node_id: Option<NodeId>,
+    pub current_node_id: Option<NodeId>,
+    pub orphans: Vec<NodeId>,
+    pub metadata: serde_json::Map<String, serde_json::Value>,
+    pub initial_context: Vec<protocol::LocalBinding>,
 }
 
 impl EffectFlowDag {
-    /// Get the inner generic DAG.
-    pub const fn as_generic(&self) -> &GenericDag {
-        &self.inner
+    /// Get a node by ID.
+    pub fn get(&self, id: NodeId) -> Option<&EffectFlowNode> {
+        self.nodes.iter().find(|n| n.inner.id == id)
     }
 
     /// Get the number of nodes.
     pub fn len(&self) -> usize {
-        self.inner.len()
+        self.nodes.len()
     }
 
     /// Check if empty.
     pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+        self.nodes.is_empty()
+    }
+
+    /// Check if a node is the current node.
+    pub fn is_current(&self, node_id: NodeId) -> bool {
+        self.current_node_id == Some(node_id)
+    }
+
+    /// Get the monad stack from DAG metadata.
+    pub fn monad_stack(&self) -> Option<Vec<String>> {
+        self.metadata
+            .get("monad_stack")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+    }
+
+    /// Iterate nodes in depth-first order.
+    pub fn dfs_iter(&self) -> impl Iterator<Item = &EffectFlowNode> {
+        EffectFlowDfsIterator {
+            dag: self,
+            stack: self.root_node_id.into_iter().collect(),
+        }
     }
 }
 
-impl Deref for EffectFlowDag {
-    type Target = GenericDag;
+struct EffectFlowDfsIterator<'a> {
+    dag: &'a EffectFlowDag,
+    stack: Vec<NodeId>,
+}
 
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+impl<'a> Iterator for EffectFlowDfsIterator<'a> {
+    type Item = &'a EffectFlowNode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.stack.pop()?;
+        let node = self.dag.get(id)?;
+        for &child_id in node.children().iter().rev() {
+            self.stack.push(child_id);
+        }
+        Some(node)
     }
 }
 
@@ -300,13 +335,43 @@ impl TryFrom<GenericDag> for EffectFlowDag {
             });
         }
 
-        // Validate that all nodes have effect kind metadata
-        for node in &dag.nodes {
-            if !node.has_effect_metadata() {
-                return Err(EffectFlowConversionError::MissingEffectKind { node_id: node.id });
-            }
-        }
+        let nodes: Vec<EffectFlowNode> = dag
+            .nodes
+            .into_iter()
+            .map(|node| {
+                let ef_node = EffectFlowNode::new(node);
+                if !ef_node.has_effect_metadata() {
+                    return Err(EffectFlowConversionError::MissingEffectKind {
+                        node_id: ef_node.inner.id,
+                    });
+                }
+                Ok(ef_node)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(Self { inner: dag })
+        Ok(Self {
+            nodes,
+            root_node_id: dag.root_node_id,
+            current_node_id: dag.current_node_id,
+            orphans: dag.orphans,
+            metadata: dag.metadata,
+            initial_context: dag.initial_context,
+        })
+    }
+}
+
+impl Dag for EffectFlowDag {
+    type Node = EffectFlowNode;
+
+    fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
+        self.get(id)
+    }
+
+    fn root_id(&self) -> Option<NodeId> {
+        self.root_node_id
+    }
+
+    fn orphan_ids(&self) -> &[NodeId] {
+        &self.orphans
     }
 }
