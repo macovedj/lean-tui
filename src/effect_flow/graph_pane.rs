@@ -7,6 +7,8 @@ use ratatui::{
     widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget},
 };
 
+use tracing::debug;
+
 use super::{
     state_node::{EffectStateNode, EffectStateNodeState},
     types::EffectFlowDag,
@@ -125,14 +127,6 @@ impl GraphPaneState {
     pub fn navigation_regions(&self) -> &[NavigationRegion] {
         &self.navigation_regions
     }
-
-    pub fn toggle_stretch(&mut self) {
-        self.stretch_children = !self.stretch_children;
-    }
-
-    pub const fn stretch_enabled(&self) -> bool {
-        self.stretch_children
-    }
 }
 
 /// Render the main effect graph with nodes and edges.
@@ -158,6 +152,21 @@ pub fn render_graph_pane(
         top_down: config.top_down,
         stretch_children: state.stretch_children,
     };
+
+    // Log DAG structure for debugging
+    debug!("=== DAG structure for graph pane ===");
+    debug!("root_node_id: {:?}", dag.root_node_id);
+    for node in &dag.nodes {
+        debug!(
+            "  node {}: {} children: {:?}, edges: {:?}",
+            node.id,
+            node.edges.len(),
+            node.edges.iter().map(|e| e.target).collect::<Vec<_>>(),
+            node.edges.iter().map(|e| (e.target, e.kind.as_deref())).collect::<Vec<_>>()
+        );
+    }
+    debug!("=== end DAG structure ===");
+
     state.layout = calculate_dag_layout(dag, layout_config);
     if state.layout.nodes.is_empty() {
         return;
@@ -183,12 +192,11 @@ pub fn render_graph_pane(
             (render_area.width >= 3 && render_area.height >= 3).then_some((render_area, node, pos))
         })
         .flat_map(|(render_area, node, pos)| {
+            let is_current = dag.is_current(pos.node_id);
+            let is_selected = matches!(selection, Some(Selection::Goal { node_id, .. }) if node_id == pos.node_id);
             let mut node_state = EffectStateNodeState::default();
-            EffectStateNode::new(node, dag.is_current(pos.node_id), config.top_down).render(
-                render_area,
-                buf,
-                &mut node_state,
-            );
+            EffectStateNode::new(node, is_current, is_selected, config.top_down)
+                .render(render_area, buf, &mut node_state);
             node_state.click_regions
         })
         .collect();

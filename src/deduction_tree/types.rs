@@ -123,7 +123,6 @@ pub struct CompleteProofDag {
     pub orphans: Vec<NodeId>,
     #[serde(default)]
     pub initial_proof_state: TacticProofState,
-    pub definition_name: Option<String>,
     pub definition_type: Option<AnnotatedTextTree>,
 }
 
@@ -295,7 +294,6 @@ impl TryFrom<GenericDag> for CompleteProofDag {
             current_node_id: dag.current_node_id,
             orphans: dag.orphans,
             initial_proof_state,
-            definition_name: dag.definition_name,
             definition_type: dag.definition_type,
         })
     }
