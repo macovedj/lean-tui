@@ -3,14 +3,11 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
+    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
 };
 
-use super::types::{EffectFlowNodeExt, EffectKind};
-use crate::{
-    protocol::GraphNode,
-    shared::{theme::Theme, truncate_str, ClickRegion, Selection},
-};
+use super::types::{EffectFlowNode, EffectKind};
+use crate::shared::{theme::Theme, ClickRegion, Selection};
 
 /// State for a single effect state node widget.
 #[derive(Default)]
@@ -20,23 +17,16 @@ pub struct EffectStateNodeState {
 
 /// A single effect node widget with effect-kind-specific styling.
 pub struct EffectStateNode<'a> {
-    node: &'a GraphNode,
+    node: &'a EffectFlowNode,
     is_current: bool,
-    selection: Option<Selection>,
     top_down: bool,
 }
 
 impl<'a> EffectStateNode<'a> {
-    pub const fn new(
-        node: &'a GraphNode,
-        is_current: bool,
-        selection: Option<Selection>,
-        top_down: bool,
-    ) -> Self {
+    pub const fn new(node: &'a EffectFlowNode, is_current: bool, top_down: bool) -> Self {
         Self {
             node,
             is_current,
-            selection,
             top_down,
         }
     }
@@ -46,7 +36,7 @@ impl<'a> EffectStateNode<'a> {
     }
 
     fn is_leaf(&self) -> bool {
-        self.node.edges.is_empty()
+        self.node.is_leaf()
     }
 
     fn is_error_node(&self) -> bool {
@@ -112,116 +102,35 @@ impl<'a> EffectStateNode<'a> {
         spans
     }
 
-    fn is_goal_selected(&self) -> bool {
-        matches!(
-            self.selection,
-            Some(Selection::Goal { node_id, goal_idx: 0 }) if node_id == self.node.id
-        )
-    }
+    fn content_lines(&self) -> Vec<Line<'static>> {
+        let mut lines = Vec::new();
 
-    fn content_line(&self) -> Line<'static> {
-        let underline = if self.is_goal_selected() {
-            Modifier::UNDERLINED
-        } else {
-            Modifier::empty()
-        };
-
-        let kind = self.effect_kind();
-
-        // Show different content based on effect kind
-        match kind {
-            EffectKind::StateRead => {
-                let reads = self.node.bindings_read();
-                if !reads.is_empty() {
-                    return Line::from(Span::styled(
-                        format!("◁ {}", reads.join(", ")),
-                        Style::new()
-                            .fg(Theme::EFFECT_STATE_READ)
-                            .add_modifier(underline),
-                    ));
-                }
-            }
-            EffectKind::StateWrite => {
-                let writes = self.node.bindings_written();
-                if !writes.is_empty() {
-                    return Line::from(Span::styled(
-                        format!("▷ {}", writes.join(", ")),
-                        Style::new()
-                            .fg(Theme::EFFECT_STATE_WRITE)
-                            .add_modifier(underline),
-                    ));
-                }
-            }
-            EffectKind::StateModify => {
-                let reads = self.node.bindings_read();
-                let writes = self.node.bindings_written();
-                if !reads.is_empty() || !writes.is_empty() {
-                    let text = format!(
-                        "{}{}{}",
-                        if reads.is_empty() {
-                            String::new()
-                        } else {
-                            format!("◁{}", reads.join(","))
-                        },
-                        if !reads.is_empty() && !writes.is_empty() {
-                            " "
-                        } else {
-                            ""
-                        },
-                        if writes.is_empty() {
-                            String::new()
-                        } else {
-                            format!("▷{}", writes.join(","))
-                        }
-                    );
-                    return Line::from(Span::styled(
-                        text,
-                        Style::new()
-                            .fg(Theme::EFFECT_STATE_MODIFY)
-                            .add_modifier(underline),
-                    ));
-                }
-            }
-            EffectKind::EffectThrow => {
-                return Line::from(Span::styled(
-                    "⚡ error",
-                    Style::new()
-                        .fg(Theme::EFFECT_THROW)
-                        .add_modifier(Modifier::BOLD)
-                        .add_modifier(underline),
-                ));
-            }
-            EffectKind::EffectCatch => {
-                return Line::from(Span::styled(
-                    "⛨ handler",
-                    Style::new().fg(Theme::EFFECT_CATCH).add_modifier(underline),
-                ));
-            }
-            _ => {}
+        // Backward interpretation (shown first/above)
+        if let Some(bwd) = self.node.backward() {
+            lines.push(Line::from(vec![
+                Span::styled("bwd: ", Style::new().fg(Color::Magenta)),
+                Span::raw(bwd),
+            ]));
         }
 
-        // Default: show forward interpretation if available
+        // Forward interpretation (shown second/below)
         if let Some(fwd) = self.node.forward() {
-            return Line::from(Span::styled(
-                truncate_str(&fwd, 30),
-                Style::new().fg(Color::White).add_modifier(underline),
-            ));
+            lines.push(Line::from(vec![
+                Span::styled("fwd: ", Style::new().fg(Color::Green)),
+                Span::raw(fwd),
+            ]));
         }
 
-        // Fallback based on completion status
-        if self.is_leaf() {
-            Line::from(Span::styled(
+        if lines.is_empty() && self.is_leaf() {
+            lines.push(Line::from(Span::styled(
                 "✓",
                 Style::new()
                     .fg(Theme::COMPLETED_GOAL_FG)
                     .add_modifier(Modifier::BOLD),
-            ))
-        } else {
-            Line::from(Span::styled(
-                "...",
-                Style::new().fg(Color::DarkGray).add_modifier(underline),
-            ))
+            )));
         }
+
+        lines
     }
 
     fn click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
@@ -277,10 +186,7 @@ impl StatefulWidget for EffectStateNode<'_> {
             return;
         }
 
-        let content_line = self.content_line();
-        Paragraph::new(vec![content_line])
-            .wrap(Wrap { trim: true })
-            .render(inner, buf);
+        Paragraph::new(self.content_lines()).render(inner, buf);
 
         state.click_regions = self.click_regions(inner);
     }

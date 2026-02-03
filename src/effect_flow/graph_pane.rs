@@ -9,10 +9,10 @@ use ratatui::{
 
 use super::{
     state_node::{EffectStateNode, EffectStateNodeState},
-    types::EffectFlowEdgeExt,
+    types::EffectFlowDag,
 };
 use crate::{
-    protocol::{GenericDag, NodeId},
+    protocol::NodeId,
     shared::{
         build_navigation_regions, calculate_dag_layout, ClickRegion, DagLayout, LayoutConfig,
         NavigationRegion, NodePosition, Selection, VirtualCanvas,
@@ -137,7 +137,7 @@ impl GraphPaneState {
 
 /// Render the main effect graph with nodes and edges.
 pub fn render_graph_pane(
-    dag: &GenericDag,
+    dag: &EffectFlowDag,
     config: LayoutConfig,
     selection: Option<Selection>,
     area: Rect,
@@ -184,13 +184,11 @@ pub fn render_graph_pane(
         })
         .flat_map(|(render_area, node, pos)| {
             let mut node_state = EffectStateNodeState::default();
-            EffectStateNode::new(
-                node,
-                dag.is_current(pos.node_id),
-                selection,
-                config.top_down,
-            )
-            .render(render_area, buf, &mut node_state);
+            EffectStateNode::new(node, dag.is_current(pos.node_id), config.top_down).render(
+                render_area,
+                buf,
+                &mut node_state,
+            );
             node_state.click_regions
         })
         .collect();
@@ -201,7 +199,7 @@ pub fn render_graph_pane(
 }
 
 fn render_edges(
-    dag: &GenericDag,
+    dag: &EffectFlowDag,
     layout: &DagLayout,
     canvas: &VirtualCanvas,
     viewport: Rect,
@@ -238,7 +236,7 @@ fn render_edges(
                 child_pos.y + i32::from(child_pos.height)
             };
 
-            let edge_kind = edge.edge_kind();
+            let edge_kind = edge.effect_edge_kind();
             let edge_style = Style::new().fg(edge_kind.color());
 
             ctx.draw_edge(parent_x, parent_y, child_x, child_y, edge_style, top_down);
@@ -248,7 +246,7 @@ fn render_edges(
 
 fn create_canvas(
     state: &GraphPaneState,
-    dag: &GenericDag,
+    dag: &EffectFlowDag,
     selection: Option<Selection>,
     area: Rect,
 ) -> VirtualCanvas {
@@ -265,7 +263,7 @@ fn create_canvas(
 
 fn find_scroll_target<'a>(
     layout: &'a DagLayout,
-    dag: &GenericDag,
+    dag: &EffectFlowDag,
     selection: Option<Selection>,
 ) -> Option<&'a NodePosition> {
     let selected_node_id = selection.and_then(|sel| match sel {

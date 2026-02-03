@@ -13,7 +13,7 @@ use crate::{
     app::DefinitionInfo,
     data_flow::{
         layout::{FunctionalTableauLayout, FunctionalTableauState},
-        types::{DataFlowDag, DataFlowNodeExt},
+        types::DataFlowDag,
     },
     display_mode::Mode,
     shared::{

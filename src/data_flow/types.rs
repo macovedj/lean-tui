@@ -1,10 +1,13 @@
+use std::{error::Error, fmt, ops::Deref};
+
 use ratatui::style::Color;
 
 use crate::{
     protocol::{
-        AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId,
+        AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, GraphNode, LocalBinding,
+        NavNode, NodeId,
     },
-    shared::Theme,
+    shared::{LayoutSize, Theme},
 };
 
 /// Data flow node kinds from the lean-dag backend.
@@ -59,56 +62,102 @@ impl DataFlowKind {
     }
 }
 
-/// Extension trait for `GraphNode` in dataflow mode.
-pub trait DataFlowNodeExt {
-    fn data_flow_kind(&self) -> DataFlowKind;
-    fn bindings_after(&self) -> Vec<LocalBinding>;
-    fn new_binding_indices(&self) -> Vec<u64>;
-    fn expected_type(&self) -> Option<AnnotatedTextTree>;
-    fn is_leaf(&self) -> bool;
-    fn is_complete(&self) -> bool;
+#[derive(Debug, Clone)]
+pub struct DataFlowNode {
+    pub inner: GraphNode,
 }
 
-impl DataFlowNodeExt for GraphNode {
-    fn data_flow_kind(&self) -> DataFlowKind {
-        self.kind.as_deref().map_or_else(
+impl DataFlowNode {
+    pub const fn new(inner: GraphNode) -> Self {
+        Self { inner }
+    }
+
+    pub fn data_flow_kind(&self) -> DataFlowKind {
+        self.inner.kind.as_deref().map_or_else(
             || DataFlowKind::Custom(String::new()),
             DataFlowKind::from_str,
         )
     }
 
-    fn bindings_after(&self) -> Vec<LocalBinding> {
-        self.metadata
+    pub fn bindings_after(&self) -> Vec<LocalBinding> {
+        self.inner
+            .metadata
             .get("bindings_after")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or_default()
     }
 
-    fn new_binding_indices(&self) -> Vec<u64> {
-        self.metadata
+    pub fn new_binding_indices(&self) -> Vec<u64> {
+        self.inner
+            .metadata
             .get("new_binding_indices")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or_default()
     }
 
-    fn expected_type(&self) -> Option<AnnotatedTextTree> {
-        self.metadata
+    pub fn expected_type(&self) -> Option<AnnotatedTextTree> {
+        self.inner
+            .metadata
             .get("expected_type")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 
-    fn is_leaf(&self) -> bool {
-        self.edges.is_empty()
+    pub fn is_leaf(&self) -> bool {
+        self.inner.edges.is_empty()
     }
 
-    fn is_complete(&self) -> bool {
-        self.edges.is_empty() && self.expected_type().is_none()
+    pub fn is_complete(&self) -> bool {
+        self.inner.edges.is_empty() && self.expected_type().is_none()
     }
 }
 
-// --- Validated DataFlowDag ---
+impl Deref for DataFlowNode {
+    type Target = GraphNode;
 
-use std::{error::Error, fmt, ops::Deref};
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DagNode for DataFlowNode {
+    fn id(&self) -> NodeId {
+        self.inner.id
+    }
+
+    fn children(&self) -> Vec<NodeId> {
+        self.inner.edges.iter().map(|e| e.target).collect()
+    }
+}
+
+impl NavNode for DataFlowNode {
+    fn new_hyp_indices(&self) -> Vec<u64> {
+        self.new_binding_indices()
+    }
+
+    fn goal_count(&self) -> usize {
+        usize::from(self.expected_type().is_some())
+    }
+
+    fn has_selectable_goals(&self) -> bool {
+        self.expected_type().is_some()
+    }
+}
+
+impl LayoutSize for DataFlowNode {
+    fn layout_size(&self) -> (u16, u16) {
+        let width = {
+            let title_width = self.inner.content.to_plain_text().len() + 8;
+            (title_width + 4) as u16
+        };
+        let height = {
+            // Border (2) + bindings line (if any) + type line (1)
+            let has_bindings = !self.new_binding_indices().is_empty();
+            let content_lines = if has_bindings { 2 } else { 1 };
+            2 + content_lines
+        };
+        (width, height)
+    }
+}
 
 /// Error when converting a `GenericDag` to `DataFlowDag`.
 #[derive(Debug)]
@@ -132,30 +181,62 @@ impl fmt::Display for DataFlowConversionError {
 
 impl Error for DataFlowConversionError {}
 
-/// Validated data flow DAG.
 #[derive(Debug, Clone)]
 pub struct DataFlowDag {
-    /// The underlying generic DAG.
-    pub inner: GenericDag,
+    pub nodes: Vec<DataFlowNode>,
+    pub root_node_id: Option<NodeId>,
+    pub current_node_id: Option<NodeId>,
+    pub orphans: Vec<NodeId>,
+    pub _definition_name: Option<String>,
+    pub definition_type: Option<AnnotatedTextTree>,
+    pub initial_context: Vec<LocalBinding>,
 }
 
 impl DataFlowDag {
+    /// Get a node by ID.
+    pub fn get(&self, id: NodeId) -> Option<&DataFlowNode> {
+        self.nodes.iter().find(|n| n.inner.id == id)
+    }
+
     /// Get the number of nodes.
     pub fn len(&self) -> usize {
-        self.inner.len()
+        self.nodes.len()
     }
 
     /// Check if empty.
     pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+        self.nodes.is_empty()
+    }
+
+    /// Check if a node is the current node.
+    pub fn is_current(&self, node_id: NodeId) -> bool {
+        self.current_node_id == Some(node_id)
+    }
+
+    /// Iterate nodes in depth-first order.
+    pub fn dfs_iter(&self) -> impl Iterator<Item = &DataFlowNode> {
+        DataFlowDfsIterator {
+            dag: self,
+            stack: self.root_node_id.into_iter().collect(),
+        }
     }
 }
 
-impl Deref for DataFlowDag {
-    type Target = GenericDag;
+struct DataFlowDfsIterator<'a> {
+    dag: &'a DataFlowDag,
+    stack: Vec<NodeId>,
+}
 
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+impl<'a> Iterator for DataFlowDfsIterator<'a> {
+    type Item = &'a DataFlowNode;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.stack.pop()?;
+        let node = self.dag.get(id)?;
+        for &child_id in node.children().iter().rev() {
+            self.stack.push(child_id);
+        }
+        Some(node)
     }
 }
 
@@ -170,44 +251,38 @@ impl TryFrom<GenericDag> for DataFlowDag {
             });
         }
 
-        Ok(Self { inner: dag })
+        let nodes: Vec<DataFlowNode> = dag.nodes.into_iter().map(DataFlowNode::new).collect();
+
+        let initial_context: Vec<LocalBinding> = dag
+            .metadata
+            .get("initial_context")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+
+        Ok(Self {
+            nodes,
+            root_node_id: dag.root_node_id,
+            current_node_id: dag.current_node_id,
+            orphans: dag.orphans,
+            _definition_name: dag.definition_name,
+            definition_type: dag.definition_type,
+            initial_context,
+        })
     }
 }
 
 impl Dag for DataFlowDag {
-    type Node = GraphNode;
+    type Node = DataFlowNode;
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
-        self.inner.get(id)
+        self.get(id)
     }
 
     fn root_id(&self) -> Option<NodeId> {
-        self.inner.root_node_id
+        self.root_node_id
     }
 
     fn orphan_ids(&self) -> &[NodeId] {
-        &self.inner.orphans
-    }
-}
-
-impl DagNode for DataFlowDag {
-    fn id(&self) -> NodeId {
-        self.inner.root_node_id.unwrap_or(0)
-    }
-
-    fn children(&self) -> Vec<NodeId> {
-        self.inner
-            .root_node_id
-            .and_then(|id| self.inner.get(id))
-            .map(|n| n.edges.iter().map(|e| e.target).collect())
-            .unwrap_or_default()
-    }
-
-    fn box_height(&self) -> u16 {
-        3
-    }
-
-    fn content_width(&self) -> u16 {
-        40
+        &self.orphans
     }
 }

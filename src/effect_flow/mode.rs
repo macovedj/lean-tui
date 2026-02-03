@@ -13,7 +13,7 @@ use crate::{
     display_mode::Mode,
     effect_flow::{
         layout::{EffectTableauLayout, EffectTableauState},
-        types::{EdgeKind, EffectFlowDag, EffectFlowDagExt, EffectKind},
+        types::{EdgeKind, EffectFlowDag, EffectKind},
     },
     shared::{
         find_nearest_in_direction,
@@ -71,11 +71,6 @@ impl EffectFlowModeInputBuilder {
     }
 }
 
-/// Effect Flow display mode - monadic effect visualization.
-///
-/// Visualizes effect flow using forward/backward function decomposition,
-/// inspired by Aeneas. Shows state reads/writes, effect binds, and
-/// error propagation.
 pub struct EffectFlowMode {
     definition: Option<DefinitionInfo>,
     error: Option<String>,
@@ -332,7 +327,7 @@ impl InteractiveComponent for EffectFlowMode {
 
             // Render the DAG tree with integrated interpretation pane
             let widget = EffectTableauLayout::new(
-                dag.as_generic(),
+                dag,
                 self.tree_top_down,
                 self.effect_tableau_state.stretch_enabled(),
                 self.current_tree_selection(),
