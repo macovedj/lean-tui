@@ -1,6 +1,7 @@
-use std::{error::Error, fmt, ops::Deref};
+use std::{collections::HashSet, error::Error, fmt};
 
 use ratatui::style::Color;
+use tracing::debug;
 
 use crate::{
     protocol::{
@@ -94,6 +95,8 @@ pub enum EdgeKind {
     ErrorPropagation,
     /// Early return path
     EarlyReturn,
+    /// Continuation - "what happens next" in a bind chain
+    Continuation,
     /// Unknown edge kind
     Unknown,
 }
@@ -107,6 +110,7 @@ impl EdgeKind {
             "effect_flow" => Self::EffectFlow,
             "error_propagation" => Self::ErrorPropagation,
             "early_return" => Self::EarlyReturn,
+            "continuation" => Self::Continuation,
             _ => Self::Unknown,
         }
     }
@@ -119,80 +123,81 @@ impl EdgeKind {
             Self::EffectFlow => Theme::EDGE_EFFECT_FLOW,
             Self::ErrorPropagation => Theme::EDGE_ERROR_PROPAGATION,
             Self::EarlyReturn => Theme::EDGE_EARLY_RETURN,
+            Self::Continuation => Theme::EDGE_CONTINUATION,
             Self::Unknown => Color::DarkGray,
         }
     }
 
-    /// Get an icon for this edge kind.
-    pub const fn icon(self) -> &'static str {
-        match self {
-            Self::DataFlow => "→",
-            Self::ControlFlow => "⇒",
-            Self::EffectFlow => "⤳",
-            Self::ErrorPropagation => "⚠→",
-            Self::EarlyReturn => "↩",
-            Self::Unknown => "?",
-        }
+    /// Check if this is a continuation edge.
+    pub const fn is_continuation(self) -> bool {
+        matches!(self, Self::Continuation)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct EffectFlowNode {
-    pub inner: GraphNode,
+    pub id: NodeId,
+    pub content: protocol::AnnotatedTextTree,
+    pub edges: Vec<GraphEdge>,
+    pub effect_kind: EffectKind,
+    pub forward: Option<String>,
+    pub backward: Option<String>,
+    pub state_effect: Option<String>,
+    pub forward_output: Option<String>,
+    pub given_back: Option<String>,
+    pub forward_desc: Option<String>,
+    pub backward_desc: Option<String>,
+    pub from_unfolding: bool,
 }
 
 impl EffectFlowNode {
-    pub const fn new(inner: GraphNode) -> Self {
-        Self { inner }
-    }
+    pub fn from_graph_node(node: GraphNode) -> Option<Self> {
+        let effect_kind = node.kind.as_deref().map(EffectKind::from_str)?;
 
-    pub fn effect_kind(&self) -> EffectKind {
-        self.inner
-            .kind
-            .as_deref()
-            .map_or_else(|| EffectKind::Custom(String::new()), EffectKind::from_str)
-    }
+        let extract_str = |key: &str| -> Option<String> {
+            node.metadata
+                .get(key)
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+        };
 
-    pub fn has_effect_metadata(&self) -> bool {
-        self.inner.kind.is_some()
-    }
+        let state_effect = extract_str("stateEffect").filter(|s| s != "none");
 
-    pub fn forward(&self) -> Option<String> {
-        self.inner
+        let from_unfolding = node
             .metadata
-            .get("forward")
-            .and_then(|v| v.as_str())
-            .map(String::from)
-    }
+            .get("fromUnfolding")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
-    pub fn backward(&self) -> Option<String> {
-        self.inner
-            .metadata
-            .get("backward")
-            .and_then(|v| v.as_str())
-            .map(String::from)
+        Some(Self {
+            id: node.id,
+            content: node.content,
+            edges: node.edges,
+            effect_kind,
+            forward: extract_str("forward"),
+            backward: extract_str("backward"),
+            state_effect,
+            forward_output: extract_str("forwardOutput"),
+            given_back: extract_str("givenBack"),
+            forward_desc: extract_str("forwardDesc"),
+            backward_desc: extract_str("backwardDesc"),
+            from_unfolding,
+        })
     }
 
     pub fn is_leaf(&self) -> bool {
-        self.inner.edges.is_empty()
-    }
-}
-
-impl Deref for EffectFlowNode {
-    type Target = GraphNode;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+        self.edges.is_empty()
     }
 }
 
 impl DagNode for EffectFlowNode {
     fn id(&self) -> NodeId {
-        self.inner.id
+        self.id
     }
 
     fn children(&self) -> Vec<NodeId> {
-        self.inner.edges.iter().map(|e| e.target).collect()
+        self.edges.iter().map(|e| e.target).collect()
     }
 }
 
@@ -212,12 +217,17 @@ impl NavNode for EffectFlowNode {
 
 impl LayoutSize for EffectFlowNode {
     fn layout_size(&self) -> (u16, u16) {
-        let width = (self.inner.content.to_plain_text().len() + 12) as u16;
-        let content_lines = match (self.forward().is_some(), self.backward().is_some()) {
-            (true, true) => 2,
-            _ => 1,
+        let title_width = self.content.to_plain_text().len() + 12;
+        let fwd_width = self.forward.as_ref().map_or(0, |s| s.len() + 6);
+        let bwd_width = self.backward.as_ref().map_or(0, |s| s.len() + 6);
+        let width = title_width.max(fwd_width).max(bwd_width).min(80) as u16;
+
+        let content_lines = match (&self.forward, &self.backward) {
+            (Some(_), Some(_)) => 2,
+            (Some(_), None) | (None, Some(_)) => 1,
+            (None, None) => 0,
         };
-        (width, 2 + content_lines)
+        (width, 2 + content_lines.max(1))
     }
 }
 
@@ -227,6 +237,11 @@ impl GraphEdge {
         self.kind
             .as_deref()
             .map_or(EdgeKind::Unknown, EdgeKind::from_str)
+    }
+
+    /// Check if this is a continuation edge.
+    pub fn is_continuation(&self) -> bool {
+        self.effect_edge_kind().is_continuation()
     }
 }
 
@@ -267,12 +282,13 @@ pub struct EffectFlowDag {
     pub orphans: Vec<NodeId>,
     pub metadata: serde_json::Map<String, serde_json::Value>,
     pub initial_context: Vec<protocol::LocalBinding>,
+    pub definition_type: Option<protocol::AnnotatedTextTree>,
 }
 
 impl EffectFlowDag {
     /// Get a node by ID.
     pub fn get(&self, id: NodeId) -> Option<&EffectFlowNode> {
-        self.nodes.iter().find(|n| n.inner.id == id)
+        self.nodes.iter().find(|n| n.id == id)
     }
 
     /// Get the number of nodes.
@@ -303,6 +319,189 @@ impl EffectFlowDag {
             dag: self,
             stack: self.root_node_id.into_iter().collect(),
         }
+    }
+
+    /// Extract the main flow (continuation chain) from root.
+    pub fn extract_main_flow(&self) -> MainFlow {
+        MainFlow::extract_from(self)
+    }
+
+    /// Get detail children for a node (non-continuation edges).
+    pub fn detail_children(&self, node_id: NodeId) -> Vec<NodeId> {
+        self.get(node_id)
+            .map(|node| {
+                node.edges
+                    .iter()
+                    .filter(|e| !e.is_continuation())
+                    .map(|e| e.target)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Create a sub-DAG containing only the detail nodes (non-continuation
+    /// subtree) rooted at the given node.
+    pub fn detail_subdag(&self, node_id: NodeId) -> DetailSubdag {
+        DetailSubdag::extract_from(self, node_id)
+    }
+
+    /// Collect node and all its descendants via non-continuation edges only.
+    /// This is used for building detail subdags that exclude the main flow.
+    fn collect_detail_descendants(&self, node_id: NodeId, collected: &mut HashSet<NodeId>) {
+        if !collected.insert(node_id) {
+            return;
+        }
+
+        if let Some(node) = self.get(node_id) {
+            for edge in &node.edges {
+                // Only follow non-continuation edges for detail view
+                if !edge.is_continuation() {
+                    self.collect_detail_descendants(edge.target, collected);
+                }
+            }
+        }
+    }
+}
+
+/// The main sequential flow of operations extracted from an effect DAG.
+/// This follows continuation edges to form the "spine" of the computation.
+#[derive(Debug, Clone)]
+pub struct MainFlow {
+    node_ids: Vec<NodeId>,
+}
+
+impl MainFlow {
+    /// Extract the main flow from a DAG by following continuation edges.
+    pub fn extract_from(dag: &EffectFlowDag) -> Self {
+        let mut node_ids = Vec::new();
+        let Some(root_id) = dag.root_node_id else {
+            return Self { node_ids };
+        };
+
+        let mut current_id = Some(root_id);
+        while let Some(id) = current_id {
+            node_ids.push(id);
+            current_id = dag.get(id).and_then(|node| {
+                node.edges
+                    .iter()
+                    .find(|e| e.is_continuation())
+                    .map(|e| e.target)
+            });
+        }
+
+        Self { node_ids }
+    }
+
+    /// Get the node IDs in order.
+    pub fn node_ids(&self) -> &[NodeId] {
+        &self.node_ids
+    }
+
+    /// Check if a node is part of the main flow.
+    pub fn contains(&self, node_id: NodeId) -> bool {
+        self.node_ids.contains(&node_id)
+    }
+
+    /// Get the index of a node in the main flow.
+    pub fn index_of(&self, node_id: NodeId) -> Option<usize> {
+        self.node_ids.iter().position(|&id| id == node_id)
+    }
+
+    /// Get the number of steps in the main flow.
+    pub fn len(&self) -> usize {
+        self.node_ids.len()
+    }
+
+    /// Check if the main flow is empty.
+    pub fn is_empty(&self) -> bool {
+        self.node_ids.is_empty()
+    }
+
+    /// Iterate over node IDs with their indices.
+    pub fn iter_enumerated(&self) -> impl Iterator<Item = (usize, NodeId)> + '_ {
+        self.node_ids.iter().copied().enumerate()
+    }
+}
+
+/// A sub-DAG containing the detail nodes (non-continuation children) for a main
+/// flow node.
+#[derive(Debug, Clone)]
+pub struct DetailSubdag {
+    pub dag: EffectFlowDag,
+    pub parent_node_id: NodeId,
+}
+
+impl DetailSubdag {
+    /// Extract detail subtree from the given parent node.
+    pub fn extract_from(dag: &EffectFlowDag, parent_node_id: NodeId) -> Self {
+        let detail_children = dag.detail_children(parent_node_id);
+
+        debug!(
+            "DetailSubdag::extract_from: parent={}, detail_children={:?}",
+            parent_node_id, detail_children
+        );
+
+        if detail_children.is_empty() {
+            debug!("  no detail children, returning empty");
+            return Self {
+                dag: EffectFlowDag {
+                    nodes: Vec::new(),
+                    root_node_id: None,
+                    current_node_id: dag.current_node_id,
+                    orphans: Vec::new(),
+                    metadata: dag.metadata.clone(),
+                    initial_context: Vec::new(),
+                    definition_type: None,
+                },
+                parent_node_id,
+            };
+        }
+
+        // Collect all nodes reachable from detail edges (non-continuation only)
+        let mut included_ids = HashSet::new();
+        for child_id in &detail_children {
+            dag.collect_detail_descendants(*child_id, &mut included_ids);
+        }
+        debug!("  included_ids after collect_detail_descendants: {:?}", included_ids);
+
+        // Clone nodes but filter edges to only include targets within the subdag
+        // This removes edges that point to the main flow or other parts of the graph
+        let filtered_nodes: Vec<EffectFlowNode> = dag
+            .nodes
+            .iter()
+            .filter(|n| included_ids.contains(&n.id))
+            .map(|n| {
+                let mut node = n.clone();
+                node.edges.retain(|e| included_ids.contains(&e.target));
+                node
+            })
+            .collect();
+
+        Self {
+            dag: EffectFlowDag {
+                nodes: filtered_nodes,
+                root_node_id: detail_children.first().copied(),
+                current_node_id: dag.current_node_id.filter(|id| included_ids.contains(id)),
+                orphans: detail_children.into_iter().skip(1).collect(),
+                metadata: dag.metadata.clone(),
+                initial_context: Vec::new(),
+                definition_type: None,
+            },
+            parent_node_id,
+        }
+    }
+
+    /// Check if this detail view has any nodes.
+    pub fn is_empty(&self) -> bool {
+        self.dag.is_empty()
+    }
+
+    /// Get the root nodes (direct detail children of the parent).
+    pub fn root_ids(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.dag
+            .root_node_id
+            .into_iter()
+            .chain(self.dag.orphans.iter().copied())
     }
 }
 
@@ -339,13 +538,9 @@ impl TryFrom<GenericDag> for EffectFlowDag {
             .nodes
             .into_iter()
             .map(|node| {
-                let ef_node = EffectFlowNode::new(node);
-                if !ef_node.has_effect_metadata() {
-                    return Err(EffectFlowConversionError::MissingEffectKind {
-                        node_id: ef_node.inner.id,
-                    });
-                }
-                Ok(ef_node)
+                let node_id = node.id;
+                EffectFlowNode::from_graph_node(node)
+                    .ok_or(EffectFlowConversionError::MissingEffectKind { node_id })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -356,6 +551,7 @@ impl TryFrom<GenericDag> for EffectFlowDag {
             orphans: dag.orphans,
             metadata: dag.metadata,
             initial_context: dag.initial_context,
+            definition_type: dag.definition_type,
         })
     }
 }

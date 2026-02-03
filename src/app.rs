@@ -201,14 +201,15 @@ impl App {
             }
             ServerToClientMessage::Dag { uri, position, dag } => {
                 tracing::debug!(
-                    "Dag: uri={}, pos={}:{}, dag={}",
+                    "Dag: uri={}, pos={}:{}, dag={}, current_node_id={:?}",
                     uri,
                     position.line,
                     position.character,
                     dag.as_ref().map_or_else(
                         || "None".to_string(),
                         |d| format!("{} nodes, style={:?}", d.nodes.len(), d.display_style)
-                    )
+                    ),
+                    dag.as_ref().and_then(|d| d.current_node_id)
                 );
                 let definition_name = dag.as_ref().and_then(|dag| dag.definition_name.clone());
 
@@ -220,7 +221,8 @@ impl App {
                 self.display_mode.dag = match dag {
                     Some(d) => match DagState::from_generic(d) {
                         Ok(state) => {
-                            self.error = None; // Clear error on successful conversion
+                            self.error = None;
+                            self.display_mode.switch_to_compatible_mode(&state);
                             state
                         }
                         Err(e) => {

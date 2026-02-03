@@ -134,6 +134,33 @@ impl Default for DisplayMode {
 }
 
 impl DisplayMode {
+    /// Switch to a mode compatible with the given DAG state.
+    /// Only switches if current mode is incompatible.
+    pub fn switch_to_compatible_mode(&mut self, dag: &DagState) {
+        let is_compatible = match (&self.mode, dag) {
+            (ModeVariant::DataFlow(_), DagState::Dataflow(_)) => true,
+            (ModeVariant::EffectFlow(_), DagState::Effectflow(_)) => true,
+            (
+                ModeVariant::PlainGoal(_)
+                | ModeVariant::BeforeAfter(_)
+                | ModeVariant::TacticTree(_)
+                | ModeVariant::DeductionTree(_),
+                DagState::Proof(_),
+            ) => true,
+            (_, DagState::None) => true,
+            _ => false,
+        };
+
+        if !is_compatible {
+            self.mode = match dag {
+                DagState::Proof(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
+                DagState::Dataflow(_) => ModeVariant::DataFlow(DataFlowMode::default()),
+                DagState::Effectflow(_) => ModeVariant::EffectFlow(EffectFlowMode::default()),
+                DagState::None => return,
+            };
+        }
+    }
+
     /// Get an error message if the current mode is incompatible with the DAG.
     /// Returns None if compatible or no DAG is present.
     pub fn incompatibility_error(&self) -> Option<String> {

@@ -1,5 +1,7 @@
 use std::iter::once;
 
+use tracing::{debug, trace};
+
 use crate::protocol::{Dag, DagNode, NodeId};
 
 pub const ORPHAN_GAP: i32 = 4;
@@ -62,17 +64,30 @@ where
             let (node_w, node_h) = node.layout_size();
             let (node_w, node_h) = (i32::from(node_w), i32::from(node_h));
 
-            if node.children().is_empty() {
+            let children = node.children();
+            let result = if children.is_empty() {
                 (node_w, node_h)
+            } else if children.len() == 1 {
+                // Single child: vertical layout - keep max width, sum heights
+                let (child_w, child_h) = self.subtree_size(children[0]);
+                (node_w.max(child_w), node_h + child_h)
             } else {
-                let (total_w, max_child_h) = node
-                    .children()
+                // Multiple children: horizontal layout - sum widths, keep max height
+                let (total_w, max_child_h) = children
                     .iter()
                     .map(|&cid| self.subtree_size(cid))
                     .fold((0, 0), |(tw, mh), (cw, ch)| (tw + cw, mh.max(ch)));
 
                 (total_w.max(node_w), node_h + max_child_h)
-            }
+            };
+            trace!(
+                "subtree_size: node={}, children={}, size=({}, {})",
+                node_id,
+                children.len(),
+                result.0,
+                result.1
+            );
+            result
         })
     }
 
@@ -88,13 +103,30 @@ where
                 rect.y + rect.h - box_h
             };
 
+            let width = if self.config.stretch_children {
+                u16::try_from(rect.w).unwrap_or(node_w).max(node_w)
+            } else {
+                node_w
+            };
+
             let current = NodePosition {
                 node_id,
                 x: rect.x,
                 y: node_y,
-                width: u16::try_from(rect.w).unwrap_or(node_w).max(node_w),
+                width,
                 height: node_h,
             };
+
+            trace!(
+                "position_subtree: node={}, rect=({},{},{},{}), pos=({},{})",
+                node_id,
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                current.x,
+                current.y
+            );
 
             let child_positions = self.position_children(node, rect, box_h, subtree_w);
 
@@ -109,7 +141,8 @@ where
         box_h: i32,
         subtree_w: i32,
     ) -> Vec<NodePosition> {
-        if node.children().is_empty() {
+        let children = node.children();
+        if children.is_empty() {
             return Vec::new();
         }
 
@@ -120,18 +153,54 @@ where
         };
         let child_h = parent_rect.h - box_h;
 
-        let children: Vec<_> = node
-            .children()
+        debug!(
+            "position_children: parent={}, children={:?}, parent_rect=({},{},{},{}), child_y={}",
+            node.id(),
+            children,
+            parent_rect.x,
+            parent_rect.y,
+            parent_rect.w,
+            parent_rect.h,
+            child_y
+        );
+
+        // Single child: position directly below parent (vertical alignment)
+        if children.len() == 1 {
+            let child_id = children[0];
+            let (child_w, child_subtree_h) = self.subtree_size(child_id);
+            let rect = Rect {
+                x: parent_rect.x,
+                y: child_y,
+                w: child_w,
+                h: child_h.min(child_subtree_h),
+            };
+            debug!(
+                "  single child: child_id={}, rect=({},{},{},{})",
+                child_id, rect.x, rect.y, rect.w, rect.h
+            );
+            return self.position_subtree(child_id, rect);
+        }
+
+        // Multiple children: horizontal spread
+        let children_with_sizes: Vec<_> = children
             .iter()
             .map(|&cid| (cid, self.subtree_size(cid)))
             .collect();
 
+        debug!("  multiple children: sizes={:?}", children_with_sizes);
+
         if self.config.stretch_children {
-            self.position_stretched(&children, parent_rect.x, child_y, parent_rect.w, child_h)
+            self.position_stretched(
+                &children_with_sizes,
+                parent_rect.x,
+                child_y,
+                parent_rect.w,
+                child_h,
+            )
         } else {
-            let total_children_w: i32 = children.iter().map(|(_, (w, _))| w).sum();
+            let total_children_w: i32 = children_with_sizes.iter().map(|(_, (w, _))| w).sum();
             let start_x = parent_rect.x + (subtree_w - total_children_w) / 2;
-            self.position_centered(&children, start_x, child_y, child_h)
+            self.position_centered(&children_with_sizes, start_x, child_y, child_h)
         }
     }
 
