@@ -1,5 +1,3 @@
-//! Hypotheses section - the top portion of the tactic tree view.
-
 use std::collections::HashSet;
 
 use ratatui::{
@@ -14,11 +12,10 @@ use ratatui::{
 
 use super::{
     hyp_layer::{HypLayer, HypLayerRenderContext},
-    layout_metrics::LayoutMetrics,
     theme::Theme,
     ClickRegion, HypothesisFilters, Selection,
 };
-use crate::protocol::{NodeId, TacticProofState};
+use crate::{deduction_tree::TacticProofState, protocol::NodeId};
 
 impl Default for HypLayer {
     fn default() -> Self {
@@ -118,7 +115,7 @@ impl StatefulWidget for HypSection {
 
         // Calculate scroll position from selection
         if let Some(Selection::Hyp { hyp_idx, .. }) = state.selection {
-            state.vertical_scroll = LayoutMetrics::scroll_position(hyp_idx);
+            state.vertical_scroll = hyp_idx;
         }
 
         let total_hyps = state.layer.len();

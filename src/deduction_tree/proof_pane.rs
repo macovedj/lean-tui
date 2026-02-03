@@ -10,7 +10,8 @@ use super::{
     types::CompleteProofDag,
 };
 use crate::{
-    protocol::{NodeId, TacticProofState},
+    deduction_tree::TacticProofState,
+    protocol::NodeId,
     shared::{
         build_navigation_regions, calculate_dag_layout, ClickRegion, DagLayout, LayoutConfig,
         NavigationRegion, NodePosition, Selection, VirtualCanvas,

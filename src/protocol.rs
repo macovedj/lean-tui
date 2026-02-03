@@ -69,30 +69,6 @@ impl AnnotatedTextTree {
     }
 }
 
-// --- ProofObligation impl ---
-
-impl ProofObligation {
-    /// Get username as string slice (compatibility helper).
-    pub fn username_str(&self) -> Option<&str> {
-        self.username.as_deref()
-    }
-
-    /// Get navigation locations with default if missing.
-    #[allow(dead_code)]
-    pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
-        self.navigation_locations.clone().unwrap_or_default()
-    }
-}
-
-// --- ProofContextHypothesis impl ---
-
-impl ProofContextHypothesis {
-    /// Get navigation locations with default if missing.
-    pub fn navigation_locations(&self) -> PreresolvedNavigationTargets {
-        self.navigation_locations.clone().unwrap_or_default()
-    }
-}
-
 // --- GenericDag impl ---
 
 impl GenericDag {
@@ -122,30 +98,6 @@ impl GenericDag {
     /// Check if a node is the current node (closest to cursor).
     pub fn is_current(&self, node_id: NodeId) -> bool {
         self.current_node_id == Some(node_id)
-    }
-
-    /// Check if this is a proof-style DAG.
-    pub fn is_proof(&self) -> bool {
-        self.display_style == DisplayStyle::Proof
-    }
-
-    /// Check if this is a dataflow-style DAG.
-    pub fn is_dataflow(&self) -> bool {
-        self.display_style == DisplayStyle::Dataflow
-    }
-
-    /// Check if this is an effectflow-style DAG.
-    pub fn is_effectflow(&self) -> bool {
-        self.display_style == DisplayStyle::Effectflow
-    }
-}
-
-// --- GraphNode impl ---
-
-impl GraphNode {
-    /// Get a metadata value as string.
-    pub fn get_metadata_str(&self, key: &str) -> Option<&str> {
-        self.metadata.get(key).and_then(|v| v.as_str())
     }
 }
 

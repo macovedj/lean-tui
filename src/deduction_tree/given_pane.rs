@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::{
-    protocol::ProofContextHypothesis,
+    deduction_tree::ProofContextHypothesis,
     shared::{theme::Theme, truncate_str, ClickRegion, Selection},
 };
 

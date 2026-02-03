@@ -1,5 +1,3 @@
-//! Shared components used across display styles.
-
 pub mod canvas;
 pub mod dag_layout;
 pub mod diff_text;
@@ -9,7 +7,6 @@ pub mod help_menu;
 pub mod hyp_layer;
 pub mod hyp_section;
 pub mod interactive;
-pub mod layout_metrics;
 pub mod legend;
 pub mod navigation;
 pub mod render_helpers;

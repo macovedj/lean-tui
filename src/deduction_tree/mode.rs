@@ -12,9 +12,9 @@ use crate::{
     deduction_tree::{
         layout::{SemanticTableauLayout, SemanticTableauState},
         types::CompleteProofDag,
+        TacticProofState,
     },
     display_mode::Mode,
-    protocol::TacticProofState,
     shared::{
         find_nearest_in_direction,
         legend::{LegendItem, LegendSection},
@@ -30,6 +30,55 @@ pub struct DeductionTreeModeInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
+}
+
+impl DeductionTreeModeInput {
+    /// Create a builder for this input type.
+    pub fn builder() -> DeductionTreeModeInputBuilder {
+        DeductionTreeModeInputBuilder::default()
+    }
+}
+
+/// Builder for `DeductionTreeModeInput`.
+#[derive(Default)]
+pub struct DeductionTreeModeInputBuilder {
+    dag: Option<CompleteProofDag>,
+    definition: Option<DefinitionInfo>,
+    error: Option<String>,
+}
+
+impl DeductionTreeModeInputBuilder {
+    pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
+        self.dag = Some(dag.clone());
+        self
+    }
+
+    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
+        self.definition = definition;
+        self
+    }
+
+    pub fn error(mut self, error: Option<String>) -> Self {
+        self.error = error;
+        self
+    }
+
+    pub fn build(self) -> DeductionTreeModeInput {
+        let state = self
+            .dag
+            .as_ref()
+            .and_then(|d| d.current_node_id)
+            .and_then(|id| self.dag.as_ref()?.get(id))
+            .map(|node| node.proof_state_after.clone())
+            .unwrap_or_default();
+
+        DeductionTreeModeInput {
+            state,
+            definition: self.definition,
+            error: self.error,
+            proof_dag: self.dag,
+        }
+    }
 }
 
 /// Deduction Tree display mode - semantic tree visualization.

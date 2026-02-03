@@ -14,17 +14,17 @@ use super::{InteractiveStatefulWidget, KeyEvent};
 /// A single legend entry with icon, color, and description.
 #[derive(Debug, Clone)]
 pub struct LegendItem {
-    pub icon: &'static str,
+    pub icon: String,
     pub color: Color,
-    pub description: &'static str,
+    pub description: String,
 }
 
 impl LegendItem {
-    pub const fn new(icon: &'static str, color: Color, description: &'static str) -> Self {
+    pub fn new(icon: impl Into<String>, color: Color, description: impl Into<String>) -> Self {
         Self {
-            icon,
+            icon: icon.into(),
             color,
-            description,
+            description: description.into(),
         }
     }
 }
@@ -32,15 +32,15 @@ impl LegendItem {
 /// A section in the legend with a title and items.
 #[derive(Debug, Clone)]
 pub struct LegendSection {
-    pub title: &'static str,
+    pub title: String,
     pub title_color: Color,
     pub items: Vec<LegendItem>,
 }
 
 impl LegendSection {
-    pub fn new(title: &'static str, title_color: Color, items: Vec<LegendItem>) -> Self {
+    pub fn new(title: impl Into<String>, title_color: Color, items: Vec<LegendItem>) -> Self {
         Self {
-            title,
+            title: title.into(),
             title_color,
             items,
         }
@@ -56,10 +56,6 @@ pub struct Legend {
 impl Legend {
     pub const fn toggle(&mut self) {
         self.visible = !self.visible;
-    }
-
-    pub const fn is_visible(&self) -> bool {
-        self.visible
     }
 }
 
@@ -83,7 +79,7 @@ impl<'a> LegendWidget<'a> {
             }
 
             lines.push(Line::from(Span::styled(
-                section.title,
+                section.title.clone(),
                 Style::new()
                     .fg(section.title_color)
                     .add_modifier(Modifier::BOLD),
@@ -91,9 +87,9 @@ impl<'a> LegendWidget<'a> {
 
             for item in &section.items {
                 lines.push(Line::from(vec![
-                    Span::styled(item.icon, Style::new().fg(item.color)),
+                    Span::styled(item.icon.clone(), Style::new().fg(item.color)),
                     Span::raw(" "),
-                    Span::raw(item.description),
+                    Span::raw(item.description.clone()),
                 ]));
             }
         }

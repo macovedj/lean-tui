@@ -8,7 +8,7 @@ use ratatui::{
 
 use super::{given_pane::hyp_style_colors, types::ProofDagTacticNode};
 use crate::{
-    protocol::TacticProofState,
+    deduction_tree::TacticProofState,
     shared::{theme::Theme, truncate_str, ClickRegion, Selection},
 };
 

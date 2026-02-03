@@ -12,9 +12,10 @@ use ratatui::{
 use super::{
     given_pane::{BindingGivenPane, BindingGivenPaneState},
     state_node::{FunctionalStateNode, FunctionalStateNodeState},
+    types::DataFlowDag,
 };
 use crate::{
-    protocol::{AnnotatedTextTree, GenericDag, NodeId},
+    protocol::{AnnotatedTextTree, NodeId},
     shared::{
         build_navigation_regions, calculate_dag_layout, theme::Theme, truncate_str, ClickRegion,
         DagLayout, LayoutConfig, NavigationRegion, NodePosition, Selection, VirtualCanvas,
@@ -105,14 +106,14 @@ impl TheoremPaneState {
 
 /// Functional tableau layout widget.
 pub struct FunctionalTableauLayout<'a> {
-    dag: &'a GenericDag,
+    dag: &'a DataFlowDag,
     config: LayoutConfig,
     selection: Option<Selection>,
 }
 
 impl<'a> FunctionalTableauLayout<'a> {
     pub const fn new(
-        dag: &'a GenericDag,
+        dag: &'a DataFlowDag,
         top_down: bool,
         stretch_children: bool,
         selection: Option<Selection>,
@@ -186,7 +187,7 @@ impl StatefulWidget for FunctionalTableauLayout<'_> {
 }
 
 fn render_proof_pane(
-    dag: &GenericDag,
+    dag: &DataFlowDag,
     config: LayoutConfig,
     selection: Option<Selection>,
     area: Rect,
@@ -248,7 +249,7 @@ fn render_proof_pane(
 
 fn create_canvas(
     state: &FunctionalProofPaneState,
-    dag: &GenericDag,
+    dag: &DataFlowDag,
     selection: Option<Selection>,
     area: Rect,
 ) -> VirtualCanvas {
@@ -265,7 +266,7 @@ fn create_canvas(
 
 fn find_scroll_target<'a>(
     layout: &'a DagLayout,
-    dag: &GenericDag,
+    dag: &DataFlowDag,
     selection: Option<Selection>,
 ) -> Option<&'a NodePosition> {
     let selected_node_id = selection.and_then(|sel| match sel {
@@ -314,7 +315,7 @@ fn render_scrollbars(buf: &mut Buffer, area: Rect, canvas: &VirtualCanvas) {
 }
 
 fn render_theorem_pane(
-    dag: &GenericDag,
+    dag: &DataFlowDag,
     selection: Option<Selection>,
     area: Rect,
     buf: &mut Buffer,

@@ -7,9 +7,9 @@ use ratatui::{
 use crate::{
     app::DefinitionInfo,
     before_after::goals_column::{GoalsColumn, GoalsColumnState},
-    deduction_tree::types::CompleteProofDag,
+    deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
-    protocol::{NodeId, TacticProofState},
+    protocol::NodeId,
     shared::{
         hypothesis_indices, render_helpers::render_error, selection::SelectionState, FilterToggle,
         HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
@@ -24,6 +24,86 @@ pub struct BeforeAfterModeInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
+}
+
+impl BeforeAfterModeInput {
+    /// Create a builder for this input type.
+    pub fn builder() -> BeforeAfterModeInputBuilder {
+        BeforeAfterModeInputBuilder::default()
+    }
+}
+
+/// Builder for `BeforeAfterModeInput`.
+#[derive(Default)]
+pub struct BeforeAfterModeInputBuilder {
+    dag: Option<CompleteProofDag>,
+    definition: Option<DefinitionInfo>,
+    error: Option<String>,
+    show_previous: bool,
+    show_next: bool,
+}
+
+impl BeforeAfterModeInputBuilder {
+    pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
+        self.dag = Some(dag.clone());
+        self
+    }
+
+    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
+        self.definition = definition;
+        self
+    }
+
+    pub fn error(mut self, error: Option<String>) -> Self {
+        self.error = error;
+        self
+    }
+
+    pub fn show_previous(mut self, show: bool) -> Self {
+        self.show_previous = show;
+        self
+    }
+
+    pub fn show_next(mut self, show: bool) -> Self {
+        self.show_next = show;
+        self
+    }
+
+    pub fn build(self) -> BeforeAfterModeInput {
+        let current_node = self
+            .dag
+            .as_ref()
+            .and_then(|d| d.current_node_id)
+            .and_then(|id| self.dag.as_ref()?.get(id));
+
+        let current_state = current_node
+            .map(|n| n.proof_state_after.clone())
+            .unwrap_or_default();
+
+        let previous_state = self
+            .show_previous
+            .then(|| current_node.map(|n| n.proof_state_before.clone()))
+            .flatten();
+
+        let next_state = self
+            .show_next
+            .then(|| {
+                current_node
+                    .and_then(|n| n.children.first())
+                    .and_then(|&child_id| self.dag.as_ref()?.get(child_id))
+                    .map(|child| child.proof_state_after.clone())
+            })
+            .flatten();
+
+        BeforeAfterModeInput {
+            previous_state,
+            current_state,
+            next_state,
+            definition: self.definition,
+            error: self.error,
+            proof_dag: self.dag,
+        }
+    }
 }
 
 /// Before/After display mode - temporal comparison of goal states.

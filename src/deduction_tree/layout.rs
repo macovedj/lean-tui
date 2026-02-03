@@ -12,10 +12,7 @@ use super::{
     theorem_pane::{TheoremPane, TheoremPaneState},
     types::CompleteProofDag,
 };
-use crate::{
-    protocol::{NodeId, TacticProofState},
-    shared::Selection,
-};
+use crate::{deduction_tree::TacticProofState, protocol::NodeId, shared::Selection};
 
 /// Combined state for the semantic tableau layout.
 #[derive(Default)]

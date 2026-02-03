@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -9,9 +11,11 @@ use tracing::trace;
 
 use crate::{
     app::DefinitionInfo,
-    data_flow::layout::{FunctionalTableauLayout, FunctionalTableauState},
+    data_flow::{
+        layout::{FunctionalTableauLayout, FunctionalTableauState},
+        types::{DataFlowDag, DataFlowNodeExt},
+    },
     display_mode::Mode,
-    protocol::GenericDag,
     shared::{
         find_nearest_in_direction,
         legend::{LegendItem, LegendSection},
@@ -25,14 +29,54 @@ use crate::{
 pub struct DataFlowModeInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
-    pub generic_dag: Option<GenericDag>,
+    pub dag: Option<DataFlowDag>,
+}
+
+impl DataFlowModeInput {
+    /// Create a builder for this input type.
+    pub fn builder() -> DataFlowModeInputBuilder {
+        DataFlowModeInputBuilder::default()
+    }
+}
+
+/// Builder for `DataFlowModeInput`.
+#[derive(Default)]
+pub struct DataFlowModeInputBuilder {
+    dag: Option<DataFlowDag>,
+    definition: Option<DefinitionInfo>,
+    error: Option<String>,
+}
+
+impl DataFlowModeInputBuilder {
+    pub fn dag(mut self, dag: &DataFlowDag) -> Self {
+        self.dag = Some(dag.clone());
+        self
+    }
+
+    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
+        self.definition = definition;
+        self
+    }
+
+    pub fn error(mut self, error: Option<String>) -> Self {
+        self.error = error;
+        self
+    }
+
+    pub fn build(self) -> DataFlowModeInput {
+        DataFlowModeInput {
+            definition: self.definition,
+            error: self.error,
+            dag: self.dag,
+        }
+    }
 }
 
 /// Data Flow display mode - functional DAG visualization.
 pub struct DataFlowMode {
     definition: Option<DefinitionInfo>,
     error: Option<String>,
-    generic_dag: Option<GenericDag>,
+    dag: Option<DataFlowDag>,
     filters: HypothesisFilters,
     /// Flat index into `tree_selectable_items()`.
     selected_idx: Option<usize>,
@@ -47,7 +91,7 @@ impl Default for DataFlowMode {
         Self {
             definition: None,
             error: None,
-            generic_dag: None,
+            dag: None,
             filters: HypothesisFilters::default(),
             selected_idx: None,
             tree_top_down: true,
@@ -61,9 +105,9 @@ impl DataFlowMode {
         self.filters
     }
 
-    /// Build selectable items for generic DAG.
+    /// Build selectable items for data flow DAG.
     fn tree_selectable_items(&self) -> Vec<Selection> {
-        let Some(dag) = &self.generic_dag else {
+        let Some(dag) = &self.dag else {
             return Vec::new();
         };
 
@@ -111,12 +155,30 @@ impl DataFlowMode {
 
     /// Get the active goal selection (first goal of the current node).
     fn active_goal_selection(&self) -> Option<Selection> {
-        let dag = self.generic_dag.as_ref()?;
+        let dag = self.dag.as_ref()?;
         let current_node_id = dag.current_node_id?;
         Some(Selection::Goal {
             node_id: current_node_id,
             goal_idx: 0,
         })
+    }
+
+    /// Collect unique node kinds as legend items.
+    fn collect_kind_legend_items(&self) -> Vec<LegendItem> {
+        let Some(dag) = &self.dag else {
+            return Vec::new();
+        };
+
+        let mut seen = HashSet::new();
+        dag.nodes
+            .iter()
+            .filter_map(|node| {
+                let kind = node.data_flow_kind();
+                let desc = kind.description().to_owned();
+                seen.insert(desc.clone())
+                    .then(|| LegendItem::new(kind.icon(), kind.color(), desc))
+            })
+            .collect()
     }
 
     fn move_in_direction(&mut self, direction: Direction) -> bool {
@@ -164,32 +226,22 @@ impl InteractiveComponent for DataFlowMode {
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
-        // Detect changes to generic DAG
-        let old_count = self.generic_dag.as_ref().map_or(0, GenericDag::len);
-        let new_count = input.generic_dag.as_ref().map_or(0, GenericDag::len);
+        // Detect changes to DAG
+        let old_count = self.dag.as_ref().map_or(0, DataFlowDag::len);
+        let new_count = input.dag.as_ref().map_or(0, DataFlowDag::len);
 
-        let old_current = self
-            .generic_dag
-            .as_ref()
-            .and_then(|dag| dag.current_node_id);
-        let new_current = input
-            .generic_dag
-            .as_ref()
-            .and_then(|dag| dag.current_node_id);
+        let old_current = self.dag.as_ref().and_then(|dag| dag.current_node_id);
+        let new_current = input.dag.as_ref().and_then(|dag| dag.current_node_id);
 
         let tree_changed = old_count != new_count || old_current != new_current;
 
         // Update state when current node changes
-        self.functional_tableau_state.update_current_node(
-            input
-                .generic_dag
-                .as_ref()
-                .and_then(|dag| dag.current_node_id),
-        );
+        self.functional_tableau_state
+            .update_current_node(input.dag.as_ref().and_then(|dag| dag.current_node_id));
 
         self.definition = input.definition;
         self.error = input.error;
-        self.generic_dag = input.generic_dag;
+        self.dag = input.dag;
 
         // Auto-select active goal when tree changes
         if tree_changed {
@@ -239,8 +291,8 @@ impl InteractiveComponent for DataFlowMode {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        // Render generic DAG if present
-        if let Some(ref dag) = self.generic_dag {
+        // Render data flow DAG if present
+        if let Some(ref dag) = self.dag {
             let widget = FunctionalTableauLayout::new(
                 dag,
                 self.tree_top_down,
@@ -273,15 +325,18 @@ impl Mode for DataFlowMode {
     }
 
     fn legend_sections(&self) -> Vec<LegendSection> {
-        vec![LegendSection::new(
-            "Node States",
-            Color::White,
-            vec![
-                LegendItem::new("■", Theme::HYP_NAME, "binding"),
-                LegendItem::new("■", Theme::GOAL_FG, "expression"),
-                LegendItem::new("■", Theme::COMPLETED_GOAL_FG, "complete"),
-                LegendItem::new("■", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
-            ],
-        )]
+        let kind_items = self.collect_kind_legend_items();
+
+        vec![
+            LegendSection::new("Node Kinds", Color::White, kind_items),
+            LegendSection::new(
+                "Node States",
+                Color::White,
+                vec![
+                    LegendItem::new("■", Theme::COMPLETED_GOAL_FG, "complete"),
+                    LegendItem::new("■", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
+                ],
+            ),
+        ]
     }
 }

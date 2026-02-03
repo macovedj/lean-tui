@@ -7,4 +7,7 @@ mod theorem_pane;
 pub mod types;
 
 pub use mode::{DeductionTreeModeInput, SemanticTableau};
-pub use types::{CompleteProofDag, ProofDagConversionError};
+pub use types::{
+    CompleteProofDag, ProofContextHypothesis, ProofDagConversionError, ProofObligation,
+    TacticProofState,
+};

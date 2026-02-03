@@ -12,7 +12,7 @@ use super::{
     diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
     ClickRegion, Selection,
 };
-use crate::protocol::{NodeId, ProofContextHypothesis};
+use crate::{deduction_tree::ProofContextHypothesis, protocol::NodeId};
 
 /// Context for rendering a hypothesis layer.
 pub struct HypLayerRenderContext<'a> {

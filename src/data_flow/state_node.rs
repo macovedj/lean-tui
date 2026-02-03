@@ -8,9 +8,12 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use super::given_pane::binding_style_colors;
+use super::{
+    given_pane::binding_style_colors,
+    types::{DataFlowKind, DataFlowNodeExt},
+};
 use crate::{
-    protocol::{AnnotatedTextTree, GraphNode, LocalBinding},
+    protocol::GraphNode,
     shared::{theme::Theme, truncate_str, ClickRegion, Selection},
 };
 
@@ -43,18 +46,12 @@ impl<'a> FunctionalStateNode<'a> {
         }
     }
 
-    fn is_leaf(&self) -> bool {
-        self.node.edges.is_empty()
-    }
-
-    /// Check if node is complete (no expected type or has expected type that's
-    /// satisfied).
-    fn is_complete(&self) -> bool {
-        self.expected_type().is_none() && self.is_leaf()
-    }
-
     fn border_color(&self) -> Color {
-        match (self.is_current, self.is_leaf(), self.is_complete()) {
+        match (
+            self.is_current,
+            self.node.is_leaf(),
+            self.node.is_complete(),
+        ) {
             (true, _, _) => Theme::CURRENT_NODE_BORDER,
             (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
             (_, true, true) => Theme::COMPLETED_NODE_BORDER,
@@ -62,11 +59,17 @@ impl<'a> FunctionalStateNode<'a> {
         }
     }
 
+    fn node_kind(&self) -> DataFlowKind {
+        self.node.data_flow_kind()
+    }
+
     fn title(&self) -> String {
+        let kind = self.node_kind();
+        let icon = kind.icon();
         let expr_text = self.node.content.to_plain_text();
         match self.node.edges.len() {
-            n if n > 1 => format!(" {expr_text} [{n}→] "),
-            _ => format!(" {expr_text} "),
+            n if n > 1 => format!(" {icon} {expr_text} [{n}→] "),
+            _ => format!(" {icon} {expr_text} "),
         }
     }
 
@@ -84,36 +87,13 @@ impl<'a> FunctionalStateNode<'a> {
         )
     }
 
-    fn bindings_after(&self) -> Vec<LocalBinding> {
-        self.node
-            .metadata
-            .get("bindings_after")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default()
-    }
-
-    fn new_binding_indices(&self) -> Vec<u64> {
-        self.node
-            .metadata
-            .get("new_binding_indices")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default()
-    }
-
-    fn expected_type(&self) -> Option<AnnotatedTextTree> {
-        self.node
-            .metadata
-            .get("expected_type")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-    }
-
     fn bindings_line(&self) -> Option<Line<'static>> {
-        let new_binding_indices = self.new_binding_indices();
+        let new_binding_indices = self.node.new_binding_indices();
         if new_binding_indices.is_empty() {
             return None;
         }
 
-        let bindings_after = self.bindings_after();
+        let bindings_after = self.node.bindings_after();
 
         let spans: Vec<Span> = new_binding_indices
             .iter()
@@ -153,7 +133,7 @@ impl<'a> FunctionalStateNode<'a> {
             Modifier::empty()
         };
 
-        match (self.expected_type(), self.is_leaf()) {
+        match (self.node.expected_type(), self.node.is_leaf()) {
             (Some(ty), _) => Line::from(Span::styled(
                 format!("⊢ {}", truncate_str(&ty.to_plain_text(), 35)),
                 Style::new().fg(Theme::GOAL_FG).add_modifier(underline),
@@ -172,7 +152,7 @@ impl<'a> FunctionalStateNode<'a> {
     }
 
     fn click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
-        let new_binding_indices = self.new_binding_indices();
+        let new_binding_indices = self.node.new_binding_indices();
         let has_bindings = !new_binding_indices.is_empty();
         let offset = u16::from(has_bindings);
         let (bindings_y, type_y) = if self.top_down {
@@ -216,9 +196,10 @@ impl StatefulWidget for FunctionalStateNode<'_> {
                 Modifier::empty()
             });
 
+        let kind_color = self.node_kind().color();
         let title_style = Style::new()
             .fg(if self.is_current {
-                Color::White
+                kind_color
             } else {
                 Color::Gray
             })
@@ -234,7 +215,7 @@ impl StatefulWidget for FunctionalStateNode<'_> {
             .title(Span::styled(self.title(), title_style));
 
         // Only show continuation arrow for non-leaf nodes
-        let block = if self.is_leaf() {
+        let block = if self.node.is_leaf() {
             block
         } else {
             let arrow = if self.top_down { "▼" } else { "▲" };

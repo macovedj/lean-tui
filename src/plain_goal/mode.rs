@@ -3,10 +3,10 @@ use ratatui::{layout::Rect, Frame};
 
 use crate::{
     app::DefinitionInfo,
-    deduction_tree::types::CompleteProofDag,
+    deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
     plain_goal::widget::OpenGoalList,
-    protocol::{NodeId, TacticProofState},
+    protocol::NodeId,
     shared::{
         hypothesis_indices, render_helpers::render_error, selection::SelectionState, FilterToggle,
         HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
@@ -19,6 +19,55 @@ pub struct PlainListInput {
     pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
+}
+
+impl PlainListInput {
+    /// Create a builder for this input type.
+    pub fn builder() -> PlainListInputBuilder {
+        PlainListInputBuilder::default()
+    }
+}
+
+/// Builder for `PlainListInput`.
+#[derive(Default)]
+pub struct PlainListInputBuilder {
+    dag: Option<CompleteProofDag>,
+    definition: Option<DefinitionInfo>,
+    error: Option<String>,
+}
+
+impl PlainListInputBuilder {
+    pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
+        self.dag = Some(dag.clone());
+        self
+    }
+
+    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
+        self.definition = definition;
+        self
+    }
+
+    pub fn error(mut self, error: Option<String>) -> Self {
+        self.error = error;
+        self
+    }
+
+    pub fn build(self) -> PlainListInput {
+        let state = self
+            .dag
+            .as_ref()
+            .and_then(|d| d.current_node_id)
+            .and_then(|id| self.dag.as_ref()?.get(id))
+            .map(|node| node.proof_state_after.clone())
+            .unwrap_or_default();
+
+        PlainListInput {
+            state,
+            definition: self.definition,
+            error: self.error,
+            proof_dag: self.dag,
+        }
+    }
 }
 
 /// Open Goal List display mode - navigable list of open goals with hypotheses.
