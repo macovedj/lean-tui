@@ -15,7 +15,9 @@ use crate::{
     protocol::{CompleteProofDag, TacticProofState},
     widgets::{
         render_helpers::{render_error, render_no_goals},
-        tableau::{find_nearest_in_direction, Direction, SemanticTableauLayout, SemanticTableauState},
+        tableau::{
+            find_nearest_in_direction, Direction, SemanticTableauLayout, SemanticTableauState,
+        },
         FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
     },
 };

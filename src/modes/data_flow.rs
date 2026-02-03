@@ -15,7 +15,9 @@ use crate::{
     protocol::CompleteFunctionalDag,
     widgets::{
         render_helpers::render_error,
-        tableau::{find_nearest_in_direction, Direction, FunctionalTableauLayout, FunctionalTableauState},
+        tableau::{
+            find_nearest_in_direction, Direction, FunctionalTableauLayout, FunctionalTableauState,
+        },
         FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
     },
 };
@@ -172,17 +174,32 @@ impl InteractiveComponent for DataFlowMode {
 
     fn update(&mut self, input: Self::Input) {
         // Detect changes to functional DAG
-        let old_count = self.functional_dag.as_ref().map_or(0, CompleteFunctionalDag::len);
-        let new_count = input.functional_dag.as_ref().map_or(0, CompleteFunctionalDag::len);
+        let old_count = self
+            .functional_dag
+            .as_ref()
+            .map_or(0, CompleteFunctionalDag::len);
+        let new_count = input
+            .functional_dag
+            .as_ref()
+            .map_or(0, CompleteFunctionalDag::len);
 
-        let old_current = self.functional_dag.as_ref().and_then(|dag| dag.current_node_id);
-        let new_current = input.functional_dag.as_ref().and_then(|dag| dag.current_node_id);
+        let old_current = self
+            .functional_dag
+            .as_ref()
+            .and_then(|dag| dag.current_node_id);
+        let new_current = input
+            .functional_dag
+            .as_ref()
+            .and_then(|dag| dag.current_node_id);
 
         let tree_changed = old_count != new_count || old_current != new_current;
 
         // Update state when current node changes
         self.functional_tableau_state.update_current_node(
-            input.functional_dag.as_ref().and_then(|dag| dag.current_node_id),
+            input
+                .functional_dag
+                .as_ref()
+                .and_then(|dag| dag.current_node_id),
         );
 
         self.definition = input.definition;
@@ -210,6 +227,10 @@ impl InteractiveComponent for DataFlowMode {
                     self.tree_top_down = !self.tree_top_down;
                     true
                 }
+                KeyCode::Char('s') => {
+                    self.functional_tableau_state.toggle_stretch();
+                    true
+                }
                 _ => false,
             },
             KeyMouseEvent::Mouse(mouse) => {
@@ -217,7 +238,9 @@ impl InteractiveComponent for DataFlowMode {
                     return false;
                 }
 
-                let clicked = self.functional_tableau_state.find_click_at(mouse.column, mouse.row);
+                let clicked = self
+                    .functional_tableau_state
+                    .find_click_at(mouse.column, mouse.row);
 
                 if let Some(sel) = clicked {
                     self.select_by_selection(sel);
@@ -236,6 +259,7 @@ impl InteractiveComponent for DataFlowMode {
             let widget = FunctionalTableauLayout::new(
                 dag,
                 self.tree_top_down,
+                self.functional_tableau_state.stretch_enabled(),
                 self.current_tree_selection(),
             );
             frame.render_stateful_widget(widget, content_area, &mut self.functional_tableau_state);
@@ -255,7 +279,8 @@ impl Mode for DataFlowMode {
     type Model = DataFlowModeInput;
 
     const NAME: &'static str = "Data Flow";
-    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[("hjkl", "nav"), ("t", "flip")];
+    const KEYBINDINGS: &'static [(&'static str, &'static str)] =
+        &[("hjkl", "nav"), ("t", "flip"), ("s", "stretch")];
     const SUPPORTED_FILTERS: &'static [FilterToggle] = &[];
 
     fn current_selection(&self) -> Option<Selection> {

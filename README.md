@@ -137,6 +137,7 @@ Switch to the TUI. Key bindings:
 | `[/]` | Switch display mode             |
 | `?`   | Help menu                       |
 | `q`   | Quit                            |
+| `f`   | File selection                  |
 
 The TUI follows your cursor in the editor automatically.
 

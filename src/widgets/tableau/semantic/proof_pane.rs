@@ -7,15 +7,14 @@ use ratatui::{
     widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget},
 };
 
-use super::{
-    navigation::build_navigation_regions,
-    state_node::{StateNode, StateNodeState},
-    tree_layout::calculate_tree_layout,
-};
+use super::state_node::{StateNode, StateNodeState};
 use crate::{
     protocol::{CompleteProofDag, NodeId, TacticProofState},
     widgets::{
-        tableau::{NavigationRegion, NodePosition, TreeLayout, VirtualCanvas},
+        tableau::{
+            build_navigation_regions, calculate_dag_layout, DagLayout, LayoutConfig,
+            NavigationRegion, NodePosition, VirtualCanvas,
+        },
         ClickRegion, Selection,
     },
 };
@@ -27,7 +26,7 @@ pub struct ProofPaneState {
     scroll_y: i32,
     manual_scroll: bool,
     prev_current_node: Option<NodeId>,
-    layout: TreeLayout,
+    layout: DagLayout,
     content_width: i32,
     content_height: i32,
     pub click_regions: Vec<ClickRegion>,
@@ -92,7 +91,11 @@ impl StatefulWidget for ProofPane<'_> {
             return;
         }
 
-        state.layout = calculate_tree_layout(self.dag, self.top_down);
+        let config = LayoutConfig {
+            top_down: self.top_down,
+            stretch_children: false, // Semantic tableau doesn't support stretch mode yet
+        };
+        state.layout = calculate_dag_layout(self.dag, config);
         state.content_width = state.layout.content_width;
         state.content_height = state.layout.content_height;
 
@@ -194,7 +197,7 @@ fn render_scrollbars(buf: &mut Buffer, area: Rect, canvas: &VirtualCanvas) {
 }
 
 fn find_scroll_target<'a>(
-    layout: &'a TreeLayout,
+    layout: &'a DagLayout,
     dag: &CompleteProofDag,
     selection: Option<Selection>,
 ) -> Option<&'a NodePosition> {

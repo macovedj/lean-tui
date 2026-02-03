@@ -175,7 +175,7 @@ impl StatefulWidget for WorkerSelectorWidget {
 
         // Border
         let block = Block::bordered()
-            .title(" Connect to Worker ")
+            .title(" Select File ")
             .title_alignment(Alignment::Center)
             .border_style(Style::new().fg(Color::Cyan));
 

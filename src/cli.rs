@@ -123,6 +123,7 @@ async fn event_loop(
     let mut app = App::new(initial_port);
     let mut event_stream = EventStream::new();
     let mut command_interval = interval(Duration::from_millis(50));
+    let mut scan_interval = interval(Duration::from_secs(2));
     let mut current_port = initial_port;
 
     while !app.should_exit {
@@ -135,7 +136,14 @@ async fn event_loop(
 
         match &mut conn {
             Connection::Disconnected => {
-                handle_disconnected(&mut app, &mut conn, &mut event_stream, current_port).await;
+                handle_disconnected(
+                    &mut app,
+                    &mut conn,
+                    &mut event_stream,
+                    &mut scan_interval,
+                    current_port,
+                )
+                .await;
             }
             Connection::Connected { .. } => {
                 handle_connected(
@@ -143,6 +151,7 @@ async fn event_loop(
                     &mut conn,
                     &mut event_stream,
                     &mut command_interval,
+                    &mut scan_interval,
                 )
                 .await;
             }
@@ -175,17 +184,30 @@ async fn handle_scan_request(app: &mut App) {
     }
 }
 
+/// Perform a worker scan if the file selector is open.
+async fn do_periodic_scan(app: &mut App) {
+    if app.needs_periodic_scan() {
+        let (port_min, port_max) = app.port_range();
+        let workers = discover_workers(port_min, port_max).await;
+        app.set_discovered_workers(workers);
+    }
+}
+
 /// Handle events while disconnected, attempting reconnection.
 async fn handle_disconnected(
     app: &mut App,
     conn: &mut Connection,
     event_stream: &mut EventStream,
+    scan_interval: &mut Interval,
     current_port: u16,
 ) {
     tokio::select! {
         biased;
         Some(Ok(event)) = event_stream.next() => {
             app.handle_event(&event);
+        }
+        _ = scan_interval.tick() => {
+            do_periodic_scan(app).await;
         }
         () = sleep(Duration::from_secs(1)) => {
             *conn = Connection::connect(current_port).await;
@@ -199,6 +221,7 @@ async fn handle_connected(
     conn: &mut Connection,
     event_stream: &mut EventStream,
     command_interval: &mut Interval,
+    scan_interval: &mut Interval,
 ) {
     tokio::select! {
         biased;
@@ -212,6 +235,9 @@ async fn handle_connected(
             for cmd in app.take_commands() {
                 let _ = conn.send(&cmd).await;
             }
+        }
+        _ = scan_interval.tick() => {
+            do_periodic_scan(app).await;
         }
     }
 }

@@ -223,3 +223,190 @@ impl<'a> Iterator for DfsIterator<'a> {
         Some(node)
     }
 }
+
+// --- Generic DAG traits for layout calculation ---
+
+/// Trait for DAG node types that can be laid out.
+pub trait DagNode {
+    /// Get the node's unique ID.
+    fn id(&self) -> NodeId;
+    /// Get the node's children IDs.
+    fn children(&self) -> &[NodeId];
+    /// Calculate box height based on content.
+    fn box_height(&self) -> u16;
+    /// Calculate minimum width needed for content.
+    fn content_width(&self) -> u16;
+}
+
+/// Trait for DAG containers that can be laid out.
+pub trait Dag {
+    /// The node type stored in this DAG.
+    type Node: DagNode;
+    /// Get a node by ID.
+    fn get_node(&self, id: NodeId) -> Option<&Self::Node>;
+    /// Get the root node ID if present.
+    fn root_id(&self) -> Option<NodeId>;
+    /// Get orphan node IDs.
+    fn orphan_ids(&self) -> &[NodeId];
+}
+
+impl DagNode for ProofDagTacticNode {
+    fn id(&self) -> NodeId {
+        self.id
+    }
+
+    fn children(&self) -> &[NodeId] {
+        &self.children
+    }
+
+    fn box_height(&self) -> u16 {
+        // Border (2) + goals line (1) + optional hypotheses line (1)
+        3 + u16::from(!self.new_hypothesis_indices.is_empty())
+    }
+
+    fn content_width(&self) -> u16 {
+        use std::iter::once;
+
+        let title_width = self.tactic.text.len() + 8;
+
+        let hypothesis_widths = self.new_hypothesis_indices.iter().filter_map(|&idx| {
+            self.proof_state_after
+                .hypotheses
+                .get(idx as usize)
+                .map(|h| h.name.len() + h.type_.to_plain_text().len() + 5)
+        });
+
+        let goal_widths = if self.proof_state_after.goals.is_empty() {
+            vec![16] // "✓ Goal completed"
+        } else {
+            self.proof_state_after
+                .goals
+                .iter()
+                .map(|g| g.type_.to_plain_text().len() + 4)
+                .collect()
+        };
+
+        let max_width = once(title_width)
+            .chain(hypothesis_widths)
+            .chain(goal_widths)
+            .max()
+            .unwrap_or(0);
+
+        (max_width + 4) as u16
+    }
+}
+
+impl Dag for CompleteProofDag {
+    type Node = ProofDagTacticNode;
+
+    fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
+        self.get(id)
+    }
+
+    fn root_id(&self) -> Option<NodeId> {
+        self.root_node_id
+    }
+
+    fn orphan_ids(&self) -> &[NodeId] {
+        &self.orphans
+    }
+}
+
+impl DagNode for FunctionalDagNode {
+    fn id(&self) -> NodeId {
+        self.id
+    }
+
+    fn children(&self) -> &[NodeId] {
+        &self.children
+    }
+
+    fn box_height(&self) -> u16 {
+        // Border (2) + type line (1) + optional bindings line (1)
+        3 + u16::from(!self.new_binding_indices.is_empty())
+    }
+
+    fn content_width(&self) -> u16 {
+        use std::iter::once;
+
+        let title_width = self.expression.to_plain_text().len() + 8;
+
+        let binding_widths = self.new_binding_indices.iter().filter_map(|&idx| {
+            self.bindings_after
+                .get(idx as usize)
+                .map(|b| b.name.len() + b.type_.to_plain_text().len() + 5)
+        });
+
+        let type_width = self
+            .expected_type
+            .as_ref()
+            .map_or(16, |t| t.to_plain_text().len() + 4); // "✓ Complete"
+
+        let max_width = once(title_width)
+            .chain(binding_widths)
+            .chain(once(type_width))
+            .max()
+            .unwrap_or(0);
+
+        (max_width + 4) as u16
+    }
+}
+
+impl Dag for CompleteFunctionalDag {
+    type Node = FunctionalDagNode;
+
+    fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
+        self.get(id)
+    }
+
+    fn root_id(&self) -> Option<NodeId> {
+        self.root_node_id
+    }
+
+    fn orphan_ids(&self) -> &[NodeId] {
+        &self.orphans
+    }
+}
+
+// --- Navigation traits for building clickable regions ---
+
+/// Trait for nodes that can have navigable hypothesis/binding regions.
+pub trait NavNode: DagNode {
+    /// Indices of new hypotheses/bindings introduced by this node.
+    fn new_hyp_indices(&self) -> &[u64];
+    /// Number of goals (0 = complete, 1+ = has goals).
+    fn goal_count(&self) -> usize;
+    /// Whether to show goal regions (false if internal node without expected
+    /// type).
+    fn has_selectable_goals(&self) -> bool;
+}
+
+impl NavNode for ProofDagTacticNode {
+    fn new_hyp_indices(&self) -> &[u64] {
+        &self.new_hypothesis_indices
+    }
+
+    fn goal_count(&self) -> usize {
+        self.proof_state_after.goals.len()
+    }
+
+    fn has_selectable_goals(&self) -> bool {
+        !self.proof_state_after.goals.is_empty()
+    }
+}
+
+impl NavNode for FunctionalDagNode {
+    fn new_hyp_indices(&self) -> &[u64] {
+        &self.new_binding_indices
+    }
+
+    fn goal_count(&self) -> usize {
+        // Functional nodes have at most one "goal" (expected type)
+        usize::from(self.expected_type.is_some() || self.children.is_empty())
+    }
+
+    fn has_selectable_goals(&self) -> bool {
+        // Show goal region if has expected_type OR is a leaf node
+        self.expected_type.is_some() || self.children.is_empty()
+    }
+}

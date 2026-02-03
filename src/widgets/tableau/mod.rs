@@ -5,19 +5,21 @@
 //! - Functional tableau (term-mode dataflow visualization)
 
 mod canvas;
+mod dag_layout;
 mod navigation;
-mod tree_layout;
 
 pub mod functional;
 pub mod semantic;
 
 // Re-export shared types
 pub use canvas::VirtualCanvas;
+pub use dag_layout::{calculate_dag_layout, DagLayout, LayoutConfig, NodePosition};
 // Re-export main layout widgets
 pub use functional::{FunctionalTableauLayout, FunctionalTableauState};
-pub use navigation::{find_nearest_in_direction, Direction, NavigationRegion};
+pub use navigation::{
+    build_navigation_regions, find_nearest_in_direction, Direction, NavigationRegion,
+};
 pub use semantic::{SemanticTableauLayout, SemanticTableauState};
-pub use tree_layout::{NodePosition, TreeLayout, ORPHAN_GAP};
 
 /// Truncate a string to max length with ellipsis.
 pub fn truncate_str(s: &str, max: usize) -> String {
