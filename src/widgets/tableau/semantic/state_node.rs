@@ -221,20 +221,33 @@ impl<'a> StateNode<'a> {
         let goal_count = self
             .override_state
             .map_or(self.node.proof_state_after.goals.len(), |s| s.goals.len());
-        for goal_idx in 0..goal_count {
-            regions.push(ClickRegion {
-                area: Rect::new(inner.x, goals_y, inner.width, 1),
-                selection: Selection::Goal {
-                    node_id: self.node.id,
-                    goal_idx,
-                },
-            });
+
+        if goal_count > 0 {
+            // Calculate goal widths to match visual layout
+            let goal_width = if goal_count > 1 {
+                (inner.width / goal_count as u16).max(15)
+            } else {
+                inner.width
+            };
+
+            for goal_idx in 0..goal_count {
+                let goal_x = inner.x + (goal_idx as u16) * (goal_width + 1);
+                regions.push(ClickRegion {
+                    area: Rect::new(goal_x, goals_y, goal_width, 1),
+                    selection: Selection::Goal {
+                        node_id: self.node.id,
+                        goal_idx,
+                    },
+                });
+            }
         }
 
         if has_hyps {
-            for &hyp_idx in &self.node.new_hypothesis_indices {
+            const HYP_WIDTH: u16 = 15;
+            for (i, &hyp_idx) in self.node.new_hypothesis_indices.iter().enumerate() {
+                let hyp_x = inner.x + (i as u16) * (HYP_WIDTH + 1);
                 regions.push(ClickRegion {
-                    area: Rect::new(inner.x, hyps_y, inner.width, 1),
+                    area: Rect::new(hyp_x, hyps_y, HYP_WIDTH, 1),
                     selection: Selection::Hyp {
                         node_id: self.node.id,
                         hyp_idx: hyp_idx as usize,

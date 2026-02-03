@@ -14,14 +14,15 @@ use ratatui::{
 
 use super::{
     given_pane::{BindingGivenPane, BindingGivenPaneState},
-    navigation::build_navigation_regions,
     state_node::{FunctionalStateNode, FunctionalStateNodeState},
-    tree_layout::calculate_tree_layout,
 };
 use crate::{
     protocol::{AnnotatedTextTree, CompleteFunctionalDag, NodeId},
     widgets::{
-        tableau::{truncate_str, NavigationRegion, NodePosition, TreeLayout, VirtualCanvas},
+        tableau::{
+            build_navigation_regions, calculate_dag_layout, truncate_str, DagLayout, LayoutConfig,
+            NavigationRegion, NodePosition, VirtualCanvas,
+        },
         theme::Theme,
         ClickRegion, Selection,
     },
@@ -50,6 +51,16 @@ impl FunctionalTableauState {
     pub fn navigation_regions(&self) -> &[NavigationRegion] {
         &self.proof.navigation_regions
     }
+
+    /// Toggle stretch mode for children layout.
+    pub fn toggle_stretch(&mut self) {
+        self.proof.stretch_children = !self.proof.stretch_children;
+    }
+
+    /// Check if stretch mode is enabled.
+    pub const fn stretch_enabled(&self) -> bool {
+        self.proof.stretch_children
+    }
 }
 
 /// State for the functional proof pane.
@@ -59,7 +70,9 @@ pub struct FunctionalProofPaneState {
     scroll_y: i32,
     manual_scroll: bool,
     prev_current_node: Option<NodeId>,
-    layout: TreeLayout,
+    layout: DagLayout,
+    /// When true, children stretch to fill parent width equally.
+    pub stretch_children: bool,
     pub click_regions: Vec<ClickRegion>,
     pub navigation_regions: Vec<NavigationRegion>,
 }
@@ -100,7 +113,7 @@ impl TheoremPaneState {
 /// Functional tableau layout widget.
 pub struct FunctionalTableauLayout<'a> {
     dag: &'a CompleteFunctionalDag,
-    top_down: bool,
+    config: LayoutConfig,
     selection: Option<Selection>,
 }
 
@@ -108,17 +121,21 @@ impl<'a> FunctionalTableauLayout<'a> {
     pub const fn new(
         dag: &'a CompleteFunctionalDag,
         top_down: bool,
+        stretch_children: bool,
         selection: Option<Selection>,
     ) -> Self {
         Self {
             dag,
-            top_down,
+            config: LayoutConfig {
+                top_down,
+                stretch_children,
+            },
             selection,
         }
     }
 
     fn compute_layout(&self, area: Rect) -> [Rect; 3] {
-        let constraints = if self.top_down {
+        let constraints = if self.config.top_down {
             [
                 Constraint::Length(3),
                 Constraint::Fill(1),
@@ -136,7 +153,7 @@ impl<'a> FunctionalTableauLayout<'a> {
 
     fn pane_areas(&self, area: Rect) -> (Rect, Rect, Rect) {
         let [given, middle, bottom] = self.compute_layout(area);
-        if self.top_down {
+        if self.config.top_down {
             (given, middle, bottom)
         } else {
             (given, bottom, middle)
@@ -158,7 +175,7 @@ impl StatefulWidget for FunctionalTableauLayout<'_> {
 
         render_proof_pane(
             self.dag,
-            self.top_down,
+            self.config,
             self.selection,
             proof_area,
             buf,
@@ -177,7 +194,7 @@ impl StatefulWidget for FunctionalTableauLayout<'_> {
 
 fn render_proof_pane(
     dag: &CompleteFunctionalDag,
-    top_down: bool,
+    config: LayoutConfig,
     selection: Option<Selection>,
     area: Rect,
     buf: &mut Buffer,
@@ -193,7 +210,12 @@ fn render_proof_pane(
         return;
     }
 
-    state.layout = calculate_tree_layout(dag, top_down);
+    // Use stretch_children from state, combined with config's top_down
+    let layout_config = LayoutConfig {
+        top_down: config.top_down,
+        stretch_children: state.stretch_children,
+    };
+    state.layout = calculate_dag_layout(dag, layout_config);
     if state.layout.nodes.is_empty() {
         return;
     }
@@ -215,8 +237,13 @@ fn render_proof_pane(
         })
         .flat_map(|(render_area, node, pos)| {
             let mut node_state = FunctionalStateNodeState::default();
-            FunctionalStateNode::new(node, dag.is_current(pos.node_id), selection, top_down)
-                .render(render_area, buf, &mut node_state);
+            FunctionalStateNode::new(
+                node,
+                dag.is_current(pos.node_id),
+                selection,
+                config.top_down,
+            )
+            .render(render_area, buf, &mut node_state);
             node_state.click_regions
         })
         .collect();
@@ -244,7 +271,7 @@ fn create_canvas(
 }
 
 fn find_scroll_target<'a>(
-    layout: &'a TreeLayout,
+    layout: &'a DagLayout,
     dag: &CompleteFunctionalDag,
     selection: Option<Selection>,
 ) -> Option<&'a NodePosition> {

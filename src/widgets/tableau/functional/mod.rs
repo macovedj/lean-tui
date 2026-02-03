@@ -2,8 +2,6 @@
 
 mod given_pane;
 mod layout;
-mod navigation;
 mod state_node;
-mod tree_layout;
 
 pub use layout::{FunctionalTableauLayout, FunctionalTableauState};

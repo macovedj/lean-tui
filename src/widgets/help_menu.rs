@@ -16,7 +16,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("j/k", "navigate up/down"),
     ("g", "goto origin"),
     ("y", "copy to clipboard"),
-    ("w", "switch worker"),
+    ("f", "select file"),
     ("?", "close help"),
     ("q", "quit"),
 ];

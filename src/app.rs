@@ -92,7 +92,7 @@ impl App {
             worker_selector: WorkerSelector::default(),
             connected_file_uri: None,
             pending_port_switch: None,
-            scan_requested: false,
+            scan_requested: true, // Trigger initial scan on startup
         }
     }
 
@@ -114,14 +114,24 @@ impl App {
     }
 
     /// Set discovered workers in the selector.
+    /// Auto-shows the file selector when multiple workers are found.
     pub fn set_discovered_workers(&mut self, workers: Vec<WorkerInfo>) {
+        let should_auto_show = workers.len() > 1;
         self.worker_selector.set_workers(workers);
         self.scan_requested = false;
+        if should_auto_show {
+            self.worker_selector.show();
+        }
     }
 
     /// Get the port range for scanning.
     pub const fn port_range(&self) -> (u16, u16) {
         self.worker_selector.port_range
+    }
+
+    /// Check if the file selector is visible and ready for a periodic scan.
+    pub const fn needs_periodic_scan(&self) -> bool {
+        self.worker_selector.visible && !self.worker_selector.scanning
     }
 
     /// Get current proof state from the DAG.
@@ -527,8 +537,8 @@ impl App {
                 self.help_menu.toggle();
                 true
             }
-            KeyCode::Char('w') => {
-                // Open worker selector
+            KeyCode::Char('f') => {
+                // Open file selector
                 self.worker_selector.show();
                 self.scan_requested = true;
                 true
