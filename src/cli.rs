@@ -228,8 +228,12 @@ async fn handle_connected(
         Some(Ok(event)) = event_stream.next() => {
             app.handle_event(&event);
         }
-        Some(msg) = conn.recv() => {
-            app.handle_message(msg);
+        result = conn.recv() => {
+            match result {
+                Ok(Some(msg)) => app.handle_message(msg),
+                Ok(None) => {}
+                Err(e) => app.set_error(e.to_string()),
+            }
         }
         _ = command_interval.tick() => {
             for cmd in app.take_commands() {
