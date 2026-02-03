@@ -1,5 +1,7 @@
 //! Effect graph pane with edge rendering.
 
+use std::collections::HashSet;
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -125,14 +127,6 @@ impl GraphPaneState {
     pub fn navigation_regions(&self) -> &[NavigationRegion] {
         &self.navigation_regions
     }
-
-    pub fn toggle_stretch(&mut self) {
-        self.stretch_children = !self.stretch_children;
-    }
-
-    pub const fn stretch_enabled(&self) -> bool {
-        self.stretch_children
-    }
 }
 
 /// Render the main effect graph with nodes and edges.
@@ -140,6 +134,7 @@ pub fn render_graph_pane(
     dag: &EffectFlowDag,
     config: LayoutConfig,
     selection: Option<Selection>,
+    collapsed_nodes: &HashSet<NodeId>,
     area: Rect,
     buf: &mut Buffer,
     state: &mut GraphPaneState,
@@ -158,19 +153,29 @@ pub fn render_graph_pane(
         top_down: config.top_down,
         stretch_children: state.stretch_children,
     };
-    state.layout = calculate_dag_layout(dag, layout_config);
+
+    // Filter dag to visible nodes (excluding children of collapsed nodes)
+    let visible_dag = dag.filter_collapsed(collapsed_nodes);
+    state.layout = calculate_dag_layout(&visible_dag, layout_config);
     if state.layout.nodes.is_empty() {
         return;
     }
 
-    state.navigation_regions = build_navigation_regions(dag, &state.layout);
+    state.navigation_regions = build_navigation_regions(&visible_dag, &state.layout);
 
-    let canvas = create_canvas(state, dag, selection, area);
+    let canvas = create_canvas(state, &visible_dag, selection, area);
     state.scroll_x = canvas.scroll_x;
     state.scroll_y = canvas.scroll_y;
 
     // First pass: render edges between nodes
-    render_edges(dag, &state.layout, &canvas, area, buf, config.top_down);
+    render_edges(
+        &visible_dag,
+        &state.layout,
+        &canvas,
+        area,
+        buf,
+        config.top_down,
+    );
 
     // Second pass: render nodes on top of edges
     let click_regions: Vec<ClickRegion> = state
@@ -179,16 +184,21 @@ pub fn render_graph_pane(
         .iter()
         .filter_map(|pos| {
             let render_area = canvas.clip_to_viewport(pos.x, pos.y, pos.width, pos.height, area)?;
-            let node = dag.get(pos.node_id)?;
+            let node = visible_dag.get(pos.node_id)?;
             (render_area.width >= 3 && render_area.height >= 3).then_some((render_area, node, pos))
         })
         .flat_map(|(render_area, node, pos)| {
+            let is_selected = matches!(selection, Some(Selection::Goal { node_id, .. }) if node_id == pos.node_id);
+            let is_collapsed = collapsed_nodes.contains(&pos.node_id);
             let mut node_state = EffectStateNodeState::default();
-            EffectStateNode::new(node, dag.is_current(pos.node_id), config.top_down).render(
-                render_area,
-                buf,
-                &mut node_state,
-            );
+            EffectStateNode::new(
+                node,
+                visible_dag.is_current(pos.node_id),
+                is_selected,
+                is_collapsed,
+                config.top_down,
+            )
+            .render(render_area, buf, &mut node_state);
             node_state.click_regions
         })
         .collect();

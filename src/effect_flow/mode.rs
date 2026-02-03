@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -13,14 +15,14 @@ use crate::{
     display_mode::Mode,
     effect_flow::{
         layout::{EffectTableauLayout, EffectTableauState},
-        types::{EdgeKind, EffectFlowDag, EffectKind},
+        types::EffectFlowDag,
     },
+    protocol::NodeId,
     shared::{
         find_nearest_in_direction,
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
         Direction, FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
-        Theme,
     },
 };
 
@@ -77,8 +79,8 @@ pub struct EffectFlowMode {
     effect_dag: Option<EffectFlowDag>,
     filters: HypothesisFilters,
     selected_idx: Option<usize>,
-    tree_top_down: bool,
     show_interpretations: bool,
+    collapsed_nodes: HashSet<NodeId>,
     effect_tableau_state: EffectTableauState,
 }
 
@@ -90,8 +92,8 @@ impl Default for EffectFlowMode {
             effect_dag: None,
             filters: HypothesisFilters::default(),
             selected_idx: None,
-            tree_top_down: true,
             show_interpretations: true,
+            collapsed_nodes: HashSet::new(),
             effect_tableau_state: EffectTableauState::default(),
         }
     }
@@ -153,6 +155,35 @@ impl EffectFlowMode {
             node_id: current_node_id,
             goal_idx: 0,
         })
+    }
+
+    fn collapse_selected(&mut self) -> bool {
+        let Some(Selection::Goal { node_id, .. }) = self.current_tree_selection() else {
+            return false;
+        };
+
+        let Some(dag) = &self.effect_dag else {
+            return false;
+        };
+
+        let Some(node) = dag.get(node_id) else {
+            return false;
+        };
+
+        if node.is_leaf() {
+            return false;
+        }
+
+        self.collapsed_nodes.insert(node_id);
+        true
+    }
+
+    fn expand_selected(&mut self) -> bool {
+        let Some(Selection::Goal { node_id, .. }) = self.current_tree_selection() else {
+            return false;
+        };
+
+        self.collapsed_nodes.remove(&node_id)
     }
 
     fn move_in_direction(&mut self, direction: Direction) -> bool {
@@ -243,7 +274,7 @@ impl InteractiveComponent for EffectFlowMode {
             for node in dag.dfs_iter() {
                 trace!(
                     node_id = node.id,
-                    kind = ?node.kind,
+                    kind = ?node.effect_kind,
                     edges = node.edges.len(),
                     content = %node.content.to_plain_text(),
                     "  Node"
@@ -286,18 +317,12 @@ impl InteractiveComponent for EffectFlowMode {
                 KeyCode::Char('k') | KeyCode::Up => self.move_in_direction(Direction::Up),
                 KeyCode::Char('h') | KeyCode::Left => self.move_in_direction(Direction::Left),
                 KeyCode::Char('l') | KeyCode::Right => self.move_in_direction(Direction::Right),
-                KeyCode::Char('t') => {
-                    self.tree_top_down = !self.tree_top_down;
-                    true
-                }
                 KeyCode::Char('i') => {
                     self.show_interpretations = !self.show_interpretations;
                     true
                 }
-                KeyCode::Char('s') => {
-                    self.effect_tableau_state.toggle_stretch();
-                    true
-                }
+                KeyCode::Char('+') | KeyCode::Char('=') => self.expand_selected(),
+                KeyCode::Char('-') => self.collapse_selected(),
                 _ => false,
             },
             KeyMouseEvent::Mouse(mouse) => {
@@ -328,10 +353,11 @@ impl InteractiveComponent for EffectFlowMode {
             // Render the DAG tree with integrated interpretation pane
             let widget = EffectTableauLayout::new(
                 dag,
-                self.tree_top_down,
-                self.effect_tableau_state.stretch_enabled(),
+                true,  // top_down
+                false, // stretch_children
                 self.current_tree_selection(),
                 self.show_interpretations,
+                &self.collapsed_nodes,
             );
             frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
             return;
@@ -348,12 +374,8 @@ impl Mode for EffectFlowMode {
     type Model = EffectFlowModeInput;
 
     const NAME: &'static str = "Effect Flow";
-    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[
-        ("hjkl", "nav"),
-        ("t", "flip"),
-        ("i", "interp"),
-        ("s", "stretch"),
-    ];
+    const KEYBINDINGS: &'static [(&'static str, &'static str)] =
+        &[("hjkl", "nav"), ("i", "interp"), ("+/-", "depth")];
     const SUPPORTED_FILTERS: &'static [FilterToggle] = &[];
 
     fn current_selection(&self) -> Option<Selection> {
@@ -361,68 +383,13 @@ impl Mode for EffectFlowMode {
     }
 
     fn legend_sections(&self) -> Vec<LegendSection> {
-        vec![
-            LegendSection::new(
-                "Effect Kinds",
-                Color::Cyan,
-                vec![
-                    LegendItem::new(EffectKind::EffectBind.icon(), Theme::EFFECT_BIND, "bind"),
-                    LegendItem::new(
-                        EffectKind::StateRead.icon(),
-                        Theme::EFFECT_STATE_READ,
-                        "read",
-                    ),
-                    LegendItem::new(
-                        EffectKind::StateWrite.icon(),
-                        Theme::EFFECT_STATE_WRITE,
-                        "write",
-                    ),
-                    LegendItem::new(
-                        EffectKind::StateModify.icon(),
-                        Theme::EFFECT_STATE_MODIFY,
-                        "modify",
-                    ),
-                    LegendItem::new(
-                        EffectKind::EffectReturn.icon(),
-                        Theme::EFFECT_RETURN,
-                        "return",
-                    ),
-                    LegendItem::new(EffectKind::EffectThrow.icon(), Theme::EFFECT_THROW, "throw"),
-                    LegendItem::new(EffectKind::EffectCatch.icon(), Theme::EFFECT_CATCH, "catch"),
-                    LegendItem::new(EffectKind::Pure.icon(), Theme::EFFECT_PURE, "pure"),
-                ],
-            ),
-            LegendSection::new(
-                "Edge Kinds",
-                Color::Magenta,
-                vec![
-                    LegendItem::new(
-                        EdgeKind::DataFlow.icon(),
-                        Theme::EDGE_DATA_FLOW,
-                        "data flow",
-                    ),
-                    LegendItem::new(
-                        EdgeKind::ControlFlow.icon(),
-                        Theme::EDGE_CONTROL_FLOW,
-                        "control",
-                    ),
-                    LegendItem::new(
-                        EdgeKind::EffectFlow.icon(),
-                        Theme::EDGE_EFFECT_FLOW,
-                        "effect",
-                    ),
-                    LegendItem::new(
-                        EdgeKind::ErrorPropagation.icon(),
-                        Theme::EDGE_ERROR_PROPAGATION,
-                        "error",
-                    ),
-                    LegendItem::new(
-                        EdgeKind::EarlyReturn.icon(),
-                        Theme::EDGE_EARLY_RETURN,
-                        "early ret",
-                    ),
-                ],
-            ),
-        ]
+        vec![LegendSection::new(
+            "Interpretations",
+            Color::Cyan,
+            vec![
+                LegendItem::new("→", Color::Green, "forward"),
+                LegendItem::new("←", Color::Magenta, "backward"),
+            ],
+        )]
     }
 }

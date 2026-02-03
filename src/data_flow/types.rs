@@ -187,7 +187,6 @@ pub struct DataFlowDag {
     pub root_node_id: Option<NodeId>,
     pub current_node_id: Option<NodeId>,
     pub orphans: Vec<NodeId>,
-    pub _definition_name: Option<String>,
     pub definition_type: Option<AnnotatedTextTree>,
     pub initial_context: Vec<LocalBinding>,
 }
@@ -264,7 +263,6 @@ impl TryFrom<GenericDag> for DataFlowDag {
             root_node_id: dag.root_node_id,
             current_node_id: dag.current_node_id,
             orphans: dag.orphans,
-            _definition_name: dag.definition_name,
             definition_type: dag.definition_type,
             initial_context,
         })

@@ -52,7 +52,7 @@ There are display modes focused on functional programming:
 I split them into:
 
 - Data flow: for normal functional programs. It shows a graph of the local bindings and expected types throughout the program (but not yet supporting all control flow)
-- Effect flow: inspired by [Aeneas](github.com/AeneasVerif/aeneas) and separation logic. Shows how monadic / effectful computations affect before and after state
+- Effect flow: inspired by [Aeneas](github.com/AeneasVerif/aeneas) and separation logic. Shows how effects by monadic computations affect forwards (returning new data) and backwards (modify existing state) computation direction. This is fairly new and a work-in-progress.
 
 Try it out by opening one of the samples in [`samples/`](./samples).
 

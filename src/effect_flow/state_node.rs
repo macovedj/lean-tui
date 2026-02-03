@@ -19,20 +19,30 @@ pub struct EffectStateNodeState {
 pub struct EffectStateNode<'a> {
     node: &'a EffectFlowNode,
     is_current: bool,
+    is_selected: bool,
+    is_collapsed: bool,
     top_down: bool,
 }
 
 impl<'a> EffectStateNode<'a> {
-    pub const fn new(node: &'a EffectFlowNode, is_current: bool, top_down: bool) -> Self {
+    pub const fn new(
+        node: &'a EffectFlowNode,
+        is_current: bool,
+        is_selected: bool,
+        is_collapsed: bool,
+        top_down: bool,
+    ) -> Self {
         Self {
             node,
             is_current,
+            is_selected,
+            is_collapsed,
             top_down,
         }
     }
 
-    fn effect_kind(&self) -> EffectKind {
-        self.node.effect_kind()
+    fn effect_kind(&self) -> &EffectKind {
+        &self.node.effect_kind
     }
 
     fn is_leaf(&self) -> bool {
@@ -79,19 +89,26 @@ impl<'a> EffectStateNode<'a> {
         let expr_text = self.node.content.to_plain_text();
 
         let icon_style = Style::new().fg(kind.color());
-        let text_style = if self.is_current {
+        let mut text_style = if self.is_current {
             Style::new().fg(Color::White).add_modifier(Modifier::BOLD)
         } else {
             Style::new().fg(Color::Gray)
         };
+
+        if self.is_selected {
+            text_style = text_style.add_modifier(Modifier::UNDERLINED);
+        }
 
         let mut spans = vec![
             Span::styled(format!(" {} ", kind.icon()), icon_style),
             Span::styled(expr_text, text_style),
         ];
 
-        // Show edge count if multiple outgoing edges
-        if self.node.edges.len() > 1 {
+        // Show collapsed indicator
+        if self.is_collapsed {
+            spans.push(Span::styled(" [+]", Style::new().fg(Color::Yellow)));
+        } else if self.node.edges.len() > 1 {
+            // Show edge count if multiple outgoing edges
             spans.push(Span::styled(
                 format!(" [{}→]", self.node.edges.len()),
                 Style::new().fg(Color::DarkGray),
@@ -105,19 +122,19 @@ impl<'a> EffectStateNode<'a> {
     fn content_lines(&self) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
 
-        // Backward interpretation (shown first/above)
-        if let Some(bwd) = self.node.backward() {
+        // Forward interpretation - what the operation produces/returns
+        if let Some(fwd) = &self.node.forward {
             lines.push(Line::from(vec![
-                Span::styled("bwd: ", Style::new().fg(Color::Magenta)),
-                Span::raw(bwd),
+                Span::styled("→ ", Style::new().fg(Color::Green)),
+                Span::raw(fwd.clone()),
             ]));
         }
 
-        // Forward interpretation (shown second/below)
-        if let Some(fwd) = self.node.forward() {
+        // Backward interpretation - what gets propagated back (lens "put")
+        if let Some(bwd) = &self.node.backward {
             lines.push(Line::from(vec![
-                Span::styled("fwd: ", Style::new().fg(Color::Green)),
-                Span::raw(fwd),
+                Span::styled("← ", Style::new().fg(Color::Magenta)),
+                Span::raw(bwd.clone()),
             ]));
         }
 

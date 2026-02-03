@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, ops::Deref};
+use std::{collections::HashSet, error::Error, fmt};
 
 use ratatui::style::Color;
 
@@ -138,61 +138,60 @@ impl EdgeKind {
 
 #[derive(Debug, Clone)]
 pub struct EffectFlowNode {
-    pub inner: GraphNode,
+    pub id: NodeId,
+    pub content: protocol::AnnotatedTextTree,
+    pub edges: Vec<GraphEdge>,
+    pub effect_kind: EffectKind,
+    pub forward: Option<String>,
+    pub backward: Option<String>,
+    pub state_effect: Option<String>,
+    pub forward_output: Option<String>,
+    pub given_back: Option<String>,
+    pub forward_desc: Option<String>,
+    pub backward_desc: Option<String>,
 }
 
 impl EffectFlowNode {
-    pub const fn new(inner: GraphNode) -> Self {
-        Self { inner }
-    }
+    pub fn from_graph_node(node: GraphNode) -> Option<Self> {
+        let effect_kind = node.kind.as_deref().map(EffectKind::from_str)?;
 
-    pub fn effect_kind(&self) -> EffectKind {
-        self.inner
-            .kind
-            .as_deref()
-            .map_or_else(|| EffectKind::Custom(String::new()), EffectKind::from_str)
-    }
+        let extract_str = |key: &str| -> Option<String> {
+            node.metadata
+                .get(key)
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+        };
 
-    pub fn has_effect_metadata(&self) -> bool {
-        self.inner.kind.is_some()
-    }
+        let state_effect = extract_str("stateEffect").filter(|s| s != "none");
 
-    pub fn forward(&self) -> Option<String> {
-        self.inner
-            .metadata
-            .get("forward")
-            .and_then(|v| v.as_str())
-            .map(String::from)
-    }
-
-    pub fn backward(&self) -> Option<String> {
-        self.inner
-            .metadata
-            .get("backward")
-            .and_then(|v| v.as_str())
-            .map(String::from)
+        Some(Self {
+            id: node.id,
+            content: node.content,
+            edges: node.edges,
+            effect_kind,
+            forward: extract_str("forward"),
+            backward: extract_str("backward"),
+            state_effect,
+            forward_output: extract_str("forwardOutput"),
+            given_back: extract_str("givenBack"),
+            forward_desc: extract_str("forwardDesc"),
+            backward_desc: extract_str("backwardDesc"),
+        })
     }
 
     pub fn is_leaf(&self) -> bool {
-        self.inner.edges.is_empty()
-    }
-}
-
-impl Deref for EffectFlowNode {
-    type Target = GraphNode;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+        self.edges.is_empty()
     }
 }
 
 impl DagNode for EffectFlowNode {
     fn id(&self) -> NodeId {
-        self.inner.id
+        self.id
     }
 
     fn children(&self) -> Vec<NodeId> {
-        self.inner.edges.iter().map(|e| e.target).collect()
+        self.edges.iter().map(|e| e.target).collect()
     }
 }
 
@@ -212,12 +211,17 @@ impl NavNode for EffectFlowNode {
 
 impl LayoutSize for EffectFlowNode {
     fn layout_size(&self) -> (u16, u16) {
-        let width = (self.inner.content.to_plain_text().len() + 12) as u16;
-        let content_lines = match (self.forward().is_some(), self.backward().is_some()) {
-            (true, true) => 2,
-            _ => 1,
+        let title_width = self.content.to_plain_text().len() + 12;
+        let fwd_width = self.forward.as_ref().map_or(0, |s| s.len() + 6);
+        let bwd_width = self.backward.as_ref().map_or(0, |s| s.len() + 6);
+        let width = title_width.max(fwd_width).max(bwd_width).min(80) as u16;
+
+        let content_lines = match (&self.forward, &self.backward) {
+            (Some(_), Some(_)) => 2,
+            (Some(_), None) | (None, Some(_)) => 1,
+            (None, None) => 0,
         };
-        (width, 2 + content_lines)
+        (width, 2 + content_lines.max(1))
     }
 }
 
@@ -267,12 +271,13 @@ pub struct EffectFlowDag {
     pub orphans: Vec<NodeId>,
     pub metadata: serde_json::Map<String, serde_json::Value>,
     pub initial_context: Vec<protocol::LocalBinding>,
+    pub definition_type: Option<protocol::AnnotatedTextTree>,
 }
 
 impl EffectFlowDag {
     /// Get a node by ID.
     pub fn get(&self, id: NodeId) -> Option<&EffectFlowNode> {
-        self.nodes.iter().find(|n| n.inner.id == id)
+        self.nodes.iter().find(|n| n.id == id)
     }
 
     /// Get the number of nodes.
@@ -302,6 +307,57 @@ impl EffectFlowDag {
         EffectFlowDfsIterator {
             dag: self,
             stack: self.root_node_id.into_iter().collect(),
+        }
+    }
+
+    /// Create a filtered view of the DAG excluding children of collapsed nodes.
+    pub fn filter_collapsed(&self, collapsed: &HashSet<NodeId>) -> Self {
+        if collapsed.is_empty() {
+            return self.clone();
+        }
+
+        let hidden_nodes = self.collect_hidden_nodes(collapsed);
+
+        let filtered_nodes: Vec<EffectFlowNode> = self
+            .nodes
+            .iter()
+            .filter(|n| !hidden_nodes.contains(&n.id))
+            .cloned()
+            .collect();
+
+        Self {
+            nodes: filtered_nodes,
+            root_node_id: self.root_node_id,
+            current_node_id: self.current_node_id,
+            orphans: self.orphans.clone(),
+            metadata: self.metadata.clone(),
+            initial_context: self.initial_context.clone(),
+            definition_type: self.definition_type.clone(),
+        }
+    }
+
+    /// Collect all node IDs that should be hidden (descendants of collapsed
+    /// nodes).
+    fn collect_hidden_nodes(&self, collapsed: &HashSet<NodeId>) -> HashSet<NodeId> {
+        let mut hidden = HashSet::new();
+
+        for &collapsed_id in collapsed {
+            self.collect_descendants(collapsed_id, &mut hidden);
+        }
+
+        hidden
+    }
+
+    /// Recursively collect all descendants of a node.
+    fn collect_descendants(&self, node_id: NodeId, hidden: &mut HashSet<NodeId>) {
+        let Some(node) = self.get(node_id) else {
+            return;
+        };
+
+        for child_id in node.children() {
+            if hidden.insert(child_id) {
+                self.collect_descendants(child_id, hidden);
+            }
         }
     }
 }
@@ -339,13 +395,9 @@ impl TryFrom<GenericDag> for EffectFlowDag {
             .nodes
             .into_iter()
             .map(|node| {
-                let ef_node = EffectFlowNode::new(node);
-                if !ef_node.has_effect_metadata() {
-                    return Err(EffectFlowConversionError::MissingEffectKind {
-                        node_id: ef_node.inner.id,
-                    });
-                }
-                Ok(ef_node)
+                let node_id = node.id;
+                EffectFlowNode::from_graph_node(node)
+                    .ok_or(EffectFlowConversionError::MissingEffectKind { node_id })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -356,6 +408,7 @@ impl TryFrom<GenericDag> for EffectFlowDag {
             orphans: dag.orphans,
             metadata: dag.metadata,
             initial_context: dag.initial_context,
+            definition_type: dag.definition_type,
         })
     }
 }

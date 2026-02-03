@@ -33,36 +33,66 @@ pub fn render_interpretation_pane(node: Option<&EffectFlowNode>, area: Rect, buf
         return;
     };
 
-    let kind = node.effect_kind();
+    let kind = &node.effect_kind;
     let mut lines = Vec::new();
 
     // Effect kind header with expression
-    lines.push(Line::from(vec![
+    let mut header_spans = vec![
         Span::styled(format!("{} ", kind.icon()), Style::new().fg(kind.color())),
         Span::styled(
             kind.description(),
             Style::new().fg(kind.color()).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            format!(" • {}", node.content.to_plain_text()),
-            Style::new().fg(Color::DarkGray),
-        ),
-    ]));
+    ];
 
-    // Backward interpretation (above forward)
-    if let Some(bwd) = node.backward() {
+    // Show state effect type if present
+    if let Some(state_eff) = &node.state_effect {
+        header_spans.push(Span::styled(
+            format!(" [{state_eff}]"),
+            Style::new().fg(Color::Yellow),
+        ));
+    }
+
+    header_spans.push(Span::styled(
+        format!(" • {}", node.content.to_plain_text()),
+        Style::new().fg(Color::DarkGray),
+    ));
+    lines.push(Line::from(header_spans));
+
+    // Forward interpretation - what the operation returns (Aeneas "get")
+    if let Some(fwd) = &node.forward {
         lines.push(Line::from(vec![
-            Span::styled("bwd: ", Style::new().fg(Color::Magenta)),
-            Span::raw(bwd),
+            Span::styled("→ returns: ", Style::new().fg(Color::Green)),
+            Span::raw(fwd.clone()),
         ]));
     }
 
-    // Forward interpretation
-    if let Some(fwd) = node.forward() {
+    // Show symbolic forward description if different from output
+    if let (Some(desc), Some(output)) = (&node.forward_desc, &node.forward_output) {
+        if desc != output && !desc.is_empty() && !output.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("  ", Style::new()),
+                Span::styled(desc.clone(), Style::new().fg(Color::DarkGray)),
+            ]));
+        }
+    }
+
+    // Backward interpretation - what gets propagated back (Aeneas "put")
+    if let Some(bwd) = &node.backward {
         lines.push(Line::from(vec![
-            Span::styled("fwd: ", Style::new().fg(Color::Green)),
-            Span::raw(fwd),
+            Span::styled("← gives back: ", Style::new().fg(Color::Magenta)),
+            Span::raw(bwd.clone()),
         ]));
+    }
+
+    // Show symbolic backward description if different from given_back
+    if let (Some(desc), Some(given)) = (&node.backward_desc, &node.given_back) {
+        if desc != given && !desc.is_empty() && !given.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("  ", Style::new()),
+                Span::styled(desc.clone(), Style::new().fg(Color::DarkGray)),
+            ]));
+        }
     }
 
     Paragraph::new(lines).render(inner, buf);
