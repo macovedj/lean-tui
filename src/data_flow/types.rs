@@ -6,6 +6,7 @@ use crate::{
     graph::{Dag, DagNode, NavNode},
     protocol::{
         AnnotatedTextTree, BindingKind, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId,
+        PreresolvedNavigationTargets,
     },
     shared::{LayoutSize, Theme},
 };
@@ -94,6 +95,8 @@ pub struct SimpleBinding {
     #[serde(rename = "type")]
     pub type_str: String,
     pub binding_kind: String,
+    #[serde(default)]
+    pub navigation_locations: Option<PreresolvedNavigationTargets>,
 }
 
 impl SimpleBinding {
@@ -204,7 +207,9 @@ impl DagNode for DataFlowNode {
 
 impl NavNode for DataFlowNode {
     fn new_hyp_indices(&self) -> Vec<u64> {
-        self.new_binding_indices()
+        // Return all binding indices for navigation (not just newly introduced ones)
+        // This allows keyboard navigation to select any binding in the node
+        (0..self.bindings_after().len() as u64).collect()
     }
 
     fn goal_count(&self) -> usize {
