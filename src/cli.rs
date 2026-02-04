@@ -136,7 +136,14 @@ async fn event_loop(
         }
         terminal.draw(|frame| app.render(frame))?;
 
-        handle_events(&mut app, &mut pool, &mut event_stream, &mut command_interval, &mut scan_interval).await;
+        handle_events(
+            &mut app,
+            &mut pool,
+            &mut event_stream,
+            &mut command_interval,
+            &mut scan_interval,
+        )
+        .await;
     }
 
     Ok(())
@@ -182,7 +189,8 @@ async fn do_periodic_scan(app: &mut App, pool: &mut ConnectionPool) {
     }
 }
 
-/// Handle all events: user input, messages from workers, commands, and periodic scans.
+/// Handle all events: user input, messages from workers, commands, and periodic
+/// scans.
 async fn handle_events(
     app: &mut App,
     pool: &mut ConnectionPool,

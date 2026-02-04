@@ -19,6 +19,8 @@ mod generated {
 }
 pub use generated::*;
 
+use crate::graph::{Dag, DagNode, NavNode};
+
 /// Type alias for node IDs.
 pub type NodeId = u64;
 
@@ -91,24 +93,6 @@ impl Default for LineCharacterPosition {
 
 impl Copy for LineCharacterPosition {}
 
-/// Trait for DAG node types that can be lain out.
-pub trait DagNode {
-    fn id(&self) -> NodeId;
-    fn children(&self) -> Vec<NodeId>;
-}
-
-/// Trait for DAG containers that can be lain out.
-pub trait Dag {
-    /// The node type stored in this DAG.
-    type Node: DagNode;
-    /// Get a node by ID.
-    fn get_node(&self, id: NodeId) -> Option<&Self::Node>;
-    /// Get the root node ID if present.
-    fn root_id(&self) -> Option<NodeId>;
-    /// Get orphan node IDs.
-    fn orphan_ids(&self) -> &[NodeId];
-}
-
 impl DagNode for GraphNode {
     fn id(&self) -> NodeId {
         self.id
@@ -125,24 +109,6 @@ impl Dag for GenericDag {
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
     }
-
-    fn root_id(&self) -> Option<NodeId> {
-        self.root_node_id
-    }
-
-    fn orphan_ids(&self) -> &[NodeId] {
-        &self.orphans
-    }
-}
-
-/// Trait for nodes that can have navigable hypothesis/binding regions.
-pub trait NavNode: DagNode {
-    /// Indices of new hypotheses/bindings introduced by this node.
-    fn new_hyp_indices(&self) -> Vec<u64>;
-    /// Number of goals (0 = complete, 1+ = has goals).
-    fn goal_count(&self) -> usize;
-    /// Whether to show goal regions.
-    fn has_selectable_goals(&self) -> bool;
 }
 
 impl NavNode for GraphNode {

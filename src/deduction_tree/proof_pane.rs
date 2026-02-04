@@ -129,12 +129,20 @@ impl StatefulWidget for ProofPane<'_> {
         state.scroll_x = scroll_x;
         state.scroll_y = scroll_y;
 
-        render_edges(&graph, &state.layout, scroll_x, scroll_y, self.top_down, area, buf);
+        render_edges(
+            &graph,
+            &state.layout,
+            scroll_x,
+            scroll_y,
+            self.top_down,
+            area,
+            buf,
+        );
 
         for pos in &state.layout.nodes {
-            let Some(render_area) =
-                clip_to_viewport(pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area)
-            else {
+            let Some(render_area) = clip_to_viewport(
+                pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area,
+            ) else {
                 continue;
             };
             let Some(node) = graph.get(pos.index) else {

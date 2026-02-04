@@ -3,10 +3,8 @@ use std::{error::Error, fmt, ops::Deref};
 use ratatui::style::Color;
 
 use crate::{
-    protocol::{
-        AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, GraphNode, LocalBinding,
-        NavNode, NodeId,
-    },
+    graph::{Dag, DagNode, NavNode},
+    protocol::{AnnotatedTextTree, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId},
     shared::{LayoutSize, Theme},
 };
 
@@ -217,8 +215,9 @@ impl DataFlowDag {
 
     /// Convert to petgraph-based DagGraph for rendering.
     pub fn to_graph(&self) -> crate::graph::DagGraph<DataFlowNode> {
-        use crate::graph::{DagGraph, EdgeData};
         use ratatui::style::Style;
+
+        use crate::graph::{DagGraph, EdgeData};
 
         let mut graph = DagGraph::new();
 
@@ -316,13 +315,5 @@ impl Dag for DataFlowDag {
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
-    }
-
-    fn root_id(&self) -> Option<NodeId> {
-        self.root_node_id
-    }
-
-    fn orphan_ids(&self) -> &[NodeId] {
-        &self.orphans
     }
 }

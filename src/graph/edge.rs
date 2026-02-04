@@ -37,7 +37,16 @@ impl EdgeRenderer {
                 };
 
                 let style = edge_data.style.unwrap_or_default();
-                self.draw_edge(parent_x, parent_y, child_x, child_y, style, edge_data.label, viewport, buf);
+                self.draw_edge(
+                    parent_x,
+                    parent_y,
+                    child_x,
+                    child_y,
+                    style,
+                    edge_data.label,
+                    viewport,
+                    buf,
+                );
             }
         }
     }
@@ -103,7 +112,15 @@ impl EdgeRenderer {
         }
     }
 
-    fn draw_char(&self, vx: i32, vy: i32, style: Style, ch: char, viewport: Rect, buf: &mut Buffer) {
+    fn draw_char(
+        &self,
+        vx: i32,
+        vy: i32,
+        style: Style,
+        ch: char,
+        viewport: Rect,
+        buf: &mut Buffer,
+    ) {
         let screen_x = vx - self.scroll_x + i32::from(viewport.x);
         let screen_y = vy - self.scroll_y + i32::from(viewport.y);
 
@@ -120,20 +137,46 @@ impl EdgeRenderer {
         }
     }
 
-    fn draw_text(&self, vx: i32, vy: i32, style: Style, text: &str, viewport: Rect, buf: &mut Buffer) {
+    fn draw_text(
+        &self,
+        vx: i32,
+        vy: i32,
+        style: Style,
+        text: &str,
+        viewport: Rect,
+        buf: &mut Buffer,
+    ) {
         for (i, ch) in text.chars().enumerate() {
             self.draw_char(vx + i as i32, vy, style, ch, viewport, buf);
         }
     }
 
-    fn draw_vertical_line(&self, x: i32, y1: i32, y2: i32, style: Style, ch: char, viewport: Rect, buf: &mut Buffer) {
+    fn draw_vertical_line(
+        &self,
+        x: i32,
+        y1: i32,
+        y2: i32,
+        style: Style,
+        ch: char,
+        viewport: Rect,
+        buf: &mut Buffer,
+    ) {
         let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
         for y in start..=end {
             self.draw_char(x, y, style, ch, viewport, buf);
         }
     }
 
-    fn draw_horizontal_line(&self, x1: i32, x2: i32, y: i32, style: Style, ch: char, viewport: Rect, buf: &mut Buffer) {
+    fn draw_horizontal_line(
+        &self,
+        x1: i32,
+        x2: i32,
+        y: i32,
+        style: Style,
+        ch: char,
+        viewport: Rect,
+        buf: &mut Buffer,
+    ) {
         for x in x1..=x2 {
             self.draw_char(x, y, style, ch, viewport, buf);
         }
@@ -149,5 +192,10 @@ pub fn render_edges<N>(
     viewport: Rect,
     buf: &mut Buffer,
 ) {
-    EdgeRenderer { scroll_x, scroll_y, top_down }.render(dag, layout, viewport, buf);
+    EdgeRenderer {
+        scroll_x,
+        scroll_y,
+        top_down,
+    }
+    .render(dag, layout, viewport, buf);
 }

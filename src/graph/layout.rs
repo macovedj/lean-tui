@@ -54,13 +54,21 @@ where
         return DagLayout::default();
     };
 
-    let subtree_size = |idx: NodeIndex| -> (i32, i32) {
-        subtree_size_recursive(dag, idx, &config, &size_fn)
-    };
+    let subtree_size =
+        |idx: NodeIndex| -> (i32, i32) { subtree_size_recursive(dag, idx, &config, &size_fn) };
 
     let (content_width, content_height) = subtree_size(root);
 
-    let main_nodes = position_subtree(dag, root, 0, 0, content_width, content_height, &config, &size_fn);
+    let main_nodes = position_subtree(
+        dag,
+        root,
+        0,
+        0,
+        content_width,
+        content_height,
+        &config,
+        &size_fn,
+    );
 
     let (orphan_nodes, final_width, final_height) =
         position_orphans(dag, content_width, content_height, &size_fn);
@@ -101,10 +109,18 @@ where
             .map(|&cid| subtree_size_recursive(dag, cid, config, size_fn))
             .collect();
         let total_w: i32 = child_sizes.iter().map(|(w, _)| w).sum();
-        let max_child_h = child_sizes.iter().map(|(_, h)| h).max().copied().unwrap_or(0);
+        let max_child_h = child_sizes
+            .iter()
+            .map(|(_, h)| h)
+            .max()
+            .copied()
+            .unwrap_or(0);
         let gaps = config.h_gap * (children.len() as i32 - 1).max(0);
 
-        ((total_w + gaps).max(node_w), node_h + config.v_gap + max_child_h)
+        (
+            (total_w + gaps).max(node_w),
+            node_h + config.v_gap + max_child_h,
+        )
     }
 }
 
@@ -161,9 +177,20 @@ where
 
     let child_positions = if children.len() == 1 {
         let (child_w, child_subtree_h) = subtree_size_recursive(dag, children[0], config, size_fn);
-        position_subtree(dag, children[0], x, child_y, child_w, child_h.min(child_subtree_h), config, size_fn)
+        position_subtree(
+            dag,
+            children[0],
+            x,
+            child_y,
+            child_w,
+            child_h.min(child_subtree_h),
+            config,
+            size_fn,
+        )
     } else {
-        position_multiple_children(dag, &children, x, child_y, child_h, subtree_w, config, size_fn)
+        position_multiple_children(
+            dag, &children, x, child_y, child_h, subtree_w, config, size_fn,
+        )
     };
 
     std::iter::once(current).chain(child_positions).collect()

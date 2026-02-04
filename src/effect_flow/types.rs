@@ -3,9 +3,8 @@ use std::{error::Error, fmt};
 use ratatui::style::Color;
 
 use crate::{
-    protocol::{
-        self, Dag, DagNode, DisplayStyle, GenericDag, GraphEdge, GraphNode, NavNode, NodeId,
-    },
+    graph::{Dag, DagNode, NavNode},
+    protocol::{self, DisplayStyle, GenericDag, GraphEdge, GraphNode, NodeId},
     shared::{LayoutSize, Theme},
 };
 
@@ -316,8 +315,9 @@ impl EffectFlowDag {
 
     /// Convert to petgraph-based DagGraph for rendering.
     pub fn to_graph(&self) -> crate::graph::DagGraph<EffectFlowNode> {
-        use crate::graph::{DagGraph, EdgeData};
         use ratatui::style::Style;
+
+        use crate::graph::{DagGraph, EdgeData};
 
         let mut graph = DagGraph::new();
 
@@ -424,13 +424,5 @@ impl Dag for EffectFlowDag {
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
-    }
-
-    fn root_id(&self) -> Option<NodeId> {
-        self.root_node_id
-    }
-
-    fn orphan_ids(&self) -> &[NodeId] {
-        &self.orphans
     }
 }

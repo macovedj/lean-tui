@@ -14,7 +14,7 @@ use tokio::{
 use crate::{
     error::{Error, Result},
     protocol::{ClientToServerCommand, ServerToClientMessage},
-    shared::worker_selector::WorkerInfo,
+    worker_selector::WorkerInfo,
 };
 
 /// TCP connection state machine.
@@ -220,15 +220,6 @@ impl ConnectionPool {
         self.port_to_uri.get(&port)
     }
 
-    /// Find port by file URI.
-    #[allow(dead_code)]
-    pub fn port_for_uri(&self, uri: &str) -> Option<u16> {
-        self.port_to_uri
-            .iter()
-            .find(|(_, u)| u.as_str() == uri)
-            .map(|(&port, _)| port)
-    }
-
     /// Get list of connected ports.
     pub fn connected_ports(&self) -> Vec<u16> {
         self.connections
@@ -239,6 +230,7 @@ impl ConnectionPool {
     }
 
     /// Connect to a worker if not already connected.
+    /// Sends a `Ready` command after connecting to request current state.
     pub async fn connect(&mut self, worker: &WorkerInfo) {
         if self.is_connected(worker.port) {
             return;
@@ -253,6 +245,10 @@ impl ConnectionPool {
             // Auto-activate first connection
             if self.active_port.is_none() {
                 self.active_port = Some(worker.port);
+            }
+            // Send Ready command to request current state from server
+            if let Some(conn) = self.connections.get_mut(&worker.port) {
+                let _ = conn.send(&ClientToServerCommand::Ready).await;
             }
         }
     }
@@ -278,17 +274,6 @@ impl ConnectionPool {
         }
     }
 
-    /// Disconnect all workers.
-    #[allow(dead_code)]
-    pub fn disconnect_all(&mut self) {
-        for conn in self.connections.values_mut() {
-            conn.disconnect();
-        }
-        self.connections.clear();
-        self.port_to_uri.clear();
-        self.active_port = None;
-    }
-
     /// Try to receive a message from any connected worker.
     /// Returns the port and message if available.
     pub async fn recv_any(&mut self) -> Result<Option<PoolMessage>> {
@@ -301,7 +286,7 @@ impl ConnectionPool {
         for port in ports {
             match self.try_recv_from(port).await {
                 Ok(Some(msg)) => return Ok(Some(PoolMessage { port, message: msg })),
-                Ok(None) => continue,
+                Ok(None) => {}
                 Err(e) => return Err(e),
             }
         }
@@ -358,19 +343,6 @@ impl ConnectionPool {
             return Err(io::Error::new(
                 io::ErrorKind::NotConnected,
                 "active connection not found",
-            ));
-        };
-
-        conn.send(cmd).await
-    }
-
-    /// Send a command to a specific worker.
-    #[allow(dead_code)]
-    pub async fn send_to(&mut self, port: u16, cmd: &ClientToServerCommand) -> io::Result<()> {
-        let Some(conn) = self.connections.get_mut(&port) else {
-            return Err(io::Error::new(
-                io::ErrorKind::NotConnected,
-                "connection not found",
             ));
         };
 

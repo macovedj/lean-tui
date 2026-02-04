@@ -3,9 +3,10 @@ use std::{error::Error, fmt};
 use serde::de::DeserializeOwned;
 
 use crate::{
+    graph::{Dag, DagNode, NavNode},
     protocol::{
-        AnnotatedTextTree, Dag, DagNode, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, NavNode, PreresolvedNavigationTargets,
+        AnnotatedTextTree, DisplayStyle, GenericDag, GraphNode, LineCharacterPosition,
+        PreresolvedNavigationTargets,
     },
     shared::LayoutSize,
 };
@@ -162,9 +163,12 @@ impl CompleteProofDag {
 
     /// Convert to petgraph-based DagGraph for rendering.
     pub fn to_graph(&self) -> crate::graph::DagGraph<ProofDagTacticNode> {
-        use crate::graph::{DagGraph, EdgeData};
-        use crate::shared::Theme;
         use ratatui::style::Style;
+
+        use crate::{
+            graph::{DagGraph, EdgeData},
+            shared::Theme,
+        };
 
         let mut graph = DagGraph::new();
 
@@ -397,14 +401,6 @@ impl Dag for CompleteProofDag {
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
-    }
-
-    fn root_id(&self) -> Option<NodeId> {
-        self.root_node_id
-    }
-
-    fn orphan_ids(&self) -> &[NodeId] {
-        &self.orphans
     }
 }
 
