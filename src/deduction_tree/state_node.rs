@@ -23,7 +23,6 @@ pub struct StateNode<'a> {
     node: &'a ProofDagTacticNode,
     is_current: bool,
     selection: Option<Selection>,
-    top_down: bool,
     override_state: Option<&'a TacticProofState>,
 }
 
@@ -32,14 +31,12 @@ impl<'a> StateNode<'a> {
         node: &'a ProofDagTacticNode,
         is_current: bool,
         selection: Option<Selection>,
-        top_down: bool,
         override_state: Option<&'a TacticProofState>,
     ) -> Self {
         Self {
             node,
             is_current,
             selection,
-            top_down,
             override_state,
         }
     }
@@ -208,18 +205,15 @@ impl<'a> StateNode<'a> {
         let mut regions = Vec::new();
         let has_hyps = !self.node.new_hypothesis_indices.is_empty();
 
-        let (hyps_y, goals_y) = if self.top_down {
-            (inner.y, if has_hyps { inner.y + 1 } else { inner.y })
-        } else {
-            (if has_hyps { inner.y + 1 } else { inner.y }, inner.y)
-        };
+        // Hyps on first line, goals on second (or first if no hyps)
+        let hyps_y = inner.y;
+        let goals_y = if has_hyps { inner.y + 1 } else { inner.y };
 
         let goal_count = self
             .override_state
             .map_or(self.node.proof_state_after.goals.len(), |s| s.goals.len());
 
         if goal_count > 0 {
-            // Calculate goal widths to match visual layout
             let goal_width = if goal_count > 1 {
                 (inner.width / goal_count as u16).max(15)
             } else {
@@ -284,13 +278,10 @@ impl StatefulWidget for StateNode<'_> {
                 Modifier::empty()
             });
 
-        let arrow = if self.top_down { "▼" } else { "▲" };
-
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title(Span::styled(title, title_style))
-            .title_bottom(Span::styled(format!(" {arrow} "), border_style));
+            .title(Span::styled(title, title_style));
 
         let inner = block.inner(area);
         block.render(area, buf);

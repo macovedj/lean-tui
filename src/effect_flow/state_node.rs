@@ -20,21 +20,14 @@ pub struct EffectStateNode<'a> {
     node: &'a EffectFlowNode,
     is_current: bool,
     is_selected: bool,
-    top_down: bool,
 }
 
 impl<'a> EffectStateNode<'a> {
-    pub const fn new(
-        node: &'a EffectFlowNode,
-        is_current: bool,
-        is_selected: bool,
-        top_down: bool,
-    ) -> Self {
+    pub const fn new(node: &'a EffectFlowNode, is_current: bool, is_selected: bool) -> Self {
         Self {
             node,
             is_current,
             is_selected,
-            top_down,
         }
     }
 
@@ -44,13 +37,6 @@ impl<'a> EffectStateNode<'a> {
 
     fn is_leaf(&self) -> bool {
         self.node.is_leaf()
-    }
-
-    fn is_error_node(&self) -> bool {
-        matches!(
-            self.effect_kind(),
-            EffectKind::EffectThrow | EffectKind::EffectCatch
-        )
     }
 
     fn border_color(&self) -> Color {
@@ -144,9 +130,10 @@ impl<'a> EffectStateNode<'a> {
         lines
     }
 
-    fn click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
+    fn click_regions(&self, area: Rect) -> Vec<ClickRegion> {
+        // Click region is just the header row (top border with title)
         vec![ClickRegion {
-            area: Rect::new(inner.x, inner.y, inner.width, inner.height.max(1)),
+            area: Rect::new(area.x, area.y, area.width, 1),
             selection: Selection::Goal {
                 node_id: self.node.id,
                 goal_idx: 0,
@@ -177,19 +164,6 @@ impl StatefulWidget for EffectStateNode<'_> {
             .border_style(border_style)
             .title(Line::from(title_spans));
 
-        // Show continuation arrow for non-leaf nodes
-        let block = if self.is_leaf() {
-            block
-        } else {
-            let arrow = if self.top_down { "▼" } else { "▲" };
-            let arrow_style = if self.is_error_node() {
-                Style::new().fg(Theme::EFFECT_THROW)
-            } else {
-                border_style
-            };
-            block.title_bottom(Span::styled(format!(" {arrow} "), arrow_style))
-        };
-
         let inner = block.inner(area);
         block.render(area, buf);
 
@@ -199,6 +173,6 @@ impl StatefulWidget for EffectStateNode<'_> {
 
         Paragraph::new(self.content_lines()).render(inner, buf);
 
-        state.click_regions = self.click_regions(inner);
+        state.click_regions = self.click_regions(area);
     }
 }
