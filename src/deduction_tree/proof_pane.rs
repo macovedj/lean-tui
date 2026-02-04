@@ -2,7 +2,7 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
-    widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget},
+    widgets::{Paragraph, StatefulWidget, Widget},
 };
 
 use super::{
@@ -11,12 +11,12 @@ use super::{
 };
 use crate::{
     deduction_tree::TacticProofState,
-    protocol::NodeId,
-    shared::{
-        build_navigation_regions, calculate_dag_layout, render_dag_edges, theme::Theme,
-        ClickRegion, DagLayout, LayoutConfig, NavigationRegion, NodePosition, Selection,
-        VirtualCanvas,
+    graph::{
+        calculate_layout, center_on, clip_to_viewport, render_edges, render_scrollbars,
+        scroll_target, DagLayout, LayoutConfig,
     },
+    protocol::NodeId,
+    shared::{build_navigation_regions, ClickRegion, LayoutSize, NavigationRegion, Selection},
 };
 
 /// State for the proof pane widget.
@@ -27,8 +27,6 @@ pub struct ProofPaneState {
     manual_scroll: bool,
     prev_current_node: Option<NodeId>,
     layout: DagLayout,
-    content_width: i32,
-    content_height: i32,
     pub click_regions: Vec<ClickRegion>,
     pub navigation_regions: Vec<NavigationRegion>,
 }
@@ -91,52 +89,62 @@ impl StatefulWidget for ProofPane<'_> {
             return;
         }
 
+        let graph = self.dag.to_graph();
+
         let config = LayoutConfig {
             top_down: self.top_down,
-            stretch_children: false, // Semantic tableau doesn't support stretch mode yet
+            stretch_children: false,
             h_gap: 1,
             v_gap: 1,
         };
-        state.layout = calculate_dag_layout(self.dag, config);
-        state.content_width = state.layout.content_width;
-        state.content_height = state.layout.content_height;
 
+        state.layout = calculate_layout(&graph, config, |node| node.layout_size());
         if state.layout.nodes.is_empty() {
             return;
         }
 
         state.navigation_regions = build_navigation_regions(self.dag, &state.layout);
 
-        let canvas = create_canvas(state, self.dag, self.selection, area);
-        state.scroll_x = canvas.scroll_x;
-        state.scroll_y = canvas.scroll_y;
+        let selected_idx = self.selection.and_then(|sel| match sel {
+            Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. } => {
+                graph.index_of(node_id)
+            }
+            _ => None,
+        });
 
-        // Render edges first (behind nodes)
-        let edge_style = Style::new().fg(Theme::BORDER);
-        render_dag_edges(
-            self.dag,
-            &state.layout,
-            &canvas,
-            area,
-            buf,
-            self.top_down,
-            edge_style,
-        );
+        let (scroll_x, scroll_y) = if state.manual_scroll {
+            (state.scroll_x, state.scroll_y)
+        } else {
+            scroll_target(&state.layout, selected_idx, graph.current, graph.root)
+                .map(|t| {
+                    center_on(
+                        t,
+                        state.layout.content_width,
+                        state.layout.content_height,
+                        area,
+                    )
+                })
+                .unwrap_or((0, 0))
+        };
+        state.scroll_x = scroll_x;
+        state.scroll_y = scroll_y;
+
+        render_edges(&graph, &state.layout, scroll_x, scroll_y, self.top_down, area, buf);
 
         for pos in &state.layout.nodes {
             let Some(render_area) =
-                canvas.clip_to_viewport(pos.x, pos.y, pos.width, pos.height, area)
+                clip_to_viewport(pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area)
             else {
                 continue;
             };
-            let Some(node) = self.dag.get(pos.node_id) else {
+            let Some(node) = graph.get(pos.index) else {
                 continue;
             };
             if render_area.width < 3 || render_area.height < 3 {
                 continue;
             }
 
-            let is_current = self.dag.is_current(pos.node_id);
+            let is_current = graph.is_current(pos.index);
             let override_state = if is_current && !self.current_state.goals.is_empty() {
                 Some(self.current_state)
             } else {
@@ -149,73 +157,13 @@ impl StatefulWidget for ProofPane<'_> {
             state.click_regions.extend(node_state.click_regions);
         }
 
-        render_scrollbars(buf, area, &canvas);
-    }
-}
-
-fn create_canvas(
-    state: &ProofPaneState,
-    dag: &CompleteProofDag,
-    selection: Option<Selection>,
-    area: Rect,
-) -> VirtualCanvas {
-    let canvas = VirtualCanvas::new(state.content_width, state.content_height);
-
-    if state.manual_scroll {
-        canvas.with_scroll(state.scroll_x, state.scroll_y, area)
-    } else {
-        find_scroll_target(&state.layout, dag, selection).map_or(canvas, |t| {
-            canvas.centered_on(t.x, t.y, t.width, t.height, area)
-        })
-    }
-}
-
-fn render_scrollbars(buf: &mut Buffer, area: Rect, canvas: &VirtualCanvas) {
-    if canvas.needs_vertical_scroll(area) && area.height > 2 {
-        let sb_area = Rect::new(
-            area.x + area.width.saturating_sub(1),
-            area.y,
-            1,
-            area.height,
+        render_scrollbars(
+            buf,
+            area,
+            state.layout.content_width,
+            state.layout.content_height,
+            scroll_x,
+            scroll_y,
         );
-        let mut sb_state = ScrollbarState::new(canvas.content_height.max(0) as usize)
-            .position(canvas.scroll_y.max(0) as usize)
-            .viewport_content_length(area.height as usize);
-        Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("▲"))
-            .end_symbol(Some("▼"))
-            .render(sb_area, buf, &mut sb_state);
     }
-
-    if canvas.needs_horizontal_scroll(area) && area.width > 2 {
-        let sb_area = Rect::new(
-            area.x,
-            area.y + area.height.saturating_sub(1),
-            area.width.saturating_sub(1),
-            1,
-        );
-        let mut sb_state = ScrollbarState::new(canvas.content_width.max(0) as usize)
-            .position(canvas.scroll_x.max(0) as usize)
-            .viewport_content_length(area.width as usize);
-        Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
-            .begin_symbol(Some("◀"))
-            .end_symbol(Some("▶"))
-            .render(sb_area, buf, &mut sb_state);
-    }
-}
-
-fn find_scroll_target<'a>(
-    layout: &'a DagLayout,
-    dag: &CompleteProofDag,
-    selection: Option<Selection>,
-) -> Option<&'a NodePosition> {
-    let selected_node_id = selection.and_then(|sel| match sel {
-        Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. } => Some(node_id),
-        _ => None,
-    });
-
-    selected_node_id
-        .and_then(|id| layout.find_node(id))
-        .or_else(|| dag.current_node_id.and_then(|id| layout.find_node(id)))
-        .or_else(|| dag.root_node_id.and_then(|id| layout.find_node(id)))
 }

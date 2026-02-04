@@ -159,6 +159,54 @@ impl CompleteProofDag {
     pub fn initial_proof_state(&self) -> &TacticProofState {
         &self.initial_proof_state
     }
+
+    /// Convert to petgraph-based DagGraph for rendering.
+    pub fn to_graph(&self) -> crate::graph::DagGraph<ProofDagTacticNode> {
+        use crate::graph::{DagGraph, EdgeData};
+        use crate::shared::Theme;
+        use ratatui::style::Style;
+
+        let mut graph = DagGraph::new();
+
+        for node in &self.nodes {
+            graph.add_node(node.id, node.clone());
+        }
+
+        for node in &self.nodes {
+            let Some(from_idx) = graph.index_of(node.id) else {
+                continue;
+            };
+            for &child_id in &node.children {
+                let Some(to_idx) = graph.index_of(child_id) else {
+                    continue;
+                };
+                graph.add_edge(
+                    from_idx,
+                    to_idx,
+                    EdgeData {
+                        style: Some(Style::new().fg(Theme::BORDER)),
+                        label: None,
+                    },
+                );
+            }
+        }
+
+        if let Some(root_id) = self.root_node_id {
+            if let Some(idx) = graph.index_of(root_id) {
+                graph.root = Some(idx);
+            }
+        }
+        if let Some(current_id) = self.current_node_id {
+            graph.current = graph.index_of(current_id);
+        }
+        for &orphan_id in &self.orphans {
+            if let Some(idx) = graph.index_of(orphan_id) {
+                graph.orphans.push(idx);
+            }
+        }
+
+        graph
+    }
 }
 
 #[derive(Debug, Clone)]

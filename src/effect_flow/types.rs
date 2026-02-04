@@ -299,11 +299,6 @@ impl EffectFlowDag {
         self.nodes.is_empty()
     }
 
-    /// Check if a node is the current node.
-    pub fn is_current(&self, node_id: NodeId) -> bool {
-        self.current_node_id == Some(node_id)
-    }
-
     /// Get the monad stack from DAG metadata.
     pub fn monad_stack(&self) -> Option<Vec<String>> {
         self.metadata
@@ -317,6 +312,59 @@ impl EffectFlowDag {
             dag: self,
             stack: self.root_node_id.into_iter().collect(),
         }
+    }
+
+    /// Convert to petgraph-based DagGraph for rendering.
+    pub fn to_graph(&self) -> crate::graph::DagGraph<EffectFlowNode> {
+        use crate::graph::{DagGraph, EdgeData};
+        use ratatui::style::Style;
+
+        let mut graph = DagGraph::new();
+
+        // Add all nodes
+        for node in &self.nodes {
+            graph.add_node(node.id, node.clone());
+        }
+
+        // Add edges with style data
+        for node in &self.nodes {
+            let Some(from_idx) = graph.index_of(node.id) else {
+                continue;
+            };
+            for edge in &node.edges {
+                let Some(to_idx) = graph.index_of(edge.target) else {
+                    continue;
+                };
+                let edge_kind = edge.effect_edge_kind();
+                graph.add_edge(
+                    from_idx,
+                    to_idx,
+                    EdgeData {
+                        style: Some(Style::new().fg(edge_kind.color())),
+                        label: edge_kind.label(),
+                    },
+                );
+            }
+        }
+
+        // Set root and current
+        if let Some(root_id) = self.root_node_id {
+            if let Some(idx) = graph.index_of(root_id) {
+                graph.root = Some(idx);
+            }
+        }
+        if let Some(current_id) = self.current_node_id {
+            graph.current = graph.index_of(current_id);
+        }
+
+        // Add orphans
+        for &orphan_id in &self.orphans {
+            if let Some(idx) = graph.index_of(orphan_id) {
+                graph.orphans.push(idx);
+            }
+        }
+
+        graph
     }
 }
 

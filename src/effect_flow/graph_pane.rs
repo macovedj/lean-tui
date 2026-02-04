@@ -1,27 +1,23 @@
-//! Effect graph pane with edge rendering.
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
-    widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget},
+    widgets::{Paragraph, StatefulWidget, Widget},
 };
-use tracing::debug;
 
 use super::{
     state_node::{EffectStateNode, EffectStateNodeState},
     types::EffectFlowDag,
 };
 use crate::{
-    protocol::NodeId,
-    shared::{
-        build_navigation_regions, calculate_dag_layout, render_dag_edges_styled, ClickRegion,
-        DagLayout, EdgeStyle, LayoutConfig, NavigationRegion, NodePosition, Selection,
-        VirtualCanvas,
+    graph::{
+        calculate_layout, center_on, clip_to_viewport, render_edges, render_scrollbars,
+        scroll_target, DagLayout, LayoutConfig,
     },
+    protocol::NodeId,
+    shared::{ClickRegion, LayoutSize, NavigationRegion, Selection},
 };
 
-/// State for the effect graph pane.
 #[derive(Default)]
 pub struct GraphPaneState {
     scroll_x: i32,
@@ -55,7 +51,6 @@ impl GraphPaneState {
     }
 }
 
-/// Render the main effect graph with nodes and edges.
 pub fn render_graph_pane(
     dag: &EffectFlowDag,
     config: LayoutConfig,
@@ -74,6 +69,9 @@ pub fn render_graph_pane(
         return;
     }
 
+    // Convert to petgraph structure
+    let graph = dag.to_graph();
+
     let layout_config = LayoutConfig {
         top_down: config.top_down,
         stretch_children: state.stretch_children,
@@ -81,65 +79,44 @@ pub fn render_graph_pane(
         v_gap: config.v_gap,
     };
 
-    // Log DAG structure for debugging
-    debug!("=== DAG structure for graph pane ===");
-    debug!("root_node_id: {:?}", dag.root_node_id);
-    for node in &dag.nodes {
-        debug!(
-            "  node {}: {} children: {:?}, edges: {:?}",
-            node.id,
-            node.edges.len(),
-            node.edges.iter().map(|e| e.target).collect::<Vec<_>>(),
-            node.edges
-                .iter()
-                .map(|e| (e.target, e.kind.as_deref()))
-                .collect::<Vec<_>>()
-        );
-    }
-    debug!("=== end DAG structure ===");
-
-    state.layout = calculate_dag_layout(dag, layout_config);
+    // Calculate layout using petgraph
+    state.layout = calculate_layout(&graph, layout_config, |node| node.layout_size());
     if state.layout.nodes.is_empty() {
         return;
     }
 
-    state.navigation_regions = build_navigation_regions(dag, &state.layout);
+    // Calculate scroll position
+    let selected_idx = selection.and_then(|sel| match sel {
+        Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. } => graph.index_of(node_id),
+        _ => None,
+    });
 
-    let canvas = create_canvas(state, dag, selection, area);
-    state.scroll_x = canvas.scroll_x;
-    state.scroll_y = canvas.scroll_y;
+    let (scroll_x, scroll_y) = if state.manual_scroll {
+        (state.scroll_x, state.scroll_y)
+    } else {
+        scroll_target(&state.layout, selected_idx, graph.current, graph.root)
+            .map(|t| center_on(t, state.layout.content_width, state.layout.content_height, area))
+            .unwrap_or((0, 0))
+    };
+    state.scroll_x = scroll_x;
+    state.scroll_y = scroll_y;
 
-    // First pass: render edges between nodes
-    render_dag_edges_styled(
-        dag,
-        &state.layout,
-        &canvas,
-        area,
-        buf,
-        config.top_down,
-        |node, idx| {
-            let edge = &node.edges[idx];
-            let edge_kind = edge.effect_edge_kind();
-            EdgeStyle {
-                style: Style::new().fg(edge_kind.color()),
-                label: edge_kind.label(),
-            }
-        },
-    );
+    // Render edges
+    render_edges(&graph, &state.layout, scroll_x, scroll_y, config.top_down, area, buf);
 
-    // Second pass: render nodes on top of edges
+    // Render nodes
     let click_regions: Vec<ClickRegion> = state
         .layout
         .nodes
         .iter()
         .filter_map(|pos| {
-            let render_area = canvas.clip_to_viewport(pos.x, pos.y, pos.width, pos.height, area)?;
-            let node = dag.get(pos.node_id)?;
+            let render_area = clip_to_viewport(pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area)?;
+            let node = graph.get(pos.index)?;
             (render_area.width >= 3 && render_area.height >= 3).then_some((render_area, node, pos))
         })
         .flat_map(|(render_area, node, pos)| {
-            let is_current = dag.is_current(pos.node_id);
-            let is_selected = matches!(selection, Some(Selection::Goal { node_id, .. }) if node_id == pos.node_id);
+            let is_current = graph.is_current(pos.index);
+            let is_selected = matches!(selection, Some(Selection::Goal { node_id, .. }) if node_id == node.id);
             let mut node_state = EffectStateNodeState::default();
             EffectStateNode::new(node, is_current, is_selected)
                 .render(render_area, buf, &mut node_state);
@@ -149,72 +126,5 @@ pub fn render_graph_pane(
 
     state.click_regions = click_regions;
 
-    render_scrollbars(buf, area, &canvas);
-}
-
-fn create_canvas(
-    state: &GraphPaneState,
-    dag: &EffectFlowDag,
-    selection: Option<Selection>,
-    area: Rect,
-) -> VirtualCanvas {
-    let canvas = VirtualCanvas::new(state.layout.content_width, state.layout.content_height);
-
-    if state.manual_scroll {
-        canvas.with_scroll(state.scroll_x, state.scroll_y, area)
-    } else {
-        find_scroll_target(&state.layout, dag, selection).map_or(canvas, |t| {
-            canvas.centered_on(t.x, t.y, t.width, t.height, area)
-        })
-    }
-}
-
-fn find_scroll_target<'a>(
-    layout: &'a DagLayout,
-    dag: &EffectFlowDag,
-    selection: Option<Selection>,
-) -> Option<&'a NodePosition> {
-    let selected_node_id = selection.and_then(|sel| match sel {
-        Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. } => Some(node_id),
-        _ => None,
-    });
-
-    selected_node_id
-        .and_then(|id| layout.find_node(id))
-        .or_else(|| dag.current_node_id.and_then(|id| layout.find_node(id)))
-        .or_else(|| dag.root_node_id.and_then(|id| layout.find_node(id)))
-}
-
-fn render_scrollbars(buf: &mut Buffer, area: Rect, canvas: &VirtualCanvas) {
-    if canvas.needs_vertical_scroll(area) && area.height > 2 {
-        let sb_area = Rect::new(
-            area.x + area.width.saturating_sub(1),
-            area.y,
-            1,
-            area.height,
-        );
-        let mut sb_state = ScrollbarState::new(canvas.content_height.max(0) as usize)
-            .position(canvas.scroll_y.max(0) as usize)
-            .viewport_content_length(area.height as usize);
-        Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("▲"))
-            .end_symbol(Some("▼"))
-            .render(sb_area, buf, &mut sb_state);
-    }
-
-    if canvas.needs_horizontal_scroll(area) && area.width > 2 {
-        let sb_area = Rect::new(
-            area.x,
-            area.y + area.height.saturating_sub(1),
-            area.width.saturating_sub(1),
-            1,
-        );
-        let mut sb_state = ScrollbarState::new(canvas.content_width.max(0) as usize)
-            .position(canvas.scroll_x.max(0) as usize)
-            .viewport_content_length(area.width as usize);
-        Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
-            .begin_symbol(Some("◀"))
-            .end_symbol(Some("▶"))
-            .render(sb_area, buf, &mut sb_state);
-    }
+    render_scrollbars(buf, area, state.layout.content_width, state.layout.content_height, scroll_x, scroll_y);
 }

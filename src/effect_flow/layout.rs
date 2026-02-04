@@ -32,8 +32,9 @@ use super::{
 };
 use crate::{
     data_flow::given_pane::{BindingGivenPane, BindingGivenPaneState},
+    graph::LayoutConfig,
     protocol::NodeId,
-    shared::{theme::Theme, ClickRegion, LayoutConfig, NavigationRegion, Selection},
+    shared::{theme::Theme, ClickRegion, NavigationRegion, Selection},
 };
 
 /// State for the result pane.
