@@ -73,6 +73,8 @@ pub struct App {
     pending_port_switch: Option<u16>,
     /// Whether a port scan is requested.
     pub scan_requested: bool,
+    /// Previously known worker ports (for detecting new workers).
+    known_worker_ports: Vec<u16>,
 }
 
 impl App {
@@ -94,6 +96,7 @@ impl App {
             connected_file_uri: None,
             pending_port_switch: None,
             scan_requested: true, // Trigger initial scan on startup
+            known_worker_ports: Vec::new(),
         }
     }
 
@@ -105,7 +108,8 @@ impl App {
     /// Clear state when switching to a new worker.
     /// This ensures old data doesn't persist when connecting to a different
     /// file.
-    pub fn clear_for_worker_switch(&mut self) {
+    pub fn clear_for_worker_switch(&mut self, new_port: u16) {
+        self.port = new_port;
         self.cursor = None;
         self.definition = None;
         self.error = None;
@@ -115,13 +119,21 @@ impl App {
     }
 
     /// Set discovered workers in the selector.
-    /// Auto-shows the file selector when multiple workers are found.
+    /// Auto-switches to newly appeared workers.
     pub fn set_discovered_workers(&mut self, workers: Vec<WorkerInfo>) {
-        let should_auto_show = workers.len() > 1;
+        let new_worker_port = workers
+            .iter()
+            .find(|w| !self.known_worker_ports.contains(&w.port))
+            .map(|w| w.port);
+
+        self.known_worker_ports = workers.iter().map(|w| w.port).collect();
         self.worker_selector.set_workers(workers);
         self.scan_requested = false;
-        if should_auto_show {
-            self.worker_selector.show();
+
+        if let Some(port) = new_worker_port {
+            if port != self.port {
+                self.pending_port_switch = Some(port);
+            }
         }
     }
 
@@ -130,9 +142,9 @@ impl App {
         self.worker_selector.port_range
     }
 
-    /// Check if the file selector is visible and ready for a periodic scan.
+    /// Check if ready for a periodic scan (always scan to detect new workers).
     pub const fn needs_periodic_scan(&self) -> bool {
-        self.worker_selector.visible && !self.worker_selector.scanning
+        !self.worker_selector.scanning
     }
 
     /// Get position where current goals were fetched.
@@ -196,8 +208,6 @@ impl App {
                     uri,
                 });
                 self.connected = true;
-                // Don't clear errors here - they should persist until a new DAG
-                // arrives
             }
             ServerToClientMessage::Dag { uri, position, dag } => {
                 tracing::debug!(
