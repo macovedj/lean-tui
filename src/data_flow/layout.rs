@@ -18,8 +18,8 @@ use crate::{
     },
     protocol::{AnnotatedTextTree, NodeId},
     shared::{
-        build_navigation_regions, theme::Theme, truncate_str, ClickRegion, LayoutSize,
-        NavigationRegion, Selection,
+        build_navigation_regions, theme::Theme, ClickRegion, LayoutSize, NavigationRegion,
+        Selection,
     },
 };
 
@@ -326,7 +326,7 @@ fn render_theorem_pane(
             Modifier::empty()
         });
 
-    Paragraph::new(format!("⊢ {}", truncate_str(&type_text, 50)))
+    Paragraph::new(format!("⊢ {type_text}"))
         .style(style)
         .render(inner, buf);
 

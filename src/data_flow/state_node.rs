@@ -5,14 +5,14 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
+    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
 };
 
-use super::{
-    given_pane::binding_style_colors,
-    types::{DataFlowKind, DataFlowNode},
+use super::types::{DataFlowKind, DataFlowNode, SimpleBinding};
+use crate::{
+    protocol::BindingKind,
+    shared::{theme::Theme, ClickRegion, Selection},
 };
-use crate::shared::{theme::Theme, truncate_str, ClickRegion, Selection};
 
 /// State for a single functional state node widget.
 #[derive(Default)]
@@ -63,7 +63,11 @@ impl<'a> FunctionalStateNode<'a> {
     fn title(&self) -> String {
         let kind = self.node_kind();
         let icon = kind.icon();
-        let expr_text = self.node.content.to_plain_text();
+        // Use branch label if available, otherwise use expression content
+        let expr_text = self
+            .node
+            .branch_label()
+            .unwrap_or_else(|| self.node.content.to_plain_text());
         match self.node.edges.len() {
             n if n > 1 => format!(" {icon} {expr_text} [{n}→] "),
             _ => format!(" {icon} {expr_text} "),
@@ -85,39 +89,26 @@ impl<'a> FunctionalStateNode<'a> {
     }
 
     fn bindings_line(&self) -> Option<Line<'static>> {
-        let new_binding_indices = self.node.new_binding_indices();
-        if new_binding_indices.is_empty() {
+        let bindings = self.node.bindings_after();
+        if bindings.is_empty() {
             return None;
         }
 
-        let bindings_after = self.node.bindings_after();
-
-        let spans: Vec<Span> = new_binding_indices
+        let spans: Vec<Span> = bindings
             .iter()
             .enumerate()
-            .filter_map(|(i, &idx)| {
-                let b = bindings_after.get(idx as usize)?;
-                let (fg, bg) = binding_style_colors(b.binding_kind);
-                let style = Style::new().fg(fg).bg(bg).add_modifier(
-                    if self.is_binding_selected(idx as usize) {
-                        Modifier::UNDERLINED
-                    } else {
-                        Modifier::empty()
-                    },
-                );
+            .flat_map(|(idx, b)| {
+                let is_new = self.node.is_new_binding(idx);
+                let is_selected = self.is_binding_selected(idx);
+                let style = binding_style(b, is_new, is_selected);
 
-                let text = format!(
-                    " {}: {} ",
-                    b.name,
-                    truncate_str(&b.type_.to_plain_text(), 20)
-                );
-                Some(if i > 0 {
+                let text = format!(" {}: {} ", b.name, b.type_str);
+                if idx > 0 {
                     vec![Span::raw(" "), Span::styled(text, style)]
                 } else {
                     vec![Span::styled(text, style)]
-                })
+                }
             })
-            .flatten()
             .collect();
 
         (!spans.is_empty()).then(|| Line::from(spans))
@@ -130,9 +121,9 @@ impl<'a> FunctionalStateNode<'a> {
             Modifier::empty()
         };
 
-        match (self.node.expected_type(), self.node.is_leaf()) {
+        match (self.node.expected_type(), self.node.is_complete()) {
             (Some(ty), _) => Line::from(Span::styled(
-                format!("⊢ {}", truncate_str(&ty.to_plain_text(), 35)),
+                format!("⊢ {ty}"),
                 Style::new().fg(Theme::GOAL_FG).add_modifier(underline),
             )),
             (None, true) => Line::from(Span::styled(
@@ -149,8 +140,8 @@ impl<'a> FunctionalStateNode<'a> {
     }
 
     fn click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
-        let new_binding_indices = self.node.new_binding_indices();
-        let has_bindings = !new_binding_indices.is_empty();
+        let bindings = self.node.bindings_after();
+        let has_bindings = !bindings.is_empty();
         let offset = u16::from(has_bindings);
         let (bindings_y, type_y) = if self.top_down {
             (inner.y, inner.y + offset)
@@ -166,11 +157,11 @@ impl<'a> FunctionalStateNode<'a> {
             },
         };
 
-        let binding_regions = new_binding_indices.iter().map(|&idx| ClickRegion {
+        let binding_regions = (0..bindings.len()).map(|idx| ClickRegion {
             area: Rect::new(inner.x, bindings_y, inner.width, 1),
             selection: Selection::Hyp {
                 node_id: self.node.id,
-                hyp_idx: idx as usize,
+                hyp_idx: idx,
             },
         });
 
@@ -211,14 +202,6 @@ impl StatefulWidget for FunctionalStateNode<'_> {
             .border_style(border_style)
             .title(Span::styled(self.title(), title_style));
 
-        // Only show continuation arrow for non-leaf nodes
-        let block = if self.node.is_leaf() {
-            block
-        } else {
-            let arrow = if self.top_down { "▼" } else { "▲" };
-            block.title_bottom(Span::styled(format!(" {arrow} "), border_style))
-        };
-
         let inner = block.inner(area);
         block.render(area, buf);
 
@@ -235,10 +218,44 @@ impl StatefulWidget for FunctionalStateNode<'_> {
             (_, None) => vec![type_line],
         };
 
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: true })
-            .render(inner, buf);
+        // Render without wrapping - content will be clipped if too wide
+        Paragraph::new(lines).render(inner, buf);
 
         state.click_regions = self.click_regions(inner);
+    }
+}
+
+/// Get style for a binding based on its kind, whether it's new, and whether
+/// it's selected.
+fn binding_style(binding: &SimpleBinding, is_new: bool, is_selected: bool) -> Style {
+    let (fg, bg) = binding_colors(binding.kind(), is_new);
+    let mut style = Style::new().fg(fg).bg(bg);
+    if is_selected {
+        style = style.add_modifier(Modifier::UNDERLINED);
+    }
+    if is_new {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    style
+}
+
+/// Get colors for a binding based on kind and whether it's newly introduced.
+fn binding_colors(kind: BindingKind, is_new: bool) -> (Color, Color) {
+    if is_new {
+        // New bindings get brighter/highlighted colors
+        match kind {
+            BindingKind::LetBind => (Theme::PROOF_HYP_FG, Theme::PROOF_HYP_BG),
+            BindingKind::FunParam => (Theme::DATA_HYP_FG, Theme::DATA_HYP_BG),
+            BindingKind::MatchVar => (Color::Rgb(200, 170, 220), Color::Rgb(50, 45, 60)),
+            BindingKind::ForVar => (Color::Rgb(170, 200, 220), Color::Rgb(45, 50, 60)),
+        }
+    } else {
+        // Existing bindings get dimmer colors
+        match kind {
+            BindingKind::LetBind => (Color::Rgb(100, 90, 80), Color::Reset),
+            BindingKind::FunParam => (Color::Rgb(80, 100, 90), Color::Reset),
+            BindingKind::MatchVar => (Color::Rgb(100, 90, 110), Color::Reset),
+            BindingKind::ForVar => (Color::Rgb(90, 100, 110), Color::Reset),
+        }
     }
 }

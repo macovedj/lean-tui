@@ -188,7 +188,8 @@ async fn handle_events(
     scan_interval: &mut tokio::time::Interval,
 ) {
     // Wait for user input, scan interval, or a short timeout for message polling.
-    // The short sleep ensures we don't busy-loop but still check for messages frequently.
+    // The short sleep ensures we don't busy-loop but still check for messages
+    // frequently.
     tokio::select! {
         Some(Ok(event)) = event_stream.next() => {
             app.handle_event(&event);

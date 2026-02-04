@@ -280,7 +280,8 @@ impl ConnectionPool {
             if let Some(uri) = &worker.file_uri {
                 self.port_to_uri.insert(worker.port, uri.clone());
             }
-            // Activate if no active port, or if this was the last active port (reconnection)
+            // Activate if no active port, or if this was the last active port
+            // (reconnection)
             let is_reconnection = self.last_active_port == Some(worker.port);
             let should_activate = self.active_port.is_none() || is_reconnection;
             if should_activate {
