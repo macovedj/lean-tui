@@ -113,11 +113,10 @@ impl EffectFlowMode {
             }
         }
 
-        // Effect nodes - only main flow nodes are selectable
-        let main_flow = dag.extract_main_flow();
-        for node_id in main_flow.node_ids() {
+        // All effect nodes are selectable
+        for node in dag.dfs_iter() {
             items.push(Selection::Goal {
-                node_id: *node_id,
+                node_id: node.id,
                 goal_idx: 0,
             });
         }

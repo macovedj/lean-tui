@@ -1,6 +1,5 @@
 mod graph_pane;
 mod layout;
-mod main_flow_pane;
 mod mode;
 mod state_node;
 pub mod types;

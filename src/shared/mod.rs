@@ -1,6 +1,7 @@
 pub mod canvas;
 pub mod dag_layout;
 pub mod diff_text;
+pub mod edge_render;
 pub mod error_banner;
 pub mod goal_section;
 pub mod help_menu;
@@ -21,6 +22,7 @@ pub use canvas::VirtualCanvas;
 pub use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;
 pub use dag_layout::{calculate_dag_layout, DagLayout, LayoutConfig, LayoutSize, NodePosition};
+pub use edge_render::{render_dag_edges, render_dag_edges_styled, EdgeStyle};
 pub use interactive::{InteractiveComponent, InteractiveStatefulWidget};
 pub use navigation::{
     build_navigation_regions, find_nearest_in_direction, Direction, NavigationRegion,

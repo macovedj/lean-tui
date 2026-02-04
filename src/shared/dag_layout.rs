@@ -15,10 +15,25 @@ pub struct NodePosition {
     pub height: u16,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct LayoutConfig {
     pub top_down: bool,
     pub stretch_children: bool,
+    /// Horizontal gap between sibling nodes
+    pub h_gap: i32,
+    /// Vertical gap between parent and children
+    pub v_gap: i32,
+}
+
+impl Default for LayoutConfig {
+    fn default() -> Self {
+        Self {
+            top_down: false,
+            stretch_children: false,
+            h_gap: 2,
+            v_gap: 2,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -68,17 +83,26 @@ where
             let result = if children.is_empty() {
                 (node_w, node_h)
             } else if children.len() == 1 {
-                // Single child: vertical layout - keep max width, sum heights
+                // Single child: vertical layout - keep max width, sum heights + v_gap
                 let (child_w, child_h) = self.subtree_size(children[0]);
-                (node_w.max(child_w), node_h + child_h)
+                (node_w.max(child_w), node_h + self.config.v_gap + child_h)
             } else {
-                // Multiple children: horizontal layout - sum widths, keep max height
-                let (total_w, max_child_h) = children
+                // Multiple children: horizontal layout - sum widths + h_gaps, keep max height
+                let child_sizes: Vec<_> =
+                    children.iter().map(|&cid| self.subtree_size(cid)).collect();
+                let total_w: i32 = child_sizes.iter().map(|(w, _)| w).sum();
+                let max_child_h = child_sizes
                     .iter()
-                    .map(|&cid| self.subtree_size(cid))
-                    .fold((0, 0), |(tw, mh), (cw, ch)| (tw + cw, mh.max(ch)));
+                    .map(|(_, h)| h)
+                    .max()
+                    .copied()
+                    .unwrap_or(0);
+                let gaps = self.config.h_gap * (children.len() as i32 - 1).max(0);
 
-                (total_w.max(node_w), node_h + max_child_h)
+                (
+                    (total_w + gaps).max(node_w),
+                    node_h + self.config.v_gap + max_child_h,
+                )
             };
             trace!(
                 "subtree_size: node={}, children={}, size=({}, {})",
@@ -146,12 +170,13 @@ where
             return Vec::new();
         }
 
+        // Add vertical gap between parent and children
         let child_y = if self.config.top_down {
-            parent_rect.y + box_h
+            parent_rect.y + box_h + self.config.v_gap
         } else {
-            parent_rect.y
+            parent_rect.y - self.config.v_gap
         };
-        let child_h = parent_rect.h - box_h;
+        let child_h = parent_rect.h - box_h - self.config.v_gap;
 
         debug!(
             "position_children: parent={}, children={:?}, parent_rect=({},{},{},{}), child_y={}",
@@ -199,7 +224,8 @@ where
             )
         } else {
             let total_children_w: i32 = children_with_sizes.iter().map(|(_, (w, _))| w).sum();
-            let start_x = parent_rect.x + (subtree_w - total_children_w) / 2;
+            let gaps = self.config.h_gap * (children.len() as i32 - 1).max(0);
+            let start_x = parent_rect.x + (subtree_w - total_children_w - gaps) / 2;
             self.position_centered(&children_with_sizes, start_x, child_y, child_h)
         }
     }
@@ -242,6 +268,7 @@ where
         y: i32,
         h: i32,
     ) -> Vec<NodePosition> {
+        let h_gap = self.config.h_gap;
         children
             .iter()
             .scan(x, |cx, &(cid, (cw, ch))| {
@@ -251,7 +278,7 @@ where
                     w: cw,
                     h: h.min(ch),
                 };
-                *cx += cw;
+                *cx += cw + h_gap;
                 Some(self.position_subtree(cid, rect))
             })
             .flatten()

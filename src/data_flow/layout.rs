@@ -17,8 +17,9 @@ use super::{
 use crate::{
     protocol::{AnnotatedTextTree, NodeId},
     shared::{
-        build_navigation_regions, calculate_dag_layout, theme::Theme, truncate_str, ClickRegion,
-        DagLayout, LayoutConfig, NavigationRegion, NodePosition, Selection, VirtualCanvas,
+        build_navigation_regions, calculate_dag_layout, render_dag_edges, theme::Theme,
+        truncate_str, ClickRegion, DagLayout, LayoutConfig, NavigationRegion, NodePosition,
+        Selection, VirtualCanvas,
     },
 };
 
@@ -123,6 +124,8 @@ impl<'a> FunctionalTableauLayout<'a> {
             config: LayoutConfig {
                 top_down,
                 stretch_children,
+                h_gap: 1,
+                v_gap: 1,
             },
             selection,
         }
@@ -208,6 +211,7 @@ fn render_proof_pane(
     let layout_config = LayoutConfig {
         top_down: config.top_down,
         stretch_children: state.stretch_children,
+        ..Default::default()
     };
     state.layout = calculate_dag_layout(dag, layout_config);
     if state.layout.nodes.is_empty() {
@@ -219,6 +223,18 @@ fn render_proof_pane(
     let canvas = create_canvas(state, dag, selection, area);
     state.scroll_x = canvas.scroll_x;
     state.scroll_y = canvas.scroll_y;
+
+    // Render edges first (behind nodes)
+    let edge_style = Style::new().fg(Theme::BORDER);
+    render_dag_edges(
+        dag,
+        &state.layout,
+        &canvas,
+        area,
+        buf,
+        config.top_down,
+        edge_style,
+    );
 
     let click_regions: Vec<ClickRegion> = state
         .layout

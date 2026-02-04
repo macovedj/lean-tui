@@ -13,8 +13,9 @@ use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{
-        build_navigation_regions, calculate_dag_layout, ClickRegion, DagLayout, LayoutConfig,
-        NavigationRegion, NodePosition, Selection, VirtualCanvas,
+        build_navigation_regions, calculate_dag_layout, render_dag_edges, theme::Theme,
+        ClickRegion, DagLayout, LayoutConfig, NavigationRegion, NodePosition, Selection,
+        VirtualCanvas,
     },
 };
 
@@ -93,6 +94,8 @@ impl StatefulWidget for ProofPane<'_> {
         let config = LayoutConfig {
             top_down: self.top_down,
             stretch_children: false, // Semantic tableau doesn't support stretch mode yet
+            h_gap: 1,
+            v_gap: 1,
         };
         state.layout = calculate_dag_layout(self.dag, config);
         state.content_width = state.layout.content_width;
@@ -107,6 +110,18 @@ impl StatefulWidget for ProofPane<'_> {
         let canvas = create_canvas(state, self.dag, self.selection, area);
         state.scroll_x = canvas.scroll_x;
         state.scroll_y = canvas.scroll_y;
+
+        // Render edges first (behind nodes)
+        let edge_style = Style::new().fg(Theme::BORDER);
+        render_dag_edges(
+            self.dag,
+            &state.layout,
+            &canvas,
+            area,
+            buf,
+            self.top_down,
+            edge_style,
+        );
 
         for pos in &state.layout.nodes {
             let Some(render_area) =
@@ -128,13 +143,7 @@ impl StatefulWidget for ProofPane<'_> {
                 None
             };
 
-            let node_widget = StateNode::new(
-                node,
-                is_current,
-                self.selection,
-                self.top_down,
-                override_state,
-            );
+            let node_widget = StateNode::new(node, is_current, self.selection, override_state);
             let mut node_state = StateNodeState::default();
             node_widget.render(render_area, buf, &mut node_state);
             state.click_regions.extend(node_state.click_regions);

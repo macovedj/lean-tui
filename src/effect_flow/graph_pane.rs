@@ -6,7 +6,6 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget},
 };
-
 use tracing::debug;
 
 use super::{
@@ -16,84 +15,11 @@ use super::{
 use crate::{
     protocol::NodeId,
     shared::{
-        build_navigation_regions, calculate_dag_layout, ClickRegion, DagLayout, LayoutConfig,
-        NavigationRegion, NodePosition, Selection, VirtualCanvas,
+        build_navigation_regions, calculate_dag_layout, render_dag_edges_styled, ClickRegion,
+        DagLayout, EdgeStyle, LayoutConfig, NavigationRegion, NodePosition, Selection,
+        VirtualCanvas,
     },
 };
-
-struct DrawContext<'a> {
-    buf: &'a mut Buffer,
-    canvas: &'a VirtualCanvas,
-    viewport: Rect,
-}
-
-impl DrawContext<'_> {
-    fn draw_char(&mut self, vx: i32, vy: i32, style: Style, ch: char) {
-        let screen_x = vx - self.canvas.scroll_x + i32::from(self.viewport.x);
-        let screen_y = vy - self.canvas.scroll_y + i32::from(self.viewport.y);
-
-        if screen_x < i32::from(self.viewport.x)
-            || screen_x >= i32::from(self.viewport.x + self.viewport.width)
-            || screen_y < i32::from(self.viewport.y)
-            || screen_y >= i32::from(self.viewport.y + self.viewport.height)
-        {
-            return;
-        }
-
-        #[allow(clippy::cast_sign_loss)]
-        let cell = self.buf.cell_mut((screen_x as u16, screen_y as u16));
-        if let Some(cell) = cell {
-            cell.set_char(ch).set_style(style);
-        }
-    }
-
-    fn draw_vertical_line(&mut self, x: i32, y1: i32, y2: i32, style: Style, ch: char) {
-        let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
-        for y in start..=end {
-            self.draw_char(x, y, style, ch);
-        }
-    }
-
-    fn draw_horizontal_line(&mut self, x1: i32, x2: i32, y: i32, style: Style, ch: char) {
-        for x in x1..=x2 {
-            self.draw_char(x, y, style, ch);
-        }
-    }
-
-    fn draw_edge(
-        &mut self,
-        from_x: i32,
-        from_y: i32,
-        to_x: i32,
-        to_y: i32,
-        style: Style,
-        top_down: bool,
-    ) {
-        let mid_y = i32::midpoint(from_y, to_y);
-
-        self.draw_vertical_line(from_x, from_y, mid_y, style, '│');
-
-        if from_x != to_x {
-            let (start_x, end_x) = if from_x < to_x {
-                (from_x, to_x)
-            } else {
-                (to_x, from_x)
-            };
-            self.draw_horizontal_line(start_x, end_x, mid_y, style, '─');
-
-            let left_corner = if from_x < to_x { '└' } else { '┘' };
-            let right_corner = if from_x < to_x { '┐' } else { '┌' };
-            self.draw_char(from_x, mid_y, style, left_corner);
-            self.draw_char(to_x, mid_y, style, right_corner);
-        }
-
-        self.draw_vertical_line(to_x, mid_y, to_y, style, '│');
-
-        let arrow = if top_down { '▼' } else { '▲' };
-        let arrow_y = if top_down { to_y - 1 } else { to_y + 1 };
-        self.draw_char(to_x, arrow_y, style, arrow);
-    }
-}
 
 /// State for the effect graph pane.
 #[derive(Default)]
@@ -151,6 +77,8 @@ pub fn render_graph_pane(
     let layout_config = LayoutConfig {
         top_down: config.top_down,
         stretch_children: state.stretch_children,
+        h_gap: config.h_gap,
+        v_gap: config.v_gap,
     };
 
     // Log DAG structure for debugging
@@ -162,7 +90,10 @@ pub fn render_graph_pane(
             node.id,
             node.edges.len(),
             node.edges.iter().map(|e| e.target).collect::<Vec<_>>(),
-            node.edges.iter().map(|e| (e.target, e.kind.as_deref())).collect::<Vec<_>>()
+            node.edges
+                .iter()
+                .map(|e| (e.target, e.kind.as_deref()))
+                .collect::<Vec<_>>()
         );
     }
     debug!("=== end DAG structure ===");
@@ -179,7 +110,22 @@ pub fn render_graph_pane(
     state.scroll_y = canvas.scroll_y;
 
     // First pass: render edges between nodes
-    render_edges(dag, &state.layout, &canvas, area, buf, config.top_down);
+    render_dag_edges_styled(
+        dag,
+        &state.layout,
+        &canvas,
+        area,
+        buf,
+        config.top_down,
+        |node, idx| {
+            let edge = &node.edges[idx];
+            let edge_kind = edge.effect_edge_kind();
+            EdgeStyle {
+                style: Style::new().fg(edge_kind.color()),
+                label: edge_kind.label(),
+            }
+        },
+    );
 
     // Second pass: render nodes on top of edges
     let click_regions: Vec<ClickRegion> = state
@@ -195,7 +141,7 @@ pub fn render_graph_pane(
             let is_current = dag.is_current(pos.node_id);
             let is_selected = matches!(selection, Some(Selection::Goal { node_id, .. }) if node_id == pos.node_id);
             let mut node_state = EffectStateNodeState::default();
-            EffectStateNode::new(node, is_current, is_selected, config.top_down)
+            EffectStateNode::new(node, is_current, is_selected)
                 .render(render_area, buf, &mut node_state);
             node_state.click_regions
         })
@@ -204,52 +150,6 @@ pub fn render_graph_pane(
     state.click_regions = click_regions;
 
     render_scrollbars(buf, area, &canvas);
-}
-
-fn render_edges(
-    dag: &EffectFlowDag,
-    layout: &DagLayout,
-    canvas: &VirtualCanvas,
-    viewport: Rect,
-    buf: &mut Buffer,
-    top_down: bool,
-) {
-    let mut ctx = DrawContext {
-        buf,
-        canvas,
-        viewport,
-    };
-
-    for pos in &layout.nodes {
-        let Some(node) = dag.get(pos.node_id) else {
-            continue;
-        };
-
-        let parent_x = pos.x + i32::from(pos.width) / 2;
-        let parent_y = if top_down {
-            pos.y + i32::from(pos.height)
-        } else {
-            pos.y
-        };
-
-        for edge in &node.edges {
-            let Some(child_pos) = layout.find_node(edge.target) else {
-                continue;
-            };
-
-            let child_x = child_pos.x + i32::from(child_pos.width) / 2;
-            let child_y = if top_down {
-                child_pos.y
-            } else {
-                child_pos.y + i32::from(child_pos.height)
-            };
-
-            let edge_kind = edge.effect_edge_kind();
-            let edge_style = Style::new().fg(edge_kind.color());
-
-            ctx.draw_edge(parent_x, parent_y, child_x, child_y, edge_style, top_down);
-        }
-    }
 }
 
 fn create_canvas(
