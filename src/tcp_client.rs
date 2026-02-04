@@ -1,4 +1,4 @@
-//! TCP connection to lean-dag server.
+//! TCP client for connecting to lean-dag servers.
 
 use std::{collections::HashMap, io, time::Duration};
 
@@ -14,8 +14,38 @@ use tokio::{
 use crate::{
     error::{Error, Result},
     protocol::{ClientToServerCommand, ServerToClientMessage},
-    worker_selector::WorkerInfo,
 };
+
+/// Information about a discovered lean-dag worker.
+#[derive(Debug, Clone)]
+pub struct WorkerInfo {
+    /// TCP port the worker is listening on.
+    pub port: u16,
+    /// File URI this worker is handling.
+    pub file_uri: Option<String>,
+    /// Server mode (Library or Standalone).
+    pub server_mode: Option<String>,
+}
+
+impl WorkerInfo {
+    /// Extract just the filename from the file URI.
+    pub fn filename(&self) -> Option<&str> {
+        self.file_uri
+            .as_ref()
+            .and_then(|uri| uri.rsplit('/').next())
+    }
+
+    /// Display label for the worker.
+    pub fn display_label(&self) -> String {
+        self.file_uri.as_ref().map_or_else(
+            || format!("Worker on port {}", self.port),
+            |uri| {
+                let filename = self.filename().unwrap_or(uri);
+                format!("{filename} (port {})", self.port)
+            },
+        )
+    }
+}
 
 /// TCP connection state machine.
 pub enum Connection {
@@ -179,6 +209,10 @@ pub struct ConnectionPool {
     connections: HashMap<u16, Connection>,
     port_to_uri: HashMap<u16, String>,
     active_port: Option<u16>,
+    /// Last active port before disconnection (for reconnection preference).
+    last_active_port: Option<u16>,
+    /// Port that just reconnected (needs app state refresh).
+    reconnected_port: Option<u16>,
 }
 
 impl ConnectionPool {
@@ -188,6 +222,8 @@ impl ConnectionPool {
             connections: HashMap::new(),
             port_to_uri: HashMap::new(),
             active_port: None,
+            last_active_port: None,
+            reconnected_port: None,
         }
     }
 
@@ -203,9 +239,10 @@ impl ConnectionPool {
         }
     }
 
-    /// Check if connected to at least one worker.
-    pub fn has_any_connection(&self) -> bool {
-        self.connections.values().any(Connection::is_connected)
+    /// Check if we recently reconnected to a previously active worker.
+    /// Returns the port if reconnection happened, and clears the flag.
+    pub fn take_reconnected_port(&mut self) -> Option<u16> {
+        self.reconnected_port.take()
     }
 
     /// Check if connected to a specific port.
@@ -238,13 +275,20 @@ impl ConnectionPool {
 
         let conn = Connection::connect(worker.port).await;
         if conn.is_connected() {
+            tracing::info!("Connected to worker on port {}", worker.port);
             self.connections.insert(worker.port, conn);
             if let Some(uri) = &worker.file_uri {
                 self.port_to_uri.insert(worker.port, uri.clone());
             }
-            // Auto-activate first connection
-            if self.active_port.is_none() {
+            // Activate if no active port, or if this was the last active port (reconnection)
+            let is_reconnection = self.last_active_port == Some(worker.port);
+            let should_activate = self.active_port.is_none() || is_reconnection;
+            if should_activate {
                 self.active_port = Some(worker.port);
+                if is_reconnection {
+                    self.reconnected_port = Some(worker.port);
+                    self.last_active_port = None;
+                }
             }
             // Send Ready command to request current state from server
             if let Some(conn) = self.connections.get_mut(&worker.port) {
@@ -262,14 +306,16 @@ impl ConnectionPool {
 
     /// Disconnect from a specific worker.
     pub fn disconnect(&mut self, port: u16) {
+        tracing::info!("Disconnecting from port {port}");
         if let Some(conn) = self.connections.get_mut(&port) {
             conn.disconnect();
         }
         self.connections.remove(&port);
         self.port_to_uri.remove(&port);
 
-        // If we disconnected the active port, switch to another
+        // If we disconnected the active port, remember it for reconnection
         if self.active_port == Some(port) {
+            self.last_active_port = Some(port);
             self.active_port = self.connected_ports().first().copied();
         }
     }

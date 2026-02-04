@@ -168,7 +168,7 @@ fn render_result_pane(
         .borders(Borders::ALL)
         .border_style(Style::new().fg(Theme::GOAL_FG))
         .title(Span::styled(
-            " Result Type ",
+            " Output ",
             Style::new().fg(Theme::GOAL_FG).add_modifier(Modifier::BOLD),
         ));
 

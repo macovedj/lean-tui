@@ -9,38 +9,10 @@ use ratatui::{
     widgets::{Block, Clear, List, ListItem, ListState, Paragraph, StatefulWidget, Widget},
 };
 
-use crate::shared::{theme::Theme, InteractiveStatefulWidget, KeyEvent};
-
-/// Information about a discovered lean-dag worker.
-#[derive(Debug, Clone)]
-pub struct WorkerInfo {
-    /// TCP port the worker is listening on.
-    pub port: u16,
-    /// File URI this worker is handling.
-    pub file_uri: Option<String>,
-    /// Server mode (Library or Standalone).
-    pub server_mode: Option<String>,
-}
-
-impl WorkerInfo {
-    /// Extract just the filename from the file URI.
-    pub fn filename(&self) -> Option<&str> {
-        self.file_uri
-            .as_ref()
-            .and_then(|uri| uri.rsplit('/').next())
-    }
-
-    /// Display label for the worker.
-    pub fn display_label(&self) -> String {
-        self.file_uri.as_ref().map_or_else(
-            || format!("Worker on port {}", self.port),
-            |uri| {
-                let filename = self.filename().unwrap_or(uri);
-                format!("{filename} (port {})", self.port)
-            },
-        )
-    }
-}
+use crate::{
+    shared::{theme::Theme, InteractiveStatefulWidget, KeyEvent},
+    tcp_client::WorkerInfo,
+};
 
 /// Result of user interaction with the worker selector.
 #[derive(Debug, Clone, PartialEq, Eq)]

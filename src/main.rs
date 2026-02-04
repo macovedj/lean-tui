@@ -2,10 +2,10 @@
 
 mod app;
 mod cli;
-mod connection;
 mod display_mode;
 mod error;
 mod protocol;
+mod tcp_client;
 
 // Display styles
 mod before_after;

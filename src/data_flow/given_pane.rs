@@ -83,7 +83,7 @@ impl StatefulWidget for BindingGivenPane<'_> {
             .borders(Borders::ALL)
             .border_style(Style::new().fg(Theme::DATA_HYP_FG))
             .title(Span::styled(
-                " Given ",
+                " Input ",
                 Style::new()
                     .fg(Theme::DATA_HYP_FG)
                     .add_modifier(Modifier::BOLD),

@@ -47,12 +47,10 @@ impl FunctionalTableauState {
         &self.proof.navigation_regions
     }
 
-    /// Toggle stretch mode for children layout.
     pub fn toggle_stretch(&mut self) {
         self.proof.stretch_children = !self.proof.stretch_children;
     }
 
-    /// Check if stretch mode is enabled.
     pub const fn stretch_enabled(&self) -> bool {
         self.proof.stretch_children
     }
@@ -304,7 +302,7 @@ fn render_theorem_pane(
         .borders(Borders::ALL)
         .border_style(Style::new().fg(Theme::GOAL_FG))
         .title(Span::styled(
-            " Definition ",
+            " Output ",
             Style::new().fg(Theme::GOAL_FG).add_modifier(Modifier::BOLD),
         ));
 
