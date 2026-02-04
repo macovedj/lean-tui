@@ -1,5 +1,3 @@
-//! Worker selector dialog for choosing which lean-dag worker to connect to.
-
 use std::mem;
 
 use crossterm::event::KeyCode;
@@ -11,7 +9,7 @@ use ratatui::{
     widgets::{Block, Clear, List, ListItem, ListState, Paragraph, StatefulWidget, Widget},
 };
 
-use super::{theme::Theme, InteractiveStatefulWidget, KeyEvent};
+use crate::shared::{theme::Theme, InteractiveStatefulWidget, KeyEvent};
 
 /// Information about a discovered lean-dag worker.
 #[derive(Debug, Clone)]

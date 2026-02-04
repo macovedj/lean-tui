@@ -1,29 +1,22 @@
 pub mod diff_text;
 pub mod error_banner;
-pub mod goal_section;
-pub mod help_menu;
-pub mod hyp_layer;
-pub mod hyp_section;
 pub mod interactive;
 pub mod legend;
 pub mod navigation;
 pub mod render_helpers;
 pub mod selection;
-pub mod status_bar;
-pub mod tactic_row;
 pub mod theme;
-pub mod welcome;
-pub mod worker_selector;
 
 pub use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;
-pub use crate::graph::LayoutSize;
 pub use interactive::{InteractiveComponent, InteractiveStatefulWidget};
 pub use navigation::{
     build_navigation_regions, find_nearest_in_direction, Direction, NavigationRegion,
 };
 pub use selection::{ClickRegion, Selection};
 pub use theme::Theme;
+
+pub use crate::graph::LayoutSize;
 
 /// Key or mouse event for interactive components.
 #[derive(Clone)]

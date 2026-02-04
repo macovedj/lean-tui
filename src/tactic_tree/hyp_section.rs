@@ -10,18 +10,12 @@ use ratatui::{
     },
 };
 
-use super::{
-    hyp_layer::{HypLayer, HypLayerRenderContext},
-    theme::Theme,
-    ClickRegion, HypothesisFilters, Selection,
+use super::hyp_layer::{HypLayer, HypLayerRenderContext};
+use crate::{
+    deduction_tree::TacticProofState,
+    protocol::NodeId,
+    shared::{theme::Theme, ClickRegion, HypothesisFilters, Selection},
 };
-use crate::{deduction_tree::TacticProofState, protocol::NodeId};
-
-impl Default for HypLayer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// State for the hypothesis section widget.
 #[derive(Default)]

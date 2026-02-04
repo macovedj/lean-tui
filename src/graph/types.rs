@@ -1,10 +1,11 @@
+use std::collections::HashMap;
+
 use petgraph::{
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
     Direction,
 };
 use ratatui::style::Style;
-use std::collections::HashMap;
 
 pub type NodeId = u64;
 

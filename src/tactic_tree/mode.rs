@@ -15,17 +15,19 @@ use crate::{
     display_mode::Mode,
     protocol::NodeId,
     shared::{
-        goal_section::{GoalSection, GoalSectionState},
-        hyp_section::{HypSection, HypSectionState},
         hypothesis_indices,
         render_helpers::{render_error, render_no_goals},
         selection::SelectionState,
-        tactic_row::divider,
         theme::FocusedPane,
         FilterToggle, HypothesisFilters, InteractiveComponent, InteractiveStatefulWidget,
         KeyMouseEvent, Selection,
     },
-    tactic_tree::proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
+    tactic_tree::{
+        goal_section::{GoalSection, GoalSectionState},
+        hyp_section::{HypSection, HypSectionState},
+        proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
+        tactic_row::divider,
+    },
 };
 
 /// Input for updating the Steps mode.

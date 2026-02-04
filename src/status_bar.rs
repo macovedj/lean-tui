@@ -1,4 +1,4 @@
-//! Status bar with keybindings and filter status.
+use std::iter::once;
 
 use ratatui::{
     buffer::Buffer,
@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Paragraph, StatefulWidget, Widget},
 };
 
-use super::{FilterToggle, HypothesisFilters, InteractiveStatefulWidget};
+use crate::shared::{FilterToggle, HypothesisFilters, InteractiveStatefulWidget};
 
 /// Input for updating status bar state.
 pub struct StatusBarInput {
@@ -89,7 +89,7 @@ impl StatefulWidget for StatusBarWidget {
             .chain(mode_spans)
             .chain(nav_spans)
             .chain(filter_span)
-            .chain(std::iter::once(follow_span))
+            .chain(once(follow_span))
             .collect();
         Paragraph::new(Line::from(spans)).render(area, buf);
     }

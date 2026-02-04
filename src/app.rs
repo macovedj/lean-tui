@@ -18,17 +18,17 @@ use crate::{
     connection::ConnectionPool,
     deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
+    help_menu::{HelpMenu, HelpMenuWidget},
     protocol::{
         ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ServerToClientMessage,
     },
     shared::{
-        help_menu::{HelpMenu, HelpMenuWidget},
         legend::{Legend, LegendWidget},
-        status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
-        welcome::WelcomeScreen,
-        worker_selector::{WorkerInfo, WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
         InteractiveStatefulWidget, KeyMouseEvent, Selection,
     },
+    status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
+    welcome::WelcomeScreen,
+    worker_selector::{WorkerInfo, WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
 };
 
 /// Information about the enclosing definition (theorem, lemma, def, etc.)
@@ -104,21 +104,9 @@ impl App {
         }
     }
 
-    /// Check if follow mode is enabled.
-    #[allow(dead_code)]
-    pub const fn follow_mode(&self) -> bool {
-        self.follow_mode
-    }
-
     /// Toggle follow mode on/off.
     pub fn toggle_follow_mode(&mut self) {
         self.follow_mode = !self.follow_mode;
-    }
-
-    /// Disable follow mode (used when manually selecting a file).
-    #[allow(dead_code)]
-    pub fn disable_follow_mode(&mut self) {
-        self.follow_mode = false;
     }
 
     /// Take a pending port switch request, if any.
@@ -273,12 +261,14 @@ impl App {
             }
             ServerToClientMessage::FileFocused { uri, focused } => {
                 tracing::debug!("FileFocused: uri={}, focused={}", uri, focused);
-                // FileFocused is handled in handle_pool_message for port switching
+                // FileFocused is handled in handle_pool_message for port
+                // switching
             }
         }
     }
 
-    /// Handle a message from the connection pool, potentially switching active port.
+    /// Handle a message from the connection pool, potentially switching active
+    /// port.
     pub fn handle_pool_message(
         &mut self,
         port: u16,

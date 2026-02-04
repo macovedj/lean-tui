@@ -1,5 +1,3 @@
-//! Goals section - the bottom portion of the tactic tree view.
-
 use std::collections::HashSet;
 
 use ratatui::{
@@ -13,10 +11,10 @@ use ratatui::{
     },
 };
 
-use super::{diff_text::AnnotatedTextTreeExt, theme::Theme, ClickRegion, Selection};
 use crate::{
     deduction_tree::{ProofObligation, TacticProofState},
     protocol::NodeId,
+    shared::{diff_text::AnnotatedTextTreeExt, theme::Theme, ClickRegion, Selection},
 };
 
 /// State for the goal section widget.

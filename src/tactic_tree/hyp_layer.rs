@@ -1,5 +1,3 @@
-//! Hypothesis layer - groups hypotheses for the tactic tree view.
-
 use std::collections::HashSet;
 
 use ratatui::{
@@ -8,11 +6,14 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use super::{
-    diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
-    ClickRegion, Selection,
+use crate::{
+    deduction_tree::ProofContextHypothesis,
+    protocol::NodeId,
+    shared::{
+        diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
+        ClickRegion, Selection,
+    },
 };
-use crate::{deduction_tree::ProofContextHypothesis, protocol::NodeId};
 
 /// Context for rendering a hypothesis layer.
 pub struct HypLayerRenderContext<'a> {
@@ -28,6 +29,12 @@ pub struct HypLayer {
     /// Node ID for creating selections (from DAG).
     node_id: Option<NodeId>,
     pub hypotheses: Vec<(usize, ProofContextHypothesis)>, // (hyp_idx, hyp)
+}
+
+impl Default for HypLayer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HypLayer {

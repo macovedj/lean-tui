@@ -95,14 +95,29 @@ pub fn render_graph_pane(
         (state.scroll_x, state.scroll_y)
     } else {
         scroll_target(&state.layout, selected_idx, graph.current, graph.root)
-            .map(|t| center_on(t, state.layout.content_width, state.layout.content_height, area))
+            .map(|t| {
+                center_on(
+                    t,
+                    state.layout.content_width,
+                    state.layout.content_height,
+                    area,
+                )
+            })
             .unwrap_or((0, 0))
     };
     state.scroll_x = scroll_x;
     state.scroll_y = scroll_y;
 
     // Render edges
-    render_edges(&graph, &state.layout, scroll_x, scroll_y, config.top_down, area, buf);
+    render_edges(
+        &graph,
+        &state.layout,
+        scroll_x,
+        scroll_y,
+        config.top_down,
+        area,
+        buf,
+    );
 
     // Render nodes
     let click_regions: Vec<ClickRegion> = state
@@ -110,21 +125,34 @@ pub fn render_graph_pane(
         .nodes
         .iter()
         .filter_map(|pos| {
-            let render_area = clip_to_viewport(pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area)?;
+            let render_area = clip_to_viewport(
+                pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area,
+            )?;
             let node = graph.get(pos.index)?;
             (render_area.width >= 3 && render_area.height >= 3).then_some((render_area, node, pos))
         })
         .flat_map(|(render_area, node, pos)| {
             let is_current = graph.is_current(pos.index);
-            let is_selected = matches!(selection, Some(Selection::Goal { node_id, .. }) if node_id == node.id);
+            let is_selected =
+                matches!(selection, Some(Selection::Goal { node_id, .. }) if node_id == node.id);
             let mut node_state = EffectStateNodeState::default();
-            EffectStateNode::new(node, is_current, is_selected)
-                .render(render_area, buf, &mut node_state);
+            EffectStateNode::new(node, is_current, is_selected).render(
+                render_area,
+                buf,
+                &mut node_state,
+            );
             node_state.click_regions
         })
         .collect();
 
     state.click_regions = click_regions;
 
-    render_scrollbars(buf, area, state.layout.content_width, state.layout.content_height, scroll_x, scroll_y);
+    render_scrollbars(
+        buf,
+        area,
+        state.layout.content_width,
+        state.layout.content_height,
+        scroll_x,
+        scroll_y,
+    );
 }

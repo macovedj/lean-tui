@@ -31,13 +31,6 @@ pub struct OpenGoalListState {
     click_regions: Vec<ClickRegion>,
 }
 
-impl OpenGoalListState {
-    #[allow(dead_code)]
-    pub fn click_regions(&self) -> &[ClickRegion] {
-        &self.click_regions
-    }
-}
-
 impl<'a> OpenGoalList<'a> {
     pub const fn new(
         state: &'a TacticProofState,

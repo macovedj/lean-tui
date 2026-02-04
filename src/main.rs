@@ -19,6 +19,12 @@ mod tactic_tree;
 mod graph;
 mod shared;
 
+// App-level UI components
+mod help_menu;
+mod status_bar;
+mod welcome;
+mod worker_selector;
+
 fn main() {
     cli::run_from_args();
 }

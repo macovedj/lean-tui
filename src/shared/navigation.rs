@@ -1,10 +1,7 @@
 use tracing::trace;
 
 use super::Selection;
-use crate::{
-    graph::{DagLayout, NodePosition},
-    protocol::{Dag, NavNode},
-};
+use crate::graph::{Dag, DagLayout, NavNode, NodePosition};
 
 /// Region for keyboard navigation - uses virtual coordinates (i32).
 #[derive(Debug, Clone, Copy)]
