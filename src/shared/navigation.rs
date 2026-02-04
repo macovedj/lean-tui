@@ -1,9 +1,10 @@
-//! Shared navigation types and algorithms for tableau views.
-
 use tracing::trace;
 
-use super::{DagLayout, NodePosition, Selection};
-use crate::protocol::{Dag, NavNode};
+use super::Selection;
+use crate::{
+    graph::{DagLayout, NodePosition},
+    protocol::{Dag, NavNode},
+};
 
 /// Region for keyboard navigation - uses virtual coordinates (i32).
 #[derive(Debug, Clone, Copy)]

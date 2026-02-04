@@ -16,6 +16,7 @@ mod plain_goal;
 mod tactic_tree;
 
 // Shared components
+mod graph;
 mod shared;
 
 fn main() {
