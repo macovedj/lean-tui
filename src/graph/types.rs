@@ -8,6 +8,10 @@ use std::collections::HashMap;
 
 pub type NodeId = u64;
 
+pub trait LayoutSize {
+    fn layout_size(&self) -> (u16, u16);
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct EdgeData {
     pub style: Option<Style>,

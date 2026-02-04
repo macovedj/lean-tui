@@ -1,6 +1,6 @@
 //! TCP connection to lean-dag server.
 
-use std::{io, time::Duration};
+use std::{collections::HashMap, io, time::Duration};
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
@@ -166,4 +166,220 @@ pub async fn discover_workers(port_min: u16, port_max: u16) -> Vec<WorkerInfo> {
     // Sort by port
     workers.sort_by_key(|w| w.port);
     workers
+}
+
+/// A message received from a specific worker.
+pub struct PoolMessage {
+    pub port: u16,
+    pub message: ServerToClientMessage,
+}
+
+/// Pool of connections to multiple lean-dag workers.
+pub struct ConnectionPool {
+    connections: HashMap<u16, Connection>,
+    port_to_uri: HashMap<u16, String>,
+    active_port: Option<u16>,
+}
+
+impl ConnectionPool {
+    /// Create an empty connection pool.
+    pub fn new() -> Self {
+        Self {
+            connections: HashMap::new(),
+            port_to_uri: HashMap::new(),
+            active_port: None,
+        }
+    }
+
+    /// Get the currently active port.
+    pub fn active_port(&self) -> Option<u16> {
+        self.active_port
+    }
+
+    /// Set the active port.
+    pub fn set_active(&mut self, port: u16) {
+        if self.connections.contains_key(&port) {
+            self.active_port = Some(port);
+        }
+    }
+
+    /// Check if connected to at least one worker.
+    pub fn has_any_connection(&self) -> bool {
+        self.connections.values().any(Connection::is_connected)
+    }
+
+    /// Check if connected to a specific port.
+    pub fn is_connected(&self, port: u16) -> bool {
+        self.connections
+            .get(&port)
+            .is_some_and(Connection::is_connected)
+    }
+
+    /// Get the file URI for a port.
+    pub fn file_uri(&self, port: u16) -> Option<&String> {
+        self.port_to_uri.get(&port)
+    }
+
+    /// Find port by file URI.
+    #[allow(dead_code)]
+    pub fn port_for_uri(&self, uri: &str) -> Option<u16> {
+        self.port_to_uri
+            .iter()
+            .find(|(_, u)| u.as_str() == uri)
+            .map(|(&port, _)| port)
+    }
+
+    /// Get list of connected ports.
+    pub fn connected_ports(&self) -> Vec<u16> {
+        self.connections
+            .iter()
+            .filter(|(_, c)| c.is_connected())
+            .map(|(&port, _)| port)
+            .collect()
+    }
+
+    /// Connect to a worker if not already connected.
+    pub async fn connect(&mut self, worker: &WorkerInfo) {
+        if self.is_connected(worker.port) {
+            return;
+        }
+
+        let conn = Connection::connect(worker.port).await;
+        if conn.is_connected() {
+            self.connections.insert(worker.port, conn);
+            if let Some(uri) = &worker.file_uri {
+                self.port_to_uri.insert(worker.port, uri.clone());
+            }
+            // Auto-activate first connection
+            if self.active_port.is_none() {
+                self.active_port = Some(worker.port);
+            }
+        }
+    }
+
+    /// Connect to all workers in the list.
+    pub async fn connect_all(&mut self, workers: &[WorkerInfo]) {
+        for worker in workers {
+            self.connect(worker).await;
+        }
+    }
+
+    /// Disconnect from a specific worker.
+    pub fn disconnect(&mut self, port: u16) {
+        if let Some(conn) = self.connections.get_mut(&port) {
+            conn.disconnect();
+        }
+        self.connections.remove(&port);
+        self.port_to_uri.remove(&port);
+
+        // If we disconnected the active port, switch to another
+        if self.active_port == Some(port) {
+            self.active_port = self.connected_ports().first().copied();
+        }
+    }
+
+    /// Disconnect all workers.
+    #[allow(dead_code)]
+    pub fn disconnect_all(&mut self) {
+        for conn in self.connections.values_mut() {
+            conn.disconnect();
+        }
+        self.connections.clear();
+        self.port_to_uri.clear();
+        self.active_port = None;
+    }
+
+    /// Try to receive a message from any connected worker.
+    /// Returns the port and message if available.
+    pub async fn recv_any(&mut self) -> Result<Option<PoolMessage>> {
+        if self.connections.is_empty() {
+            return Ok(None);
+        }
+
+        let ports: Vec<u16> = self.connections.keys().copied().collect();
+
+        for port in ports {
+            match self.try_recv_from(port).await {
+                Ok(Some(msg)) => return Ok(Some(PoolMessage { port, message: msg })),
+                Ok(None) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+
+        self.cleanup_disconnected();
+        Ok(None)
+    }
+
+    /// Try to receive from a specific port with a short timeout.
+    async fn try_recv_from(&mut self, port: u16) -> Result<Option<ServerToClientMessage>> {
+        let Some(conn) = self.connections.get_mut(&port) else {
+            return Ok(None);
+        };
+
+        if !conn.is_connected() {
+            return Ok(None);
+        }
+
+        match timeout(Duration::from_millis(1), conn.recv()).await {
+            Ok(Ok(Some(msg))) => Ok(Some(msg)),
+            Ok(Ok(None)) => {
+                tracing::info!("Worker on port {port} disconnected");
+                Ok(None)
+            }
+            Ok(Err(e)) => Err(e),
+            Err(_) => Ok(None), // Timeout - no data ready
+        }
+    }
+
+    /// Remove disconnected connections from the pool.
+    fn cleanup_disconnected(&mut self) {
+        let disconnected: Vec<u16> = self
+            .connections
+            .iter()
+            .filter(|(_, c)| !c.is_connected())
+            .map(|(&p, _)| p)
+            .collect();
+
+        for port in disconnected {
+            self.disconnect(port);
+        }
+    }
+
+    /// Send a command to the active worker.
+    pub async fn send_to_active(&mut self, cmd: &ClientToServerCommand) -> io::Result<()> {
+        let Some(port) = self.active_port else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotConnected,
+                "no active connection",
+            ));
+        };
+
+        let Some(conn) = self.connections.get_mut(&port) else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotConnected,
+                "active connection not found",
+            ));
+        };
+
+        conn.send(cmd).await
+    }
+
+    /// Send a command to a specific worker.
+    #[allow(dead_code)]
+    pub async fn send_to(&mut self, port: u16, cmd: &ClientToServerCommand) -> io::Result<()> {
+        let Some(conn) = self.connections.get_mut(&port) else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotConnected,
+                "connection not found",
+            ));
+        };
+
+        conn.send(cmd).await
+    }
+}
+
+impl Default for ConnectionPool {
+    fn default() -> Self {
+        Self::new()
+    }
 }

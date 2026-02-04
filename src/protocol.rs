@@ -30,6 +30,7 @@ impl ServerToClientMessage {
             Self::Cursor { .. } => "Cursor",
             Self::Dag { .. } => "Dag",
             Self::Error { .. } => "Error",
+            Self::FileFocused { .. } => "FileFocused",
         }
     }
 }
