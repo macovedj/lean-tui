@@ -15,7 +15,6 @@ use ratatui::{
 };
 
 use crate::{
-    connection::ConnectionPool,
     deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
     help_menu::{HelpMenu, HelpMenuWidget},
@@ -27,8 +26,9 @@ use crate::{
         InteractiveStatefulWidget, KeyMouseEvent, Selection,
     },
     status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
+    tcp_client::{ConnectionPool, WorkerInfo},
     welcome::WelcomeScreen,
-    worker_selector::{WorkerInfo, WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
+    worker_selector::{WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
 };
 
 /// Information about the enclosing definition (theorem, lemma, def, etc.)
@@ -153,11 +153,6 @@ impl App {
         self.worker_selector.port_range
     }
 
-    /// Check if ready for a periodic scan (always scan to detect new workers).
-    pub const fn needs_periodic_scan(&self) -> bool {
-        !self.worker_selector.scanning
-    }
-
     /// Get position where current goals were fetched.
     pub fn goals_position(&self) -> Option<LineCharacterPosition> {
         let DagState::Proof(dag) = &self.display_mode.dag else {
@@ -279,8 +274,7 @@ impl App {
         let should_switch = self.follow_mode
             && match &msg {
                 ServerToClientMessage::FileFocused { focused, .. } => *focused,
-                ServerToClientMessage::Cursor { .. } => true,
-                ServerToClientMessage::Dag { .. } => true,
+                ServerToClientMessage::Cursor { .. } | ServerToClientMessage::Dag { .. } => true,
                 _ => false,
             };
 
@@ -294,16 +288,6 @@ impl App {
         if Some(port) == pool.active_port() {
             self.handle_message(msg);
         }
-    }
-
-    /// Cycle to the next display mode.
-    pub fn next_mode(&mut self) {
-        self.display_mode.next();
-    }
-
-    /// Cycle to the previous display mode.
-    pub fn prev_mode(&mut self) {
-        self.display_mode.prev();
     }
 
     /// Navigate to where the selected item was introduced.
@@ -386,7 +370,8 @@ impl App {
 
     /// Update all components with current state.
     pub fn update(&mut self) {
-        self.update_display_mode();
+        self.display_mode
+            .update(self.definition.clone(), self.error.clone());
         StatusBarWidget::update_state(
             &mut self.status_bar,
             StatusBarInput {
@@ -396,11 +381,6 @@ impl App {
                 follow_mode: self.follow_mode,
             },
         );
-    }
-
-    fn update_display_mode(&mut self) {
-        self.display_mode
-            .update(self.definition.clone(), self.error.clone());
     }
 
     /// Render the entire UI.
@@ -562,11 +542,11 @@ impl App {
                 true
             }
             KeyCode::Char(']') => {
-                self.next_mode();
+                self.display_mode.next();
                 true
             }
             KeyCode::Char('[') => {
-                self.prev_mode();
+                self.display_mode.prev();
                 true
             }
             KeyCode::Char('g') | KeyCode::Enter => {

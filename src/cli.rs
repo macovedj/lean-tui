@@ -16,15 +16,12 @@ use crossterm::{
 };
 use futures::StreamExt;
 use ratatui::prelude::*;
-use tokio::{
-    runtime::Builder as RuntimeBuilder,
-    time::{interval, Interval},
-};
+use tokio::{runtime::Builder as RuntimeBuilder, time::interval};
 
 use crate::{
     app::App,
-    connection::{discover_workers, ConnectionPool},
     error::Result,
+    tcp_client::{discover_workers, ConnectionPool},
 };
 
 /// Standalone TUI infoview for Lean 4 theorem prover
@@ -122,28 +119,32 @@ async fn event_loop(
     let mut pool = ConnectionPool::new();
     let mut app = App::new(initial_port);
     let mut event_stream = EventStream::new();
-    let mut command_interval = interval(Duration::from_millis(50));
     let mut scan_interval = interval(Duration::from_secs(2));
 
     while !app.should_exit {
         handle_active_switch(&mut app, &mut pool);
-        handle_scan_and_connect(&mut app, &mut pool).await;
+        scan_and_connect(&mut app, &mut pool).await;
+
+        // Handle reconnection - clear stale state
+        if let Some(port) = pool.take_reconnected_port() {
+            tracing::info!("Worker on port {port} reconnected, clearing state");
+            app.clear_for_worker_switch(port);
+        }
+
+        drain_messages(&mut app, &mut pool).await;
 
         app.update();
-        app.connected = pool.has_any_connection();
+        // Update connection state - active_port is set when we have a valid connection
         if let Some(port) = pool.active_port() {
+            app.connected = true;
             app.connected_file_uri = pool.file_uri(port).cloned();
+        } else {
+            app.connected = false;
+            app.connected_file_uri = None;
         }
         terminal.draw(|frame| app.render(frame))?;
 
-        handle_events(
-            &mut app,
-            &mut pool,
-            &mut event_stream,
-            &mut command_interval,
-            &mut scan_interval,
-        )
-        .await;
+        handle_events(&mut app, &mut pool, &mut event_stream, &mut scan_interval).await;
     }
 
     Ok(())
@@ -160,65 +161,62 @@ fn handle_active_switch(app: &mut App, pool: &mut ConnectionPool) {
     }
 }
 
-/// Handle pending worker scan requests and connect to discovered workers.
-async fn handle_scan_and_connect(app: &mut App, pool: &mut ConnectionPool) {
-    if app.scan_requested {
-        app.scan_requested = false;
-        let (port_min, port_max) = app.port_range();
-        let workers = discover_workers(port_min, port_max).await;
-
-        // Connect to all discovered workers
-        pool.connect_all(&workers).await;
-
-        // Update app with discovered workers
-        app.set_discovered_workers(workers, pool);
+/// Drain all available messages from the connection pool.
+async fn drain_messages(app: &mut App, pool: &mut ConnectionPool) {
+    while let Ok(Some(pool_msg)) = pool.recv_any().await {
+        app.handle_pool_message(pool_msg.port, pool_msg.message, pool);
     }
 }
 
-/// Perform a periodic worker scan and connect to new workers.
-async fn do_periodic_scan(app: &mut App, pool: &mut ConnectionPool) {
-    if app.needs_periodic_scan() {
-        let (port_min, port_max) = app.port_range();
-        let workers = discover_workers(port_min, port_max).await;
-
-        // Connect to all discovered workers
-        pool.connect_all(&workers).await;
-
-        // Update app with discovered workers
-        app.set_discovered_workers(workers, pool);
+/// Scan for workers and connect if a scan is requested.
+async fn scan_and_connect(app: &mut App, pool: &mut ConnectionPool) {
+    if !app.scan_requested {
+        return;
     }
+    app.scan_requested = false;
+    let (port_min, port_max) = app.port_range();
+    let workers = discover_workers(port_min, port_max).await;
+    pool.connect_all(&workers).await;
+    app.set_discovered_workers(workers, pool);
 }
 
-/// Handle all events: user input, messages from workers, commands, and periodic
-/// scans.
+/// Handle all events: user input, messages from workers, and periodic scans.
 async fn handle_events(
     app: &mut App,
     pool: &mut ConnectionPool,
     event_stream: &mut EventStream,
-    command_interval: &mut Interval,
-    scan_interval: &mut Interval,
+    scan_interval: &mut tokio::time::Interval,
 ) {
+    // Wait for user input, scan interval, or a short timeout for message polling.
+    // The short sleep ensures we don't busy-loop but still check for messages frequently.
     tokio::select! {
-        biased;
         Some(Ok(event)) = event_stream.next() => {
             app.handle_event(&event);
         }
-        result = pool.recv_any() => {
-            match result {
-                Ok(Some(pool_msg)) => {
-                    app.handle_pool_message(pool_msg.port, pool_msg.message, pool);
-                }
-                Ok(None) => {}
-                Err(e) => app.set_error(e.to_string()),
-            }
-        }
-        _ = command_interval.tick() => {
-            for cmd in app.take_commands() {
-                let _ = pool.send_to_active(&cmd).await;
-            }
-        }
         _ = scan_interval.tick() => {
-            do_periodic_scan(app, pool).await;
+            app.scan_requested = true;
         }
+        () = tokio::time::sleep(Duration::from_millis(16)) => {
+            // ~60fps polling for network messages
+        }
+    }
+
+    // Process any messages that arrived
+    loop {
+        match pool.recv_any().await {
+            Ok(Some(pool_msg)) => {
+                app.handle_pool_message(pool_msg.port, pool_msg.message, pool);
+            }
+            Ok(None) => break,
+            Err(e) => {
+                app.set_error(e.to_string());
+                break;
+            }
+        }
+    }
+
+    // Send any queued commands
+    for cmd in app.take_commands() {
+        let _ = pool.send_to_active(&cmd).await;
     }
 }
