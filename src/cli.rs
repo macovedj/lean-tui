@@ -18,12 +18,12 @@ use futures::StreamExt;
 use ratatui::prelude::*;
 use tokio::{
     runtime::Builder as RuntimeBuilder,
-    time::{interval, sleep, Interval},
+    time::{interval, Interval},
 };
 
 use crate::{
     app::App,
-    connection::{discover_workers, Connection},
+    connection::{discover_workers, ConnectionPool},
     error::Result,
 };
 
@@ -114,111 +114,78 @@ fn restore_terminal() -> Result<()> {
     Ok(())
 }
 
-/// Core event loop handling connection, input, and rendering.
+/// Core event loop handling connection pool, input, and rendering.
 async fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     initial_port: u16,
 ) -> Result<()> {
-    let mut conn = Connection::Disconnected;
+    let mut pool = ConnectionPool::new();
     let mut app = App::new(initial_port);
     let mut event_stream = EventStream::new();
     let mut command_interval = interval(Duration::from_millis(50));
     let mut scan_interval = interval(Duration::from_secs(2));
-    let mut current_port = initial_port;
 
     while !app.should_exit {
-        handle_port_switch(&mut app, &mut conn, &mut current_port).await;
-        handle_scan_request(&mut app).await;
+        handle_active_switch(&mut app, &mut pool);
+        handle_scan_and_connect(&mut app, &mut pool).await;
 
         app.update();
-        app.connected = conn.is_connected();
+        app.connected = pool.has_any_connection();
+        if let Some(port) = pool.active_port() {
+            app.connected_file_uri = pool.file_uri(port).cloned();
+        }
         terminal.draw(|frame| app.render(frame))?;
 
-        match &mut conn {
-            Connection::Disconnected => {
-                handle_disconnected(
-                    &mut app,
-                    &mut conn,
-                    &mut event_stream,
-                    &mut scan_interval,
-                    current_port,
-                )
-                .await;
-            }
-            Connection::Connected { .. } => {
-                handle_connected(
-                    &mut app,
-                    &mut conn,
-                    &mut event_stream,
-                    &mut command_interval,
-                    &mut scan_interval,
-                )
-                .await;
-            }
-        }
+        handle_events(&mut app, &mut pool, &mut event_stream, &mut command_interval, &mut scan_interval).await;
     }
 
     Ok(())
 }
 
-/// Handle pending port switch requests.
-async fn handle_port_switch(app: &mut App, conn: &mut Connection, current_port: &mut u16) {
+/// Handle pending active port switch requests.
+fn handle_active_switch(app: &mut App, pool: &mut ConnectionPool) {
     if let Some(new_port) = app.take_port_switch() {
-        if new_port != *current_port {
-            tracing::info!("Switching to port {new_port}");
-            conn.disconnect();
+        if Some(new_port) != pool.active_port() {
+            tracing::info!("Switching active to port {new_port}");
+            pool.set_active(new_port);
             app.clear_for_worker_switch(new_port);
-            *current_port = new_port;
-            *conn = Connection::connect(*current_port).await;
         }
     }
 }
 
-/// Handle pending worker scan requests.
-async fn handle_scan_request(app: &mut App) {
+/// Handle pending worker scan requests and connect to discovered workers.
+async fn handle_scan_and_connect(app: &mut App, pool: &mut ConnectionPool) {
     if app.scan_requested {
         app.scan_requested = false;
         let (port_min, port_max) = app.port_range();
         let workers = discover_workers(port_min, port_max).await;
-        app.set_discovered_workers(workers);
+
+        // Connect to all discovered workers
+        pool.connect_all(&workers).await;
+
+        // Update app with discovered workers
+        app.set_discovered_workers(workers, pool);
     }
 }
 
-/// Perform a worker scan if the file selector is open.
-async fn do_periodic_scan(app: &mut App) {
+/// Perform a periodic worker scan and connect to new workers.
+async fn do_periodic_scan(app: &mut App, pool: &mut ConnectionPool) {
     if app.needs_periodic_scan() {
         let (port_min, port_max) = app.port_range();
         let workers = discover_workers(port_min, port_max).await;
-        app.set_discovered_workers(workers);
+
+        // Connect to all discovered workers
+        pool.connect_all(&workers).await;
+
+        // Update app with discovered workers
+        app.set_discovered_workers(workers, pool);
     }
 }
 
-/// Handle events while disconnected, attempting reconnection.
-async fn handle_disconnected(
+/// Handle all events: user input, messages from workers, commands, and periodic scans.
+async fn handle_events(
     app: &mut App,
-    conn: &mut Connection,
-    event_stream: &mut EventStream,
-    scan_interval: &mut Interval,
-    current_port: u16,
-) {
-    tokio::select! {
-        biased;
-        Some(Ok(event)) = event_stream.next() => {
-            app.handle_event(&event);
-        }
-        _ = scan_interval.tick() => {
-            do_periodic_scan(app).await;
-        }
-        () = sleep(Duration::from_secs(1)) => {
-            *conn = Connection::connect(current_port).await;
-        }
-    }
-}
-
-/// Handle events while connected, processing messages and commands.
-async fn handle_connected(
-    app: &mut App,
-    conn: &mut Connection,
+    pool: &mut ConnectionPool,
     event_stream: &mut EventStream,
     command_interval: &mut Interval,
     scan_interval: &mut Interval,
@@ -228,20 +195,22 @@ async fn handle_connected(
         Some(Ok(event)) = event_stream.next() => {
             app.handle_event(&event);
         }
-        result = conn.recv() => {
+        result = pool.recv_any() => {
             match result {
-                Ok(Some(msg)) => app.handle_message(msg),
+                Ok(Some(pool_msg)) => {
+                    app.handle_pool_message(pool_msg.port, pool_msg.message, pool);
+                }
                 Ok(None) => {}
                 Err(e) => app.set_error(e.to_string()),
             }
         }
         _ = command_interval.tick() => {
             for cmd in app.take_commands() {
-                let _ = conn.send(&cmd).await;
+                let _ = pool.send_to_active(&cmd).await;
             }
         }
         _ = scan_interval.tick() => {
-            do_periodic_scan(app).await;
+            do_periodic_scan(app, pool).await;
         }
     }
 }

@@ -1,4 +1,3 @@
-pub mod dag_layout;
 pub mod diff_text;
 pub mod error_banner;
 pub mod goal_section;
@@ -18,7 +17,7 @@ pub mod worker_selector;
 
 pub use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;
-pub use dag_layout::LayoutSize;
+pub use crate::graph::LayoutSize;
 pub use interactive::{InteractiveComponent, InteractiveStatefulWidget};
 pub use navigation::{
     build_navigation_regions, find_nearest_in_direction, Direction, NavigationRegion,

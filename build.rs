@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-const LEAN_DAG_COMMIT: &str = "0cec6f7ebdf02972fecc5ee1457d517b5d6d3bbf";
+const LEAN_DAG_COMMIT: &str = "556df5f12e6e91d16f10b1761a5ff6e56528aba4";
 
 fn main() {
     let schema_json = env::var("LEAN_DAG_SCHEMA")

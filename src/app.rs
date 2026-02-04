@@ -15,6 +15,7 @@ use ratatui::{
 };
 
 use crate::{
+    connection::ConnectionPool,
     deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
     protocol::{
@@ -75,6 +76,8 @@ pub struct App {
     pub scan_requested: bool,
     /// Previously known worker ports (for detecting new workers).
     known_worker_ports: Vec<u16>,
+    /// Whether to auto-follow file switches from the editor.
+    follow_mode: bool,
 }
 
 impl App {
@@ -97,7 +100,25 @@ impl App {
             pending_port_switch: None,
             scan_requested: true, // Trigger initial scan on startup
             known_worker_ports: Vec::new(),
+            follow_mode: true,
         }
+    }
+
+    /// Check if follow mode is enabled.
+    #[allow(dead_code)]
+    pub const fn follow_mode(&self) -> bool {
+        self.follow_mode
+    }
+
+    /// Toggle follow mode on/off.
+    pub fn toggle_follow_mode(&mut self) {
+        self.follow_mode = !self.follow_mode;
+    }
+
+    /// Disable follow mode (used when manually selecting a file).
+    #[allow(dead_code)]
+    pub fn disable_follow_mode(&mut self) {
+        self.follow_mode = false;
     }
 
     /// Take a pending port switch request, if any.
@@ -119,8 +140,8 @@ impl App {
     }
 
     /// Set discovered workers in the selector.
-    /// Auto-switches to newly appeared workers.
-    pub fn set_discovered_workers(&mut self, workers: Vec<WorkerInfo>) {
+    /// Auto-switches to newly appeared workers when follow mode is enabled.
+    pub fn set_discovered_workers(&mut self, workers: Vec<WorkerInfo>, pool: &ConnectionPool) {
         let new_worker_port = workers
             .iter()
             .find(|w| !self.known_worker_ports.contains(&w.port))
@@ -130,10 +151,12 @@ impl App {
         self.worker_selector.set_workers(workers);
         self.scan_requested = false;
 
-        if let Some(port) = new_worker_port {
-            if port != self.port {
-                self.pending_port_switch = Some(port);
-            }
+        // Auto-switch to new workers only when follow mode is enabled
+        let should_switch = self.follow_mode
+            && new_worker_port.is_some_and(|port| Some(port) != pool.active_port());
+
+        if should_switch {
+            self.pending_port_switch = new_worker_port;
         }
     }
 
@@ -248,6 +271,38 @@ impl App {
                 self.error = Some(error);
                 self.connected = true;
             }
+            ServerToClientMessage::FileFocused { uri, focused } => {
+                tracing::debug!("FileFocused: uri={}, focused={}", uri, focused);
+                // FileFocused is handled in handle_pool_message for port switching
+            }
+        }
+    }
+
+    /// Handle a message from the connection pool, potentially switching active port.
+    pub fn handle_pool_message(
+        &mut self,
+        port: u16,
+        msg: ServerToClientMessage,
+        pool: &mut ConnectionPool,
+    ) {
+        // Check if we should switch to this port based on the message type
+        let should_switch = self.follow_mode
+            && match &msg {
+                ServerToClientMessage::FileFocused { focused, .. } => *focused,
+                ServerToClientMessage::Cursor { .. } => true,
+                ServerToClientMessage::Dag { .. } => true,
+                _ => false,
+            };
+
+        if should_switch && Some(port) != pool.active_port() {
+            tracing::info!("Auto-switching to port {} (follow mode)", port);
+            pool.set_active(port);
+            self.clear_for_worker_switch(port);
+        }
+
+        // Only process messages from the active port
+        if Some(port) == pool.active_port() {
+            self.handle_message(msg);
         }
     }
 
@@ -348,6 +403,7 @@ impl App {
                 filters: self.display_mode.filters(),
                 keybindings: self.display_mode.keybindings(),
                 supported_filters: self.display_mode.supported_filters(),
+                follow_mode: self.follow_mode,
             },
         );
     }
@@ -480,6 +536,8 @@ impl App {
         match self.worker_selector.take_result() {
             WorkerSelectorResult::Selected(port) => {
                 self.pending_port_switch = Some(port);
+                // Manual selection disables follow mode
+                self.follow_mode = false;
             }
             WorkerSelectorResult::Rescan => {
                 self.scan_requested = true;
@@ -506,6 +564,11 @@ impl App {
                 // Open file selector
                 self.worker_selector.show();
                 self.scan_requested = true;
+                true
+            }
+            KeyCode::Char('F') => {
+                // Toggle follow mode
+                self.toggle_follow_mode();
                 true
             }
             KeyCode::Char(']') => {
