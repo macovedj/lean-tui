@@ -157,13 +157,30 @@ impl<'a> FunctionalStateNode<'a> {
             },
         };
 
-        let binding_regions = (0..bindings.len()).map(|idx| ClickRegion {
-            area: Rect::new(inner.x, bindings_y, inner.width, 1),
-            selection: Selection::Hyp {
-                node_id: self.node.id,
-                hyp_idx: idx,
-            },
-        });
+        // Calculate individual click regions for each binding
+        // Format: " name: type " with space separator between bindings
+        let mut x_offset = inner.x;
+        let binding_regions: Vec<ClickRegion> = bindings
+            .iter()
+            .enumerate()
+            .map(|(idx, b)| {
+                // Add separator space for non-first bindings
+                if idx > 0 {
+                    x_offset += 1; // space separator
+                }
+                // Binding text: " name: type "
+                let binding_width = (b.name.len() + b.type_str.len() + 4) as u16; // " name: type "
+                let region = ClickRegion {
+                    area: Rect::new(x_offset, bindings_y, binding_width.min(inner.width), 1),
+                    selection: Selection::Hyp {
+                        node_id: self.node.id,
+                        hyp_idx: idx,
+                    },
+                };
+                x_offset += binding_width;
+                region
+            })
+            .collect();
 
         once(goal_region).chain(binding_regions).collect()
     }

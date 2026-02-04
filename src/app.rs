@@ -15,6 +15,7 @@ use ratatui::{
 };
 
 use crate::{
+    data_flow::DataFlowNode,
     deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
     help_menu::{HelpMenu, HelpMenuWidget},
@@ -298,29 +299,48 @@ impl App {
 
         let fallback_pos = self.goals_position().unwrap_or(cursor.position);
 
-        // Resolve navigation location based on selection type
-        let nav_location: Option<(String, LineCharacterPosition)> =
-            if let DagState::Proof(dag) = &self.display_mode.dag {
-                selection.and_then(|sel| match sel {
-                    Selection::InitialHyp { hyp_idx } => dag
-                        .initial_proof_state
-                        .hypotheses
-                        .get(hyp_idx)
-                        .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
-                        .map(|loc| (loc.uri, loc.position)),
-                    Selection::Hyp { node_id, hyp_idx } => dag
-                        .get(node_id)
-                        .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
-                        .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
-                        .map(|loc| (loc.uri, loc.position)),
-                    Selection::Goal { node_id, .. } => dag
-                        .get(node_id)
-                        .map(|node| (cursor.uri.clone(), node.position)),
-                    Selection::Theorem => None,
-                })
-            } else {
-                None
-            };
+        // Resolve navigation location based on selection type and DAG kind
+        let nav_location: Option<(String, LineCharacterPosition)> = match &self.display_mode.dag {
+            DagState::Proof(dag) => selection.and_then(|sel| match sel {
+                Selection::InitialHyp { hyp_idx } => dag
+                    .initial_proof_state
+                    .hypotheses
+                    .get(hyp_idx)
+                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
+                    .map(|loc| (loc.uri, loc.position)),
+                Selection::Hyp { node_id, hyp_idx } => dag
+                    .get(node_id)
+                    .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
+                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
+                    .map(|loc| (loc.uri, loc.position)),
+                Selection::Goal { node_id, .. } => dag
+                    .get(node_id)
+                    .map(|node| (cursor.uri.clone(), node.position)),
+                Selection::Theorem => None,
+            }),
+            DagState::Dataflow(dag) => selection.and_then(|sel| match sel {
+                Selection::InitialHyp { hyp_idx } => dag
+                    .initial_context
+                    .get(hyp_idx)
+                    .and_then(|b| b.navigation_locations.as_ref())
+                    .and_then(|nav| nav.definition.as_ref())
+                    .map(|loc| (loc.uri.clone(), loc.position)),
+                Selection::Hyp { node_id, hyp_idx } => dag
+                    .get(node_id)
+                    .and_then(|node: &DataFlowNode| node.bindings_after().get(hyp_idx).cloned())
+                    .and_then(|b| b.navigation_locations)
+                    .and_then(|nav| nav.definition)
+                    .map(|loc| (loc.uri, loc.position)),
+                Selection::Goal { node_id, .. } => dag
+                    .get(node_id)
+                    .map(|node| (cursor.uri.clone(), node.position)),
+                Selection::Theorem => dag
+                    .root_node_id
+                    .and_then(|id| dag.get(id))
+                    .map(|node| (cursor.uri.clone(), node.position)),
+            }),
+            DagState::Effectflow(_) | DagState::None => None,
+        };
 
         let (uri, position) = nav_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
         self.queue_command(ClientToServerCommand::Navigate { uri, position });

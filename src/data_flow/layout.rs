@@ -43,8 +43,25 @@ impl FunctionalTableauState {
         self.proof.update_current_node(current_node_id);
     }
 
-    pub fn navigation_regions(&self) -> &[NavigationRegion] {
-        &self.proof.navigation_regions
+    /// Get all navigation regions including initial context bindings and theorem.
+    pub fn navigation_regions(&self) -> Vec<NavigationRegion> {
+        // Convert click regions to navigation regions
+        let to_nav_region = |cr: &ClickRegion| NavigationRegion {
+            x: cr.area.x as i32,
+            y: cr.area.y as i32,
+            width: cr.area.width,
+            height: cr.area.height,
+            selection: cr.selection,
+        };
+
+        // Include given pane (initial context), proof pane (nodes), and theorem pane
+        self.given
+            .click_regions
+            .iter()
+            .map(to_nav_region)
+            .chain(self.proof.navigation_regions.iter().cloned())
+            .chain(self.theorem.click_regions.iter().map(to_nav_region))
+            .collect()
     }
 
     pub fn toggle_stretch(&mut self) {

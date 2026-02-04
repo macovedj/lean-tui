@@ -124,11 +124,17 @@ impl DataFlowMode {
             }
         }
 
-        // For each node: add as goal-like selection
+        // For each node: add goal and bindings
         for node in dag.dfs_iter() {
             let node_id = node.id;
 
-            // Each node is selectable
+            // Add selectable bindings for this node
+            let bindings = node.bindings_after();
+            for (hyp_idx, _) in bindings.iter().enumerate() {
+                items.push(Selection::Hyp { node_id, hyp_idx });
+            }
+
+            // Each node's expected type is selectable
             items.push(Selection::Goal {
                 node_id,
                 goal_idx: 0,
@@ -208,7 +214,7 @@ impl DataFlowMode {
             "move_in_direction called"
         );
 
-        let result = find_nearest_in_direction(navigation_regions, current_sel, direction);
+        let result = find_nearest_in_direction(&navigation_regions, current_sel, direction);
 
         trace!(?result, "Navigation result in move_in_direction");
 
