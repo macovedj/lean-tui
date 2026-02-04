@@ -167,7 +167,7 @@ async fn handle_port_switch(app: &mut App, conn: &mut Connection, current_port: 
         if new_port != *current_port {
             tracing::info!("Switching to port {new_port}");
             conn.disconnect();
-            app.clear_for_worker_switch();
+            app.clear_for_worker_switch(new_port);
             *current_port = new_port;
             *conn = Connection::connect(*current_port).await;
         }
