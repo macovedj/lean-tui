@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{
     protocol::{BindingKind, LocalBinding},
-    shared::{theme::Theme, truncate_str, ClickRegion, Selection},
+    shared::{theme::Theme, ClickRegion, Selection},
 };
 
 /// State for the binding given pane.
@@ -63,11 +63,7 @@ impl<'a> BindingGivenPane<'a> {
                 Modifier::empty()
             });
 
-        let text = format!(
-            " {}: {} ",
-            binding.name,
-            truncate_str(&binding.type_.to_plain_text(), 20)
-        );
+        let text = format!(" {}: {} ", binding.name, binding.type_.to_plain_text());
         let width = text.chars().count() as u16;
         (Span::styled(text, style), width)
     }

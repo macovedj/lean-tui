@@ -4,17 +4,30 @@ use ratatui::style::Color;
 
 use crate::{
     graph::{Dag, DagNode, NavNode},
-    protocol::{AnnotatedTextTree, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId},
+    protocol::{
+        AnnotatedTextTree, BindingKind, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId,
+    },
     shared::{LayoutSize, Theme},
 };
 
 /// Data flow node kinds from the lean-dag backend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataFlowKind {
+    /// Let binding: `let x := v; body`
     Binding,
+    /// Lambda abstraction: `fun x => body`
     Lambda,
+    /// Branch in control flow (then/else/match arm)
     Branch,
+    /// Condition being tested (if condition)
     Condition,
+    /// Part of a compound condition (e.g., left side of &&)
+    ConditionPart,
+    /// Match scrutinee expression
+    MatchScrutinee,
+    /// Final expression (leaf node)
+    Result,
+    /// Unknown kind
     Custom(String),
 }
 
@@ -25,6 +38,9 @@ impl DataFlowKind {
             "lambda" => Self::Lambda,
             "branch" => Self::Branch,
             "condition" => Self::Condition,
+            "conditionPart" => Self::ConditionPart,
+            "matchScrutinee" => Self::MatchScrutinee,
+            "result" => Self::Result,
             other => Self::Custom(other.to_owned()),
         }
     }
@@ -35,6 +51,9 @@ impl DataFlowKind {
             Self::Lambda => "λ",
             Self::Branch => "⎇",
             Self::Condition => "?",
+            Self::ConditionPart => "∧",
+            Self::MatchScrutinee => "⊳",
+            Self::Result => "●",
             Self::Custom(_) => "◆",
         }
     }
@@ -45,6 +64,9 @@ impl DataFlowKind {
             Self::Lambda => Theme::DATAFLOW_LAMBDA,
             Self::Branch => Theme::DATAFLOW_BRANCH,
             Self::Condition => Theme::DATAFLOW_CONDITION,
+            Self::ConditionPart => Theme::DATAFLOW_CONDITION,
+            Self::MatchScrutinee => Theme::DATAFLOW_BRANCH,
+            Self::Result => Color::Green,
             Self::Custom(_) => Color::Gray,
         }
     }
@@ -55,7 +77,34 @@ impl DataFlowKind {
             Self::Lambda => "lambda",
             Self::Branch => "branch",
             Self::Condition => "condition",
+            Self::ConditionPart => "condition part",
+            Self::MatchScrutinee => "match",
+            Self::Result => "result",
             Self::Custom(s) => s,
+        }
+    }
+}
+
+/// Simplified binding from dataflow metadata (type is plain string).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SimpleBinding {
+    pub name: String,
+    #[allow(dead_code)]
+    pub id: String,
+    #[serde(rename = "type")]
+    pub type_str: String,
+    pub binding_kind: String,
+}
+
+impl SimpleBinding {
+    /// Convert binding_kind string to BindingKind enum.
+    pub fn kind(&self) -> BindingKind {
+        match self.binding_kind.as_str() {
+            "let_bind" => BindingKind::LetBind,
+            "fun_param" => BindingKind::FunParam,
+            "match_var" => BindingKind::MatchVar,
+            "for_var" => BindingKind::ForVar,
+            _ => BindingKind::FunParam,
         }
     }
 }
@@ -77,7 +126,8 @@ impl DataFlowNode {
         )
     }
 
-    pub fn bindings_after(&self) -> Vec<LocalBinding> {
+    /// Get all bindings in scope after this node.
+    pub fn bindings_after(&self) -> Vec<SimpleBinding> {
         self.inner
             .metadata
             .get("bindings_after")
@@ -85,6 +135,7 @@ impl DataFlowNode {
             .unwrap_or_default()
     }
 
+    /// Get indices of newly introduced bindings.
     pub fn new_binding_indices(&self) -> Vec<u64> {
         self.inner
             .metadata
@@ -93,19 +144,43 @@ impl DataFlowNode {
             .unwrap_or_default()
     }
 
-    pub fn expected_type(&self) -> Option<AnnotatedTextTree> {
+    /// Check if a binding at the given index is new (introduced by this node).
+    pub fn is_new_binding(&self, idx: usize) -> bool {
+        self.new_binding_indices().contains(&(idx as u64))
+    }
+
+    /// Get the expected type as a plain string (from metadata).
+    pub fn expected_type(&self) -> Option<String> {
         self.inner
             .metadata
             .get("expected_type")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(String::from)
     }
 
+    /// Check if this is a leaf node (no children).
     pub fn is_leaf(&self) -> bool {
         self.inner.edges.is_empty()
     }
 
+    /// Check if this node is complete (from metadata, not inferred).
     pub fn is_complete(&self) -> bool {
-        self.inner.edges.is_empty() && self.expected_type().is_none()
+        self.inner
+            .metadata
+            .get("is_complete")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(self.inner.edges.is_empty())
+    }
+
+    /// Get the branch label (for branch nodes like then/else/match arm).
+    pub fn branch_label(&self) -> Option<String> {
+        self.inner
+            .metadata
+            .get("branch_label")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(String::from)
     }
 }
 
@@ -143,16 +218,36 @@ impl NavNode for DataFlowNode {
 
 impl LayoutSize for DataFlowNode {
     fn layout_size(&self) -> (u16, u16) {
-        let width = {
-            let title_width = self.inner.content.to_plain_text().len() + 8;
-            (title_width + 4) as u16
+        // Calculate title width (icon + expression + padding)
+        let title_width = self.inner.content.to_plain_text().len() + 10;
+
+        // Calculate bindings line width
+        let bindings = self.bindings_after();
+        let bindings_width = if bindings.is_empty() {
+            0
+        } else {
+            bindings
+                .iter()
+                .map(|b| b.name.len() + b.type_str.len() + 5) // " name: type "
+                .sum::<usize>()
+                + bindings.len().saturating_sub(1) // separators
         };
-        let height = {
-            // Border (2) + bindings line (if any) + type line (1)
-            let has_bindings = !self.new_binding_indices().is_empty();
-            let content_lines = if has_bindings { 2 } else { 1 };
-            2 + content_lines
-        };
+
+        // Calculate type line width
+        let type_width = self
+            .expected_type()
+            .map(|t| t.len() + 4) // "⊢ " prefix + padding
+            .unwrap_or(12); // "✓ Complete" or "⊢ ..."
+
+        // Width is max of all lines + border padding
+        let content_width = title_width.max(bindings_width).max(type_width);
+        let width = (content_width + 4).min(120) as u16; // cap at 120 chars
+
+        // Height: border (2) + content lines
+        let has_bindings = !bindings.is_empty();
+        let content_lines = if has_bindings { 2 } else { 1 };
+        let height = (2 + content_lines) as u16;
+
         (width, height)
     }
 }
@@ -293,19 +388,13 @@ impl TryFrom<GenericDag> for DataFlowDag {
 
         let nodes: Vec<DataFlowNode> = dag.nodes.into_iter().map(DataFlowNode::new).collect();
 
-        let initial_context: Vec<LocalBinding> = dag
-            .metadata
-            .get("initial_context")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default();
-
         Ok(Self {
             nodes,
             root_node_id: dag.root_node_id,
             current_node_id: dag.current_node_id,
             orphans: dag.orphans,
             definition_type: dag.definition_type,
-            initial_context,
+            initial_context: dag.initial_context,
         })
     }
 }
