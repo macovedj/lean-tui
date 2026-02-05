@@ -1,12 +1,5 @@
 import LeanDag
 
-/-!
-# Monadic Programming Examples for Effect Flow Visualization
-
-These examples demonstrate monads with meaningful forward/backward interpretations:
-- StateM: state read/write operations
-- ExceptT: error handling with state
--/
 
 /-! ## StateM Examples - State Read/Write Effects -/
 

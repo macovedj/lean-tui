@@ -314,23 +314,17 @@ impl InteractiveComponent for TacticTree {
             return;
         }
 
-        // Layout: optional sidebar | main content
         let (main, sidebar) = self.layout_with_sidebar(content);
 
-        // Render sidebar if present
         if let Some(sidebar_area) = sidebar {
             ProofStepsSidebar::update_state(&mut self.sidebar_state, self.proof_dag.clone());
             self.sidebar_state
                 .set_focused(self.focused_pane == FocusedPane::Sidebar);
-            // Store viewport height for scroll bounds
             self.sidebar_viewport_height = sidebar_area.height.saturating_sub(2) as usize;
             frame.render_stateful_widget(ProofStepsSidebar, sidebar_area, &mut self.sidebar_state);
         }
 
-        // Layout main area
         let layout = Self::layout_main(main);
-
-        // Collect context data from current node
         let current_node = self.current_node();
 
         let depends_on: HashSet<String> = current_node
@@ -351,7 +345,6 @@ impl InteractiveComponent for TacticTree {
             .and_then(|node| node.proof_state_before.goals.first())
             .and_then(|g| g.username_str().map(String::from));
 
-        // Render hypothesis section
         self.hyp_section_state.update(
             &self.state,
             self.filters,
@@ -366,10 +359,8 @@ impl InteractiveComponent for TacticTree {
             self.selection.add_region(region.area, region.selection);
         }
 
-        // Render divider
         frame.render_widget(divider(), layout.div);
 
-        // Render goal section
         self.goal_section_state.update(
             &self.state,
             self.current_selection(),

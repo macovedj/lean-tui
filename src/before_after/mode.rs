@@ -138,7 +138,7 @@ impl Default for BeforeAfterMode {
             active_goal_name: None,
             filters: HypothesisFilters::default(),
             selection: SelectionState::default(),
-            show_previous: true, // Show previous column by default
+            show_previous: true,
             show_next: false,
             previous_column_state: GoalsColumnState::default(),
             current_column_state: GoalsColumnState::default(),
@@ -167,7 +167,6 @@ impl BeforeAfterMode {
             return Vec::new();
         };
 
-        // Hypotheses followed by goals
         let hyp_items = hypothesis_indices(
             self.current_state.hypotheses.len(),
             self.filters.reverse_order,
@@ -260,7 +259,6 @@ impl InteractiveComponent for BeforeAfterMode {
 
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        // Three-column layout
         let has_prev = self.previous_state.is_some() && self.show_previous;
         let has_next = self.next_state.is_some() && self.show_next;
 
@@ -280,7 +278,6 @@ impl InteractiveComponent for BeforeAfterMode {
 
         let selection = self.current_selection();
 
-        // Previous column
         if let Some(ref state) = self.previous_state {
             if self.show_previous {
                 frame.render_stateful_widget(
@@ -300,7 +297,6 @@ impl InteractiveComponent for BeforeAfterMode {
             }
         }
 
-        // Current column (always shown)
         frame.render_stateful_widget(
             GoalsColumn::new(
                 "Current",
@@ -314,13 +310,11 @@ impl InteractiveComponent for BeforeAfterMode {
             columns[col_idx],
             &mut self.current_column_state,
         );
-        // Register click regions from current column
         for region in self.current_column_state.click_regions() {
             self.selection.add_region(region.area, region.selection);
         }
         col_idx += 1;
 
-        // Next column
         if let Some(ref state) = self.next_state {
             if self.show_next {
                 frame.render_stateful_widget(

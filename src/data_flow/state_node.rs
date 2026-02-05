@@ -88,30 +88,19 @@ impl<'a> FunctionalStateNode<'a> {
         )
     }
 
-    fn bindings_line(&self) -> Option<Line<'static>> {
+    fn bindings_lines(&self) -> Vec<Line<'static>> {
         let bindings = self.node.bindings_after();
-        if bindings.is_empty() {
-            return None;
-        }
-
-        let spans: Vec<Span> = bindings
+        bindings
             .iter()
             .enumerate()
-            .flat_map(|(idx, b)| {
+            .map(|(idx, b)| {
                 let is_new = self.node.is_new_binding(idx);
                 let is_selected = self.is_binding_selected(idx);
                 let style = binding_style(b, is_new, is_selected);
-
-                let text = format!(" {}: {} ", b.name, b.type_str);
-                if idx > 0 {
-                    vec![Span::raw(" "), Span::styled(text, style)]
-                } else {
-                    vec![Span::styled(text, style)]
-                }
+                let text = format!("{}: {}", b.name, b.type_str);
+                Line::from(Span::styled(text, style))
             })
-            .collect();
-
-        (!spans.is_empty()).then(|| Line::from(spans))
+            .collect()
     }
 
     fn type_line(&self) -> Line<'static> {
@@ -141,12 +130,13 @@ impl<'a> FunctionalStateNode<'a> {
 
     fn click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
         let bindings = self.node.bindings_after();
-        let has_bindings = !bindings.is_empty();
-        let offset = u16::from(has_bindings);
-        let (bindings_y, type_y) = if self.top_down {
-            (inner.y, inner.y + offset)
+        let num_bindings = bindings.len() as u16;
+
+        // Calculate y positions based on layout direction
+        let (type_y, bindings_start_y) = if self.top_down {
+            (inner.y + num_bindings, inner.y)
         } else {
-            (inner.y + offset, inner.y)
+            (inner.y, inner.y + 1)
         };
 
         let goal_region = ClickRegion {
@@ -157,28 +147,24 @@ impl<'a> FunctionalStateNode<'a> {
             },
         };
 
-        // Calculate individual click regions for each binding
-        // Format: " name: type " with space separator between bindings
-        let mut x_offset = inner.x;
+        // Each binding is on its own line
         let binding_regions: Vec<ClickRegion> = bindings
             .iter()
             .enumerate()
             .map(|(idx, b)| {
-                // Add separator space for non-first bindings
-                if idx > 0 {
-                    x_offset += 1; // space separator
-                }
-                // Binding text: " name: type "
-                let binding_width = (b.name.len() + b.type_str.len() + 4) as u16; // " name: type "
-                let region = ClickRegion {
-                    area: Rect::new(x_offset, bindings_y, binding_width.min(inner.width), 1),
+                let binding_width = (b.name.len() + b.type_str.len() + 2) as u16; // "name: type"
+                ClickRegion {
+                    area: Rect::new(
+                        inner.x,
+                        bindings_start_y + idx as u16,
+                        binding_width.min(inner.width),
+                        1,
+                    ),
                     selection: Selection::Hyp {
                         node_id: self.node.id,
                         hyp_idx: idx,
                     },
-                };
-                x_offset += binding_width;
-                region
+                }
             })
             .collect();
 
@@ -226,13 +212,13 @@ impl StatefulWidget for FunctionalStateNode<'_> {
             return;
         }
 
-        let bindings_line = self.bindings_line();
+        let bindings_lines = self.bindings_lines();
         let type_line = self.type_line();
 
-        let lines: Vec<Line> = match (self.top_down, bindings_line) {
-            (true, Some(b)) => vec![b, type_line],
-            (false, Some(b)) => vec![type_line, b],
-            (_, None) => vec![type_line],
+        let lines: Vec<Line> = if self.top_down {
+            bindings_lines.into_iter().chain(once(type_line)).collect()
+        } else {
+            once(type_line).chain(bindings_lines.into_iter()).collect()
         };
 
         // Render without wrapping - content will be clipped if too wide

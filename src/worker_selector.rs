@@ -57,7 +57,6 @@ impl Default for WorkerSelector {
 }
 
 impl WorkerSelector {
-    /// Show the dialog.
     pub fn show(&mut self) {
         self.visible = true;
         self.result = WorkerSelectorResult::Pending;
@@ -66,7 +65,6 @@ impl WorkerSelector {
         }
     }
 
-    /// Set discovered workers.
     pub fn set_workers(&mut self, workers: Vec<WorkerInfo>) {
         self.workers = workers;
         self.scanning = false;
@@ -77,12 +75,10 @@ impl WorkerSelector {
         }
     }
 
-    /// Set port range from connected message.
     pub fn set_port_range(&mut self, min: u16, max: u16) {
         self.port_range = (min, max);
     }
 
-    /// Move selection up.
     fn select_previous(&mut self) {
         if self.workers.is_empty() {
             return;
@@ -94,7 +90,6 @@ impl WorkerSelector {
         self.list_state.select(Some(i));
     }
 
-    /// Move selection down.
     fn select_next(&mut self) {
         if self.workers.is_empty() {
             return;
@@ -106,7 +101,6 @@ impl WorkerSelector {
         self.list_state.select(Some(i));
     }
 
-    /// Confirm selection.
     fn confirm_selection(&mut self) {
         if let Some(i) = self.list_state.selected() {
             if let Some(worker) = self.workers.get(i) {
@@ -133,17 +127,14 @@ impl StatefulWidget for WorkerSelectorWidget {
             return;
         }
 
-        // Calculate dialog size
         let width = 50u16.min(area.width.saturating_sub(4));
         let height = 14u16.min(area.height.saturating_sub(4));
         let x = (area.width.saturating_sub(width)) / 2;
         let y = (area.height.saturating_sub(height)) / 2;
         let popup_area = Rect::new(x, y, width, height);
 
-        // Clear background
         Clear.render(popup_area, buf);
 
-        // Border
         let block = Block::bordered()
             .title(" Select File ")
             .title_alignment(Alignment::Center)
@@ -152,7 +143,6 @@ impl StatefulWidget for WorkerSelectorWidget {
         let inner = block.inner(popup_area);
         block.render(popup_area, buf);
 
-        // Split inner area
         let [info_area, list_area, help_area] = Layout::vertical([
             Constraint::Length(2),
             Constraint::Fill(1),
@@ -160,7 +150,6 @@ impl StatefulWidget for WorkerSelectorWidget {
         ])
         .areas(inner);
 
-        // Info line
         let info_text = if state.scanning {
             format!(
                 "Scanning ports {}–{}...",
@@ -175,7 +164,6 @@ impl StatefulWidget for WorkerSelectorWidget {
             .style(Style::new().fg(Color::DarkGray))
             .render(info_area, buf);
 
-        // Worker list
         if !state.workers.is_empty() {
             let items: Vec<ListItem> = state
                 .workers
@@ -195,7 +183,6 @@ impl StatefulWidget for WorkerSelectorWidget {
             StatefulWidget::render(list, list_area, buf, &mut state.list_state);
         }
 
-        // Help line
         let help_text = Line::from(vec![
             Span::styled("↑/↓", Style::new().fg(Color::Cyan)),
             Span::raw(" select  "),

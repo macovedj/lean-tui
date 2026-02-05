@@ -102,7 +102,7 @@ impl<'a> EffectStateNode<'a> {
     fn content_lines(&self) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
 
-        // Forward interpretation - what the operation produces/returns
+        // Return component - what the operation produces
         if let Some(fwd) = &self.node.forward {
             lines.push(Line::from(vec![
                 Span::styled("→ ", Style::new().fg(Color::Green)),
@@ -110,7 +110,7 @@ impl<'a> EffectStateNode<'a> {
             ]));
         }
 
-        // Backward interpretation - what gets propagated back (lens "put")
+        // Effect component - what state changes are given back
         if let Some(bwd) = &self.node.backward {
             lines.push(Line::from(vec![
                 Span::styled("← ", Style::new().fg(Color::Magenta)),

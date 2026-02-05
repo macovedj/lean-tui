@@ -74,19 +74,16 @@ impl Connection {
         }
     }
 
-    /// Check if connected.
     pub const fn is_connected(&self) -> bool {
         matches!(self, Self::Connected { .. })
     }
 
-    /// Disconnect from the server.
     pub fn disconnect(&mut self) {
         *self = Self::Disconnected;
     }
 
-    /// Try to receive a message. Returns `Ok(None)` if disconnected or no data
-    /// ready. Returns `Err` on parse errors to allow the UI to display
-    /// them.
+    /// Returns `Ok(None)` if disconnected or no data ready.
+    /// Returns `Err` on parse errors to allow the UI to display them.
     pub async fn recv(&mut self) -> Result<Option<ServerToClientMessage>> {
         let Self::Connected { reader, .. } = self else {
             return Ok(None);
@@ -145,7 +142,6 @@ impl Connection {
 async fn probe_port(port: u16) -> Option<WorkerInfo> {
     let addr = format!("127.0.0.1:{port}");
 
-    // Try to connect with a short timeout
     let Ok(Ok(stream)) = timeout(Duration::from_millis(100), TcpStream::connect(&addr)).await
     else {
         return None;
@@ -154,12 +150,10 @@ async fn probe_port(port: u16) -> Option<WorkerInfo> {
     let (reader, _writer) = stream.into_split();
     let mut reader = BufReader::new(reader).lines();
 
-    // Try to read the Connected message with timeout
     let Ok(Ok(Some(line))) = timeout(Duration::from_millis(200), reader.next_line()).await else {
         return None;
     };
 
-    // Parse the message
     let msg: ServerToClientMessage = serde_json::from_str(&line).ok()?;
 
     match msg {
@@ -180,20 +174,17 @@ async fn probe_port(port: u16) -> Option<WorkerInfo> {
 pub async fn discover_workers(port_min: u16, port_max: u16) -> Vec<WorkerInfo> {
     tracing::info!("Scanning ports {port_min}–{port_max} for workers");
 
-    let mut handles = Vec::new();
-    for port in port_min..=port_max {
-        handles.push(tokio::spawn(probe_port(port)));
-    }
+    let handles: Vec<_> = (port_min..=port_max)
+        .map(|port| tokio::spawn(probe_port(port)))
+        .collect();
 
-    let mut workers = Vec::new();
-    for handle in handles {
-        if let Ok(Some(info)) = handle.await {
-            tracing::info!("Found worker: {:?}", info);
-            workers.push(info);
-        }
-    }
+    let mut workers: Vec<_> = futures::future::join_all(handles)
+        .await
+        .into_iter()
+        .filter_map(|result| result.ok().flatten())
+        .inspect(|info| tracing::info!("Found worker: {:?}", info))
+        .collect();
 
-    // Sort by port
     workers.sort_by_key(|w| w.port);
     workers
 }
@@ -216,7 +207,6 @@ pub struct ConnectionPool {
 }
 
 impl ConnectionPool {
-    /// Create an empty connection pool.
     pub fn new() -> Self {
         Self {
             connections: HashMap::new(),
@@ -227,12 +217,10 @@ impl ConnectionPool {
         }
     }
 
-    /// Get the currently active port.
     pub fn active_port(&self) -> Option<u16> {
         self.active_port
     }
 
-    /// Set the active port.
     pub fn set_active(&mut self, port: u16) {
         if self.connections.contains_key(&port) {
             self.active_port = Some(port);
@@ -245,19 +233,16 @@ impl ConnectionPool {
         self.reconnected_port.take()
     }
 
-    /// Check if connected to a specific port.
     pub fn is_connected(&self, port: u16) -> bool {
         self.connections
             .get(&port)
             .is_some_and(Connection::is_connected)
     }
 
-    /// Get the file URI for a port.
     pub fn file_uri(&self, port: u16) -> Option<&String> {
         self.port_to_uri.get(&port)
     }
 
-    /// Get list of connected ports.
     pub fn connected_ports(&self) -> Vec<u16> {
         self.connections
             .iter()
@@ -305,7 +290,6 @@ impl ConnectionPool {
         }
     }
 
-    /// Disconnect from a specific worker.
     pub fn disconnect(&mut self, port: u16) {
         tracing::info!("Disconnecting from port {port}");
         if let Some(conn) = self.connections.get_mut(&port) {

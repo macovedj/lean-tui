@@ -98,7 +98,6 @@ impl PlainList {
         let hyp_count = self.state.hypotheses.len();
         let goal_count = self.state.goals.len();
 
-        // All hypotheses (filtered) followed by all goals
         let hyp_items = hypothesis_indices(hyp_count, self.filters.reverse_order)
             .filter(|&i| self.should_show_hypothesis(i))
             .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
@@ -112,12 +111,9 @@ impl PlainList {
         let Some(h) = self.state.hypotheses.get(idx) else {
             return false;
         };
-        // Apply filters based on hypothesis properties
         if self.filters.hide_instances && h.is_typeclass_instance {
             return false;
         }
-        // Note: hide_inaccessible checks name prefix, is_proof_term maps to that
-        // heuristic
         if self.filters.hide_inaccessible && h.is_proof_term {
             return false;
         }
@@ -130,7 +126,6 @@ impl InteractiveComponent for PlainList {
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
-        // Extract current node ID from DAG
         let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
         let current_node = current_node_id.and_then(|id| input.proof_dag.as_ref()?.get(id));
 
@@ -192,7 +187,6 @@ impl InteractiveComponent for PlainList {
 
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        // Render open goal list and collect click regions
         let goal_list = OpenGoalList::new(
             &self.state,
             self.current_selection(),
@@ -202,7 +196,6 @@ impl InteractiveComponent for PlainList {
         );
         let click_regions = goal_list.render_to_frame(frame, content_area);
 
-        // Adjust click regions for error offset and add to selection
         let y_offset = content_area.y.saturating_sub(area.y);
         for region in click_regions {
             self.selection.add_region(

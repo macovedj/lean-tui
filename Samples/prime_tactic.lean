@@ -20,7 +20,7 @@ theorem exists_prime_factor :
 
 
 
-     obtain ⟨p, _, _⟩ := exists_prime_factor k (by grind);
+    obtain ⟨p, _, _⟩ := exists_prime_factor k (by grind);
     grind [Nat.dvd_trans]
 
 /-- The factorial, defined recursively, with custom notation -/

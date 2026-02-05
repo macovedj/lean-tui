@@ -298,7 +298,6 @@ impl DisplayMode {
     /// Update active mode. Each mode builds its own input from the DAG.
     #[allow(clippy::too_many_lines)]
     pub fn update(&mut self, definition: Option<DefinitionInfo>, error: Option<String>) {
-        // Combine app error with mode incompatibility error
         let error = error.or_else(|| self.incompatibility_error());
 
         match (&mut self.mode, &self.dag) {

@@ -41,7 +41,6 @@ struct GoalClickLayout {
 }
 
 impl GoalSectionState {
-    /// Update the state with new data.
     pub fn update(
         &mut self,
         state: &TacticProofState,
@@ -62,7 +61,6 @@ impl GoalSectionState {
         &self.click_regions
     }
 
-    /// Set focus state.
     pub const fn set_focused(&mut self, focused: bool) {
         self.is_focused = focused;
     }
@@ -104,7 +102,6 @@ impl StatefulWidget for GoalSection {
             return;
         }
 
-        // Calculate scroll position from selection
         if let Some(Selection::Goal { goal_idx, .. }) = state.selection {
             state.vertical_scroll = goal_idx;
         }
@@ -112,13 +109,11 @@ impl StatefulWidget for GoalSection {
         let total_goals = state.goals.len();
         let viewport_height = inner.height as usize;
 
-        // Update scrollbar state
         state.scroll_state = state
             .scroll_state
             .content_length(total_goals)
             .position(state.vertical_scroll);
 
-        // Track click regions for goals
         if let Some(node_id) = state.node_id {
             let layout = GoalClickLayout {
                 area: inner,
@@ -159,7 +154,6 @@ impl StatefulWidget for GoalSection {
             buf,
         );
 
-        // Render scrollbar if content overflows
         if total_goals > viewport_height && inner.width > 1 {
             let scrollbar_area = Rect {
                 x: area.x + area.width.saturating_sub(1),
@@ -181,16 +175,15 @@ fn track_goal_click_regions(
     node_id: NodeId,
     layout: &GoalClickLayout,
 ) {
-    for goal_idx in 0..layout.goal_count {
-        let y = layout.area.y + goal_idx as u16;
-        if y >= layout.area.y + layout.area.height {
-            break;
-        }
-        click_regions.push(ClickRegion {
-            area: Rect::new(layout.area.x, y, layout.area.width, 1),
-            selection: Selection::Goal { node_id, goal_idx },
-        });
-    }
+    click_regions.extend(
+        (0..layout.goal_count)
+            .map(|goal_idx| (goal_idx, layout.area.y + goal_idx as u16))
+            .take_while(|&(_, y)| y < layout.area.y + layout.area.height)
+            .map(|(goal_idx, y)| ClickRegion {
+                area: Rect::new(layout.area.x, y, layout.area.width, 1),
+                selection: Selection::Goal { node_id, goal_idx },
+            }),
+    );
 }
 
 fn goal_row(
@@ -210,13 +203,11 @@ fn goal_row(
         Style::new().fg(base_color)
     };
 
-    // Column 1: case label (e.g. "Expected:" or "h.mpr:")
     let case_label = goal
         .username_str()
         .map_or(String::new(), |n| format!("{n}: "));
     let col1 = Cell::from(Line::from(vec![Span::styled(case_label, style)]));
 
-    // Column 2: goal type (with diff highlighting)
     let mut spans = vec![Span::styled("⊢ ", style)];
     spans.extend(goal.type_.to_spans(style));
     let col2 = Cell::from(Text::from(Line::from(spans)));

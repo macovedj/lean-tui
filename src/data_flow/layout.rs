@@ -43,9 +43,9 @@ impl FunctionalTableauState {
         self.proof.update_current_node(current_node_id);
     }
 
-    /// Get all navigation regions including initial context bindings and theorem.
+    /// Get all navigation regions including initial context bindings and
+    /// theorem.
     pub fn navigation_regions(&self) -> Vec<NavigationRegion> {
-        // Convert click regions to navigation regions
         let to_nav_region = |cr: &ClickRegion| NavigationRegion {
             x: cr.area.x as i32,
             y: cr.area.y as i32,
@@ -54,7 +54,6 @@ impl FunctionalTableauState {
             selection: cr.selection,
         };
 
-        // Include given pane (initial context), proof pane (nodes), and theorem pane
         self.given
             .click_regions
             .iter()

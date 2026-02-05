@@ -92,13 +92,11 @@ impl StatefulWidget for OpenGoalList<'_> {
             return;
         }
 
-        // Count visible hypotheses
         let visible_hyp_count =
             hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
                 .filter(|&i| self.should_show_hypothesis(i))
                 .count();
 
-        // Layout: hypotheses, divider, goals
         let hyp_height = visible_hyp_count.min(area.height.saturating_sub(3) as usize / 2);
         let constraints = vec![
             Constraint::Length(hyp_height as u16),
@@ -107,7 +105,6 @@ impl StatefulWidget for OpenGoalList<'_> {
         ];
         let [hyp_area, div_area, goal_area] = Layout::vertical(constraints).areas(area);
 
-        // Render hypotheses
         let mut y = hyp_area.y;
         for hyp_idx in hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order) {
             if !self.should_show_hypothesis(hyp_idx) {
@@ -126,7 +123,6 @@ impl StatefulWidget for OpenGoalList<'_> {
                 Style::default()
             };
 
-            // Format: "name : type" (with diff highlighting)
             let mut spans = vec![
                 Span::styled(&h.name, style.fg(Theme::HYP_NAME)),
                 Span::styled(" : ", style),
@@ -137,7 +133,6 @@ impl StatefulWidget for OpenGoalList<'_> {
             let line_area = Rect::new(hyp_area.x, y, hyp_area.width, 1);
             Paragraph::new(line).render(line_area, buf);
 
-            // Register click region
             if let Some(nid) = self.node_id {
                 state.click_regions.push(ClickRegion {
                     area: line_area,
@@ -151,13 +146,11 @@ impl StatefulWidget for OpenGoalList<'_> {
             y += 1;
         }
 
-        // Render divider
         let divider = "─".repeat(div_area.width as usize);
         Paragraph::new(divider)
             .style(Theme::DIM)
             .render(div_area, buf);
 
-        // Render goals
         y = goal_area.y;
         for (goal_idx, g) in self.state.goals.iter().enumerate() {
             if y >= goal_area.bottom() {
@@ -175,7 +168,6 @@ impl StatefulWidget for OpenGoalList<'_> {
                 Style::default()
             };
 
-            // Highlight active goal
             let target_style = if is_active {
                 style
                     .fg(Theme::CURRENT_NODE_BORDER)
@@ -184,7 +176,6 @@ impl StatefulWidget for OpenGoalList<'_> {
                 style.fg(Theme::GOAL_TYPE)
             };
 
-            // Format: "⊢ type" or "case name ⊢ type"
             let prefix = g
                 .username_str()
                 .map_or_else(|| "⊢ ".to_string(), |name| format!("case {name} ⊢ "));
@@ -195,7 +186,6 @@ impl StatefulWidget for OpenGoalList<'_> {
             let line_area = Rect::new(goal_area.x, y, goal_area.width, 1);
             Paragraph::new(line).render(line_area, buf);
 
-            // Register click region
             if let Some(nid) = self.node_id {
                 state.click_regions.push(ClickRegion {
                     area: line_area,

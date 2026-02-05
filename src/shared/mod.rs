@@ -44,7 +44,6 @@ pub enum FilterToggle {
 }
 
 impl HypothesisFilters {
-    /// Toggle a filter setting.
     pub const fn toggle(&mut self, filter: FilterToggle) {
         match filter {
             FilterToggle::Instances => self.hide_instances = !self.hide_instances,

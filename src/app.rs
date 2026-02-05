@@ -105,7 +105,6 @@ impl App {
         }
     }
 
-    /// Toggle follow mode on/off.
     pub fn toggle_follow_mode(&mut self) {
         self.follow_mode = !self.follow_mode;
     }
@@ -190,7 +189,6 @@ impl App {
             } => {
                 self.connected = true;
                 self.connected_file_uri = file_uri;
-                // Update port range if provided
                 if let (Some(min), Some(max)) = (port_range_min, port_range_max) {
                     let min_port = u16::try_from(min.get()).unwrap_or(9742);
                     let max_port = u16::try_from(max.get()).unwrap_or(9752);
@@ -271,7 +269,6 @@ impl App {
         msg: ServerToClientMessage,
         pool: &mut ConnectionPool,
     ) {
-        // Check if we should switch to this port based on the message type
         let should_switch = self.follow_mode
             && match &msg {
                 ServerToClientMessage::FileFocused { focused, .. } => *focused,
@@ -285,7 +282,6 @@ impl App {
             self.clear_for_worker_switch(port);
         }
 
-        // Only process messages from the active port
         if Some(port) == pool.active_port() {
             self.handle_message(msg);
         }
@@ -299,7 +295,6 @@ impl App {
 
         let fallback_pos = self.goals_position().unwrap_or(cursor.position);
 
-        // Resolve navigation location based on selection type and DAG kind
         let nav_location: Option<(String, LineCharacterPosition)> = match &self.display_mode.dag {
             DagState::Proof(dag) => selection.and_then(|sel| match sel {
                 Selection::InitialHyp { hyp_idx } => dag
@@ -376,7 +371,6 @@ impl App {
 
     /// Copy the selected item's text (or error message) to the clipboard.
     fn copy_to_clipboard(&self) {
-        // Prioritize error message if present
         if let Some(error) = &self.error {
             let _ = stdout().execute(CopyToClipboard::to_clipboard_from(error.clone()));
             return;
@@ -425,7 +419,6 @@ impl App {
     }
 
     fn render_main(&mut self, frame: &mut Frame, area: Rect) {
-        // Show welcome screen when connected but no data yet
         let has_dag = self.display_mode.dag.is_some();
         let show_welcome = self.connected && self.cursor.is_none() && !has_dag;
 
@@ -551,13 +544,11 @@ impl App {
                 true
             }
             KeyCode::Char('f') => {
-                // Open file selector
                 self.worker_selector.show();
                 self.scan_requested = true;
                 true
             }
             KeyCode::Char('F') => {
-                // Toggle follow mode
                 self.toggle_follow_mode();
                 true
             }

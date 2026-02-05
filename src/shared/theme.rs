@@ -6,47 +6,31 @@ use ratatui::style::{Color, Modifier, Style};
 pub struct Theme;
 
 impl Theme {
-    // Base text colors
     pub const DIM: Style = Style::new().fg(Color::DarkGray);
-
-    // Special states
     pub const DEPENDENCY: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::DIM);
 
-    // UI chrome colors
     pub const BORDER: Color = Color::DarkGray;
     pub const BORDER_FOCUSED: Color = Color::Cyan;
     pub const TITLE_HYPOTHESIS: Color = Color::Blue;
     pub const TITLE_GOAL: Color = Color::Cyan;
-
-    // Selection highlighting
     pub const SELECTION_BG: Color = Color::Rgb(50, 50, 80);
 
-    // Hypothesis colors
     pub const HYP_NAME: Color = Color::Blue;
     pub const HYP_TYPE: Color = Color::White;
-
-    // Goal colors
     pub const GOAL_TYPE: Color = Color::Cyan;
 
-    // Semantic tableau - proof hypothesis colors (green tones)
     pub const PROOF_HYP_BG: Color = Color::Rgb(30, 45, 30);
     pub const PROOF_HYP_FG: Color = Color::Rgb(150, 200, 150);
-
-    // Semantic tableau - data hypothesis colors (yellow/tan tones)
     pub const DATA_HYP_BG: Color = Color::Rgb(50, 45, 25);
     pub const DATA_HYP_FG: Color = Color::Rgb(200, 180, 120);
 
-    // Semantic tableau - node borders
     pub const TACTIC_BORDER: Color = Color::DarkGray;
     pub const CURRENT_NODE_BORDER: Color = Color::Cyan;
     pub const INCOMPLETE_NODE_BORDER: Color = Color::Yellow;
     pub const COMPLETED_NODE_BORDER: Color = Color::Green;
-
-    // Semantic tableau - goals
     pub const GOAL_FG: Color = Color::Rgb(200, 140, 140);
     pub const COMPLETED_GOAL_FG: Color = Color::Green;
 
-    // Effect flow - effect kinds
     pub const EFFECT_BIND: Color = Color::Cyan;
     pub const EFFECT_STATE_READ: Color = Color::Green;
     pub const EFFECT_STATE_WRITE: Color = Color::Yellow;
@@ -56,7 +40,6 @@ impl Theme {
     pub const EFFECT_CATCH: Color = Color::LightRed;
     pub const EFFECT_PURE: Color = Color::White;
 
-    // Effect flow - edge kinds
     pub const EDGE_DATA_FLOW: Color = Color::Cyan;
     pub const EDGE_CONTROL_FLOW: Color = Color::White;
     pub const EDGE_EFFECT_FLOW: Color = Color::Magenta;
@@ -64,7 +47,6 @@ impl Theme {
     pub const EDGE_EARLY_RETURN: Color = Color::Yellow;
     pub const EDGE_CONTINUATION: Color = Color::DarkGray;
 
-    // Data flow - node kinds
     pub const DATAFLOW_BINDING: Color = Color::Cyan;
     pub const DATAFLOW_LAMBDA: Color = Color::Magenta;
     pub const DATAFLOW_BRANCH: Color = Color::Yellow;

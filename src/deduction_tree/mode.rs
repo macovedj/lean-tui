@@ -125,38 +125,32 @@ impl SemanticTableau {
             return Vec::new();
         }
 
-        let mut items = Vec::new();
+        let initial_hyps = dag
+            .initial_proof_state()
+            .hypotheses
+            .iter()
+            .enumerate()
+            .filter(|(_, h)| !h.is_proof_term)
+            .map(|(idx, _)| Selection::InitialHyp { hyp_idx: idx });
 
-        // Initial hypotheses from the initial_proof_state
-        let initial = dag.initial_proof_state();
-        for (idx, h) in initial.hypotheses.iter().enumerate() {
-            if !h.is_proof_term {
-                items.push(Selection::InitialHyp { hyp_idx: idx });
-            }
-        }
-
-        // For each node: new hypotheses and goals
-        for node in dag.dfs_iter() {
+        let node_selections = dag.dfs_iter().flat_map(|node| {
             let node_id = node.id;
+            let hyp_selections =
+                node.new_hypothesis_indices
+                    .iter()
+                    .map(move |&hyp_idx| Selection::Hyp {
+                        node_id,
+                        hyp_idx: hyp_idx as usize,
+                    });
+            let goal_selections = (0..node.proof_state_after.goals.len())
+                .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
+            hyp_selections.chain(goal_selections)
+        });
 
-            // New hypotheses introduced by this step
-            for &hyp_idx in &node.new_hypothesis_indices {
-                items.push(Selection::Hyp {
-                    node_id,
-                    hyp_idx: hyp_idx as usize,
-                });
-            }
-
-            // Goals after this step
-            for (goal_idx, _) in node.proof_state_after.goals.iter().enumerate() {
-                items.push(Selection::Goal { node_id, goal_idx });
-            }
-        }
-
-        // Theorem (final goal)
-        items.push(Selection::Theorem);
-
-        items
+        initial_hyps
+            .chain(node_selections)
+            .chain(std::iter::once(Selection::Theorem))
+            .collect()
     }
 
     fn current_tree_selection(&self) -> Option<Selection> {
@@ -182,7 +176,6 @@ impl SemanticTableau {
     }
 
     fn move_in_direction(&mut self, direction: Direction) -> bool {
-        // If nothing is selected, start at the active goal
         if self.selected_idx.is_none() {
             trace!("No selection, starting at active goal");
             if let Some(sel) = self.active_goal_selection() {
@@ -227,7 +220,6 @@ impl InteractiveComponent for SemanticTableau {
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
-        // Detect changes to proof tree or goals
         let old_proof_count = self.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
         let new_proof_count = input.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
 
@@ -238,7 +230,6 @@ impl InteractiveComponent for SemanticTableau {
         let state_changed = self.state.goals.len() != input.state.goals.len()
             || self.state.hypotheses.len() != input.state.hypotheses.len();
 
-        // Update state when current node changes
         self.tableau_state
             .update_current_node(input.proof_dag.as_ref().and_then(|dag| dag.current_node_id));
 
@@ -247,7 +238,6 @@ impl InteractiveComponent for SemanticTableau {
         self.error = input.error;
         self.proof_dag = input.proof_dag;
 
-        // Auto-select active goal when tree or goals change
         if tree_changed || state_changed {
             if let Some(sel) = self.active_goal_selection() {
                 self.select_by_selection(sel);

@@ -2,16 +2,6 @@
 
 This is a more in-depth guide for advanced users or contributors.
 
-## Switch to Standalone Mode
-
-This step is completely optional and might cause issues. For those who don't want to modify their Lean source files, there is an additional mode of operation: standalone. It uses the `lean-dag` binary directly, no imports needed. However, it requires building a binary. This is done with:
-
-```bash
-lake build LeanDag/lean-dag
-```
-
-This will build a binary `lean-dag` in your project's `.lake` folder that can be used as LSP (instead of `lake serve`) and supports the generation of a graph of your proof state. Configure your editor to use this binary as the Lean language server.
-
 ## How Does It Work?
 
 This is mainly a front for [**lean-dag**](github.com/wvhulle/lean-dag/tree/main), a custom LSP server that adds an RPC method on top of the built-in LSP-compliant RPC methods provided by Lean's LSP. The additional RPC methods uses Lean's internal APIs to extract detailed proof information (tactic applications, goal transformations, go-to locations) that isn't available through standard LSP.

@@ -63,7 +63,6 @@ impl HypLayer {
         ctx: &HypLayerRenderContext<'_>,
         click_regions: &mut Vec<ClickRegion>,
     ) -> Vec<Line<'static>> {
-        // Track click regions
         if let Some(node_id) = self.node_id {
             self.track_click_regions(click_regions, node_id, ctx);
         }
@@ -87,19 +86,17 @@ impl HypLayer {
         node_id: NodeId,
         ctx: &HypLayerRenderContext<'_>,
     ) {
-        for (i, (hyp_idx, _)) in self.hypotheses.iter().enumerate() {
-            let y = ctx.base_y + i as u16;
-            if y >= ctx.area.y + ctx.area.height {
-                break;
-            }
-            click_regions.push(ClickRegion {
-                area: Rect::new(ctx.area.x, y, ctx.area.width, 1),
-                selection: Selection::Hyp {
-                    node_id,
-                    hyp_idx: *hyp_idx,
-                },
-            });
-        }
+        click_regions.extend(
+            self.hypotheses
+                .iter()
+                .enumerate()
+                .map(|(i, (hyp_idx, _))| (ctx.base_y + i as u16, *hyp_idx))
+                .take_while(|&(y, _)| y < ctx.area.y + ctx.area.height)
+                .map(|(y, hyp_idx)| ClickRegion {
+                    area: Rect::new(ctx.area.x, y, ctx.area.width, 1),
+                    selection: Selection::Hyp { node_id, hyp_idx },
+                }),
+        );
     }
 }
 
@@ -116,7 +113,6 @@ fn render_hyp_line(
     };
     let diff = diff_style(&state, is_selected, Color::White);
 
-    // Simple dimmed markers like before_after mode
     let marker = match (is_dependency, hyp.is_removed, hyp.type_.has_any_diff()) {
         (true, _, _) => Span::styled("*", DIM_GRAY),
         (_, true, _) => Span::styled("-", DIM_GRAY),
@@ -124,8 +120,6 @@ fn render_hyp_line(
         _ => Span::styled(" ", DIM_GRAY),
     };
 
-    // Only underline when selected (not for dependencies)
-    // Dependencies get bold name only
     let name_style = if is_dependency {
         diff.style.add_modifier(Modifier::BOLD)
     } else {
@@ -137,7 +131,6 @@ fn render_hyp_line(
         Span::raw(" "),
         Span::styled(format!("{} : ", hyp.name), name_style),
     ];
-    // Type spans use diff.style which applies underline only when selected
     spans.extend(hyp.type_.to_spans(diff.style));
     Line::from(spans)
 }
