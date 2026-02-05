@@ -69,7 +69,6 @@ pub fn render_graph_pane(
         return;
     }
 
-    // Convert to petgraph structure
     let graph = dag.to_graph();
 
     let layout_config = LayoutConfig {
@@ -79,13 +78,11 @@ pub fn render_graph_pane(
         v_gap: config.v_gap,
     };
 
-    // Calculate layout using petgraph
     state.layout = calculate_layout(&graph, layout_config, |node| node.layout_size());
     if state.layout.nodes.is_empty() {
         return;
     }
 
-    // Calculate scroll position
     let selected_idx = selection.and_then(|sel| match sel {
         Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. } => graph.index_of(node_id),
         _ => None,
@@ -108,7 +105,6 @@ pub fn render_graph_pane(
     state.scroll_x = scroll_x;
     state.scroll_y = scroll_y;
 
-    // Render edges
     render_edges(
         &graph,
         &state.layout,
@@ -119,7 +115,6 @@ pub fn render_graph_pane(
         buf,
     );
 
-    // Render nodes
     let click_regions: Vec<ClickRegion> = state
         .layout
         .nodes

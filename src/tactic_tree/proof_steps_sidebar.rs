@@ -17,11 +17,10 @@ use crate::{
     shared::{theme::Theme, InteractiveStatefulWidget},
 };
 
-// Tree drawing characters
-const BRANCH_MID: &str = "├─ "; // Branch to non-last child
-const BRANCH_END: &str = "╰─ "; // Branch to last child (rounded)
-const VERT_LINE: &str = "│  "; // Vertical continuation
-const EMPTY: &str = "   "; // Empty space after last child
+const BRANCH_MID: &str = "├─ ";
+const BRANCH_END: &str = "╰─ ";
+const VERT_LINE: &str = "│  ";
+const EMPTY: &str = "   ";
 
 /// State for the proof steps sidebar widget.
 #[derive(Default)]
@@ -89,21 +88,14 @@ impl ProofStepsSidebarState {
             return 0;
         };
 
-        let mut current_line: usize = 0;
-        for node in dag.dfs_iter() {
-            if dag.is_current(node.id) {
-                break;
-            }
-            current_line += 1; // Main step line
-            if !node.hypothesis_dependencies.is_empty() {
-                current_line += 1; // Dependency line
-            }
-            if !node.referenced_theorems.is_empty() {
-                current_line += 1; // Theorem line
-            }
-        }
-
-        // Center the current line in the viewport
+        let current_line: usize = dag
+            .dfs_iter()
+            .take_while(|node| !dag.is_current(node.id))
+            .map(|node| {
+                1 + usize::from(!node.hypothesis_dependencies.is_empty())
+                    + usize::from(!node.referenced_theorems.is_empty())
+            })
+            .sum();
         let half_viewport = viewport_height / 2;
         let total = self.total_lines();
         let max_scroll = total.saturating_sub(viewport_height);
@@ -117,31 +109,23 @@ impl ProofStepsSidebarState {
             return 0;
         };
 
-        let mut count = 0;
-        for node in dag.dfs_iter() {
-            count += 1;
-            if !node.hypothesis_dependencies.is_empty() {
-                count += 1;
-            }
-            if !node.referenced_theorems.is_empty() {
-                count += 1;
-            }
-        }
-        count
+        dag.dfs_iter()
+            .map(|node| {
+                1 + usize::from(!node.hypothesis_dependencies.is_empty())
+                    + usize::from(!node.referenced_theorems.is_empty())
+            })
+            .sum()
     }
 
-    /// Set focus state.
     pub const fn set_focused(&mut self, focused: bool) {
         self.is_focused = focused;
     }
 
-    /// Scroll up by one line.
     pub const fn scroll_up(&mut self) {
         self.manual_scroll = true;
         self.vertical_scroll = self.vertical_scroll.saturating_sub(1);
     }
 
-    /// Scroll down by one line.
     pub fn scroll_down(&mut self, viewport_height: usize) {
         self.manual_scroll = true;
         let max_scroll = self.total_lines().saturating_sub(viewport_height);
@@ -150,13 +134,11 @@ impl ProofStepsSidebarState {
         }
     }
 
-    /// Scroll left by one column.
     pub const fn scroll_left(&mut self) {
         self.manual_scroll = true;
         self.horizontal_scroll = self.horizontal_scroll.saturating_sub(1);
     }
 
-    /// Scroll right by one column (bounded by content width).
     pub const fn scroll_right(&mut self) {
         self.manual_scroll = true;
         let max_horiz = self.max_content_width.saturating_sub(self.viewport_width);
@@ -165,7 +147,6 @@ impl ProofStepsSidebarState {
         }
     }
 
-    /// Reset to auto-scroll mode (following current step).
     pub const fn reset_scroll(&mut self) {
         self.manual_scroll = false;
     }
@@ -175,9 +156,7 @@ impl ProofStepsSidebarState {
 fn update_active_levels(active_levels: &mut Vec<bool>, depth: usize, is_last_child: bool) {
     active_levels.truncate(depth);
     if depth > 0 {
-        // Ensure we have entries for all ancestor levels
         active_levels.resize(depth, true);
-        // The parent's level continues if this is not the last child
         if let Some(last) = active_levels.last_mut() {
             *last = !is_last_child;
         }
@@ -192,12 +171,10 @@ fn build_tree_prefix(active_levels: &[bool], depth: usize, is_last_child: bool) 
 
     let mut prefix = String::new();
 
-    // For each ancestor level (except the last one), draw vertical line or empty
     for &active in active_levels.iter().take(depth.saturating_sub(1)) {
         prefix.push_str(if active { VERT_LINE } else { EMPTY });
     }
 
-    // For the current level, draw branch
     prefix.push_str(if is_last_child {
         BRANCH_END
     } else {
@@ -215,12 +192,10 @@ fn build_continuation_prefix(active_levels: &[bool], depth: usize, is_last_child
 
     let mut prefix = String::new();
 
-    // For each ancestor level, draw vertical line or empty
     for &active in active_levels.iter().take(depth.saturating_sub(1)) {
         prefix.push_str(if active { VERT_LINE } else { EMPTY });
     }
 
-    // After the branch point, use vertical line if not last, empty if last
     prefix.push_str(if is_last_child { EMPTY } else { VERT_LINE });
 
     prefix
@@ -236,7 +211,6 @@ impl InteractiveStatefulWidget for ProofStepsSidebar {
     fn update_state(state: &mut Self::State, input: Self::Input) {
         let new_current = input.as_ref().and_then(|dag| dag.current_node_id);
 
-        // Reset manual scroll when current node changes (re-center on new step)
         if new_current != state.prev_current_node {
             state.manual_scroll = false;
             state.prev_current_node = new_current;
@@ -275,22 +249,18 @@ impl StatefulWidget for ProofStepsSidebar {
         let viewport_height = inner.height as usize;
         let viewport_width = inner.width as usize;
 
-        // Cache dimensions for scroll bounds
         state.viewport_width = viewport_width;
         state.max_content_width = lines.iter().map(Line::width).max().unwrap_or(0);
 
-        // Auto-scroll to center current step unless user has taken manual control
         if !state.manual_scroll {
             state.vertical_scroll = state.calculate_centered_scroll(viewport_height);
         }
 
-        // Clamp scroll values to valid range
         let max_vert_scroll = total_lines.saturating_sub(viewport_height);
         let max_horiz_scroll = state.max_content_width.saturating_sub(viewport_width);
         state.vertical_scroll = state.vertical_scroll.min(max_vert_scroll);
         state.horizontal_scroll = state.horizontal_scroll.min(max_horiz_scroll);
 
-        // Update scrollbar state
         state.scroll_state = state
             .scroll_state
             .content_length(total_lines)
@@ -300,7 +270,6 @@ impl StatefulWidget for ProofStepsSidebar {
             .scroll((state.vertical_scroll as u16, state.horizontal_scroll as u16))
             .render(inner, buf);
 
-        // Render scrollbar if content overflows
         if total_lines > viewport_height && inner.width > 1 {
             let scrollbar_area = Rect {
                 x: area.x + area.width.saturating_sub(1),

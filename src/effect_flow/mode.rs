@@ -104,27 +104,22 @@ impl EffectFlowMode {
             return Vec::new();
         }
 
-        let mut items = Vec::new();
+        let initial_hyps = dag
+            .initial_context
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| !b.is_implicit && !b.is_instance)
+            .map(|(idx, _)| Selection::InitialHyp { hyp_idx: idx });
 
-        // Initial bindings
-        for (idx, b) in dag.initial_context.iter().enumerate() {
-            if !b.is_implicit && !b.is_instance {
-                items.push(Selection::InitialHyp { hyp_idx: idx });
-            }
-        }
+        let node_selections = dag.dfs_iter().map(|node| Selection::Goal {
+            node_id: node.id,
+            goal_idx: 0,
+        });
 
-        // All effect nodes are selectable
-        for node in dag.dfs_iter() {
-            items.push(Selection::Goal {
-                node_id: node.id,
-                goal_idx: 0,
-            });
-        }
-
-        // Definition type
-        items.push(Selection::Theorem);
-
-        items
+        initial_hyps
+            .chain(node_selections)
+            .chain(std::iter::once(Selection::Theorem))
+            .collect()
     }
 
     fn current_tree_selection(&self) -> Option<Selection> {
@@ -209,7 +204,6 @@ impl EffectFlowMode {
         ];
         frame.render_widget(Paragraph::new(Line::from(spans)), area);
 
-        // Return remaining area below the monad stack line
         if area.height > 1 {
             Rect::new(area.x, area.y + 1, area.width, area.height - 1)
         } else {
@@ -303,10 +297,7 @@ impl InteractiveComponent for EffectFlowMode {
         let content_area = render_error(frame, area, self.error.as_deref());
 
         if let Some(ref dag) = self.effect_dag {
-            // Render monad stack info at the top
             let remaining = self.render_monad_stack(frame, content_area);
-
-            // Render the DAG tree
             let widget = EffectTableauLayout::new(dag, self.current_tree_selection());
             frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
             return;

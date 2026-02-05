@@ -115,36 +115,28 @@ impl DataFlowMode {
             return Vec::new();
         }
 
-        let mut items = Vec::new();
+        let initial_hyps = dag
+            .initial_context
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| !b.is_implicit && !b.is_instance)
+            .map(|(idx, _)| Selection::InitialHyp { hyp_idx: idx });
 
-        // Initial bindings (function parameters)
-        for (idx, b) in dag.initial_context.iter().enumerate() {
-            if !b.is_implicit && !b.is_instance {
-                items.push(Selection::InitialHyp { hyp_idx: idx });
-            }
-        }
-
-        // For each node: add goal and bindings
-        for node in dag.dfs_iter() {
+        let node_selections = dag.dfs_iter().flat_map(|node| {
             let node_id = node.id;
+            let binding_count = node.bindings_after().len();
+            (0..binding_count)
+                .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx })
+                .chain(std::iter::once(Selection::Goal {
+                    node_id,
+                    goal_idx: 0,
+                }))
+        });
 
-            // Add selectable bindings for this node
-            let bindings = node.bindings_after();
-            for (hyp_idx, _) in bindings.iter().enumerate() {
-                items.push(Selection::Hyp { node_id, hyp_idx });
-            }
-
-            // Each node's expected type is selectable
-            items.push(Selection::Goal {
-                node_id,
-                goal_idx: 0,
-            });
-        }
-
-        // Definition type (like theorem)
-        items.push(Selection::Theorem);
-
-        items
+        initial_hyps
+            .chain(node_selections)
+            .chain(std::iter::once(Selection::Theorem))
+            .collect()
     }
 
     fn current_tree_selection(&self) -> Option<Selection> {
@@ -188,7 +180,6 @@ impl DataFlowMode {
     }
 
     fn move_in_direction(&mut self, direction: Direction) -> bool {
-        // If nothing is selected, start at the active goal
         if self.selected_idx.is_none() {
             trace!("No selection, starting at active goal");
             if let Some(sel) = self.active_goal_selection() {
@@ -232,7 +223,6 @@ impl InteractiveComponent for DataFlowMode {
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
-        // Detect changes to DAG
         let old_count = self.dag.as_ref().map_or(0, DataFlowDag::len);
         let new_count = input.dag.as_ref().map_or(0, DataFlowDag::len);
 
@@ -241,7 +231,6 @@ impl InteractiveComponent for DataFlowMode {
 
         let tree_changed = old_count != new_count || old_current != new_current;
 
-        // Update state when current node changes
         self.functional_tableau_state
             .update_current_node(input.dag.as_ref().and_then(|dag| dag.current_node_id));
 
@@ -249,7 +238,6 @@ impl InteractiveComponent for DataFlowMode {
         self.error = input.error;
         self.dag = input.dag;
 
-        // Auto-select active goal when tree changes
         if tree_changed {
             if let Some(sel) = self.active_goal_selection() {
                 self.select_by_selection(sel);
@@ -297,7 +285,6 @@ impl InteractiveComponent for DataFlowMode {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        // Render data flow DAG if present
         if let Some(ref dag) = self.dag {
             let widget = FunctionalTableauLayout::new(
                 dag,
@@ -309,7 +296,6 @@ impl InteractiveComponent for DataFlowMode {
             return;
         }
 
-        // No DAG available
         frame.render_widget(
             Paragraph::new("No data flow available (term mode only)")
                 .style(Style::new().fg(Color::DarkGray)),

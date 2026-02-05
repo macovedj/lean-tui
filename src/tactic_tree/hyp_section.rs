@@ -47,7 +47,6 @@ impl HypSectionState {
         let mut seen: HashSet<String> = HashSet::new();
 
         for (hyp_idx, h) in state.hypotheses.iter().enumerate() {
-            // Apply filters
             if filters.hide_instances && h.is_typeclass_instance {
                 continue;
             }
@@ -65,7 +64,6 @@ impl HypSectionState {
         &self.click_regions
     }
 
-    /// Set focus state.
     pub const fn set_focused(&mut self, focused: bool) {
         self.is_focused = focused;
     }
@@ -107,7 +105,6 @@ impl StatefulWidget for HypSection {
             return;
         }
 
-        // Calculate scroll position from selection
         if let Some(Selection::Hyp { hyp_idx, .. }) = state.selection {
             state.vertical_scroll = hyp_idx;
         }
@@ -115,7 +112,6 @@ impl StatefulWidget for HypSection {
         let total_hyps = state.layer.len();
         let viewport_height = inner.height as usize;
 
-        // Update scrollbar state
         state.scroll_state = state
             .scroll_state
             .content_length(total_hyps)
@@ -130,7 +126,6 @@ impl StatefulWidget for HypSection {
         let lines = state.layer.render(&render_ctx, &mut state.click_regions);
         Paragraph::new(lines).render(inner, buf);
 
-        // Render scrollbar if content overflows
         if total_hyps > viewport_height && inner.width > 1 {
             let scrollbar_area = Rect {
                 x: area.x + area.width.saturating_sub(1),

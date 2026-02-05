@@ -101,7 +101,6 @@ impl StatefulWidget for BindingGivenPane<'_> {
             return;
         }
 
-        // Build spans and click regions together
         let (spans, regions): (Vec<_>, Vec<_>) = visible
             .iter()
             .take(5)

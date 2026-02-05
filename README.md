@@ -26,7 +26,9 @@ theorem commutativityOfIntersections
   -- exact h2
 ```
 
-This program will visualize the (incomplete) proof state by querying the Lean run-time and displaying with one of the following styles:
+This program will visualize the (incomplete) proof state by querying the Lean run-time and displaying with one of the following styles.
+
+## Graphs of Proof
 
 | Linear                       | Graph                            |
 | ---------------------------- | -------------------------------- |
@@ -43,6 +45,8 @@ If you are interested in your proof as it evolves (like a directed acyclic graph
 - Tactic tree: tree of the tactic structure next to active hypotheses and goals
 - Semantic tableau: proof shown as a semantic tableau
 
+## Graphs of Functional Programs
+
 There are display modes focused on functional programming:
 
 | Pure                       | Monadic                 |
@@ -52,7 +56,7 @@ There are display modes focused on functional programming:
 I split them into:
 
 - Data flow: for normal functional programs. It shows a graph of the local bindings and expected types throughout the program (but not yet supporting all control flow)
-- Effect flow: inspired by [Aeneas](github.com/AeneasVerif/aeneas) and separation logic. Shows how effects by monadic computations affect forwards (returning new data) and backwards (modify existing state) computation direction. This is fairly new and a work-in-progress.
+- Effect flow: decompose monadic computations into return (what an operation produces) and effect (what state changes are given back) components. Applies to `StateM`, `ExceptT`, and similar effect stacks. This is fairly new and a work-in-progress.
 
 Try it out by opening one of the samples in [`samples/`](./samples).
 
@@ -87,12 +91,6 @@ Fetch the source code of the latest version (Lean only hosts on Git, does not pr
 lake update LeanDag
 ```
 
-Add this to the top of your Lean file (or build target):
-
-```lean
-import LeanDag
-```
-
 ## Configuration
 
 Configure your editor to use `lake serve` as the Lean LSP server. This connects to lean-dag which provides the extended RPC methods.
@@ -108,6 +106,12 @@ args = ["serve"]
 [[language]]
 language-servers = ["lean"]
 name = "lean"
+```
+
+Add this to the top of your Lean file (or build target):
+
+```lean
+import LeanDag
 ```
 
 ## Usage
@@ -143,6 +147,7 @@ Switch to the TUI. Key bindings:
 | `?`   | Help menu                       |
 | `q`   | Quit                            |
 | `f`   | File selection                  |
+| `L`   | Color legend                    |
 
 The TUI follows your cursor in the editor automatically.
 

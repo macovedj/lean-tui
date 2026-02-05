@@ -33,22 +33,18 @@ pub struct SelectionState {
 }
 
 impl SelectionState {
-    /// Clear click regions (call at start of render).
     pub fn clear_regions(&mut self) {
         self.click_regions.clear();
     }
 
-    /// Add a click region.
     pub fn add_region(&mut self, area: Rect, selection: Selection) {
         self.click_regions.push(ClickRegion { area, selection });
     }
 
-    /// Reset selection to first item if items exist.
     pub fn reset(&mut self, item_count: usize) {
         self.selected_index = (item_count > 0).then_some(0);
     }
 
-    /// Move selection to previous item.
     pub fn select_previous(&mut self, item_count: usize) {
         if item_count == 0 {
             return;
@@ -56,7 +52,6 @@ impl SelectionState {
         self.selected_index = Some(self.selected_index.map_or(0, |i| i.saturating_sub(1)));
     }
 
-    /// Move selection to next item.
     pub const fn select_next(&mut self, item_count: usize) {
         if item_count == 0 {
             return;
@@ -68,7 +63,6 @@ impl SelectionState {
         });
     }
 
-    /// Get currently selected item from a list.
     pub fn current_selection<'a>(&self, items: &'a [Selection]) -> Option<&'a Selection> {
         self.selected_index.and_then(|i| items.get(i))
     }

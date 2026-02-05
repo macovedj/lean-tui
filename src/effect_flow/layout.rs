@@ -100,7 +100,6 @@ impl<'a> EffectTableauLayout<'a> {
     fn compute_layout(&self, area: Rect) -> LayoutAreas {
         let has_result = self.dag.definition_type.is_some();
 
-        // Vertical layout: Given | Graph | Result
         let [given_area, graph_area, result_area] = Layout::vertical([
             Constraint::Length(3),
             Constraint::Fill(1),
@@ -122,7 +121,6 @@ impl StatefulWidget for EffectTableauLayout<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let areas = self.compute_layout(area);
 
-        // 1. Given pane (function parameters)
         if areas.given.height > 0 {
             BindingGivenPane::new(&self.dag.initial_context, self.selection).render(
                 areas.given,
@@ -131,7 +129,6 @@ impl StatefulWidget for EffectTableauLayout<'_> {
             );
         }
 
-        // 2. Graph pane - render the full DAG
         render_graph_pane(
             self.dag,
             LayoutConfig {
@@ -146,7 +143,6 @@ impl StatefulWidget for EffectTableauLayout<'_> {
             &mut state.graph,
         );
 
-        // 3. Result pane (definition type)
         if areas.result.height > 0 {
             let is_selected = matches!(self.selection, Some(Selection::Theorem));
             render_result_pane(self.dag, is_selected, areas.result, buf, &mut state.result);

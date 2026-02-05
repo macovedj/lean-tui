@@ -110,7 +110,6 @@ impl StatefulWidget for LegendWidget<'_> {
         let width = 22u16;
         let height = (lines.len() as u16) + 2;
 
-        // Position in bottom left corner
         let x = 1;
         let y = area.height.saturating_sub(height + 1);
         let popup_area = Rect::new(x, y, width.min(area.width.saturating_sub(2)), height);

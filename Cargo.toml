@@ -6,7 +6,7 @@ keywords = ["lean4", "proof-assistant", "tui", "mathematics"]
 license = "MIT"
 name = "lean-tui"
 repository = "https://codeberg.org/wvhulle/lean-tui"
-version = "0.4.2"
+version = "0.4.3"
 
 [lints.clippy]
 absolute_paths = { level = "warn", priority = 2 }

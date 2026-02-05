@@ -43,7 +43,6 @@ impl StatefulWidget for StatusBarWidget {
 
         let separator = Span::raw(" │ ");
 
-        // Global keybindings
         let global_spans = GLOBAL_KEYBINDINGS
             .iter()
             .enumerate()
@@ -55,7 +54,6 @@ impl StatefulWidget for StatusBarWidget {
                 ])
             });
 
-        // Mode-specific keybindings
         let mode_spans = state.keybindings.iter().flat_map(|(key, desc)| {
             [
                 separator.clone(),
@@ -64,7 +62,6 @@ impl StatefulWidget for StatusBarWidget {
             ]
         });
 
-        // Navigation shortcuts
         let nav_spans = [
             separator.clone(),
             Span::styled("g", Style::new().fg(Color::Magenta)),
@@ -78,7 +75,6 @@ impl StatefulWidget for StatusBarWidget {
         let filter_span = (!filter_status.is_empty())
             .then(|| Span::styled(format!(" [{filter_status}]"), Style::new().fg(Color::Green)));
 
-        // Follow mode indicator
         let follow_span = if state.follow_mode {
             Span::styled(" [Follow]", Style::new().fg(Color::Blue))
         } else {
