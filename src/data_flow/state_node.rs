@@ -178,16 +178,6 @@ impl StatefulWidget for FunctionalStateNode<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
-        // Fill background to make node opaque (hides edges behind it)
-        let bg_color = Theme::NODE_BG;
-        for y in area.y..area.y + area.height {
-            for x in area.x..area.x + area.width {
-                if let Some(cell) = buf.cell_mut((x, y)) {
-                    cell.set_bg(bg_color);
-                }
-            }
-        }
-
         let border_color = self.border_color();
         let border_style = Style::new()
             .fg(border_color)

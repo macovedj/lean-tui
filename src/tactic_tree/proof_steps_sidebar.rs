@@ -288,7 +288,9 @@ impl StatefulWidget for ProofStepsSidebar {
 
 fn step_line(node: &ProofDagTacticNode, prefix: &str, is_current: bool) -> Line<'static> {
     let style = if is_current {
-        Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        Style::new()
+            .fg(Theme::CURRENT_NODE_BORDER)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::new().fg(Color::White)
     };
@@ -296,7 +298,7 @@ fn step_line(node: &ProofDagTacticNode, prefix: &str, is_current: bool) -> Line<
     let marker = if is_current { "▶ " } else { "  " };
 
     Line::from(vec![
-        Span::styled(marker, Style::new().fg(Color::Cyan)),
+        Span::styled(marker, Style::new().fg(Theme::CURRENT_NODE_BORDER)),
         Span::styled(prefix.to_string(), Theme::DIM),
         Span::styled(node.tactic.text.clone(), style),
     ])
