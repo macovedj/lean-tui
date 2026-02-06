@@ -223,7 +223,8 @@ impl NavNode for DataFlowNode {
 
 impl NodeTextContent for DataFlowNode {
     fn title(&self) -> String {
-        self.inner.content.to_plain_text()
+        self.branch_label()
+            .unwrap_or_else(|| self.inner.content.to_plain_text())
     }
 
     fn content_lines(&self) -> Vec<String> {
