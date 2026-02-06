@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-const LEAN_DAG_COMMIT: &str = "885d18b2fe1b09d93fed547d74cf1f27764839c4";
+const LEAN_DAG_COMMIT: &str = "5017c74";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");

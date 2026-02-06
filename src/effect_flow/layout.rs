@@ -97,7 +97,7 @@ impl<'a> EffectTableauLayout<'a> {
 
     /// Compute areas for the layout.
     fn compute_layout(&self, area: Rect) -> LayoutAreas {
-        let has_result = self.dag.definition_type.is_some();
+        let has_result = self.dag.block_output.is_some();
 
         let [given_area, graph_area, result_area] = Layout::vertical([
             Constraint::Length(3),
@@ -121,7 +121,7 @@ impl StatefulWidget for EffectTableauLayout<'_> {
         let areas = self.compute_layout(area);
 
         if areas.given.height > 0 {
-            BindingGivenPane::new(&self.dag.initial_context, self.selection).render(
+            BindingGivenPane::new(&self.dag.block_input, self.selection).render(
                 areas.given,
                 buf,
                 &mut state.given,
@@ -173,7 +173,7 @@ fn render_result_pane(
     }
 
     let type_text = dag
-        .definition_type
+        .block_output
         .as_ref()
         .map_or_else(|| "...".to_string(), |t| t.to_plain_text());
 
