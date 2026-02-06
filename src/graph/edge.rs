@@ -43,7 +43,7 @@ impl EdgeRenderer {
                     child_x,
                     child_y,
                     style,
-                    edge_data.label,
+                    edge_data.label.as_deref(),
                     viewport,
                     buf,
                 );
@@ -102,11 +102,11 @@ impl EdgeRenderer {
         if let Some(label_text) = label {
             let label_len = label_text.chars().count() as i32;
             let mid_y = i32::midpoint(from_y, to_y);
-            let (label_x, label_y) = if from_x != to_x {
-                let center_x = (from_x + to_x) / 2;
-                (center_x - label_len / 2, mid_y)
-            } else {
+            let (label_x, label_y) = if from_x == to_x {
                 (from_x + 1, mid_y)
+            } else {
+                let center_x = i32::midpoint(from_x, to_x);
+                (center_x - label_len / 2, mid_y)
             };
             self.draw_text(label_x, label_y, style, label_text, viewport, buf);
         }

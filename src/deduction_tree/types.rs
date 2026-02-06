@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use serde::de::DeserializeOwned;
 
 use crate::{
-    graph::{Dag, DagNode, NavNode},
+    graph::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
     protocol::{
         AnnotatedTextTree, DisplayStyle, GenericDag, GraphNode, LineCharacterPosition,
         PreresolvedNavigationTargets,
@@ -211,6 +211,44 @@ impl CompleteProofDag {
 
         graph
     }
+
+    /// Convert to layout graph for force-directed layout computation.
+    pub fn to_layout_graph(&self) -> crate::graph::LayoutGraph {
+        use crate::{graph::LayoutGraph, shared::LayoutSize};
+
+        let mut layout = LayoutGraph::new();
+        let mut id_to_index = std::collections::HashMap::new();
+
+        for node in &self.nodes {
+            let (width, height) = node.layout_size();
+            let index = petgraph::graph::NodeIndex::new(layout.nodes.len());
+            id_to_index.insert(node.id, index);
+            layout.add_node(index, node.id, width, height);
+        }
+
+        for node in &self.nodes {
+            let Some(&from_idx) = id_to_index.get(&node.id) else {
+                continue;
+            };
+            for &child_id in &node.children {
+                let Some(&to_idx) = id_to_index.get(&child_id) else {
+                    continue;
+                };
+                layout.add_edge(from_idx, to_idx, 1);
+            }
+        }
+
+        if let Some(root_id) = self.root_node_id {
+            layout.root = id_to_index.get(&root_id).copied();
+        }
+        for &orphan_id in &self.orphans {
+            if let Some(&idx) = id_to_index.get(&orphan_id) {
+                layout.orphans.push(idx);
+            }
+        }
+
+        layout
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -380,19 +418,32 @@ impl DagNode for ProofDagTacticNode {
     }
 }
 
+impl NodeTextContent for ProofDagTacticNode {
+    fn title(&self) -> String {
+        self.tactic.text.clone()
+    }
+
+    fn content_lines(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+
+        let goal_count = self.proof_state_after.goals.len();
+        lines.push(if goal_count == 0 {
+            "✓".to_string()
+        } else {
+            format!("{goal_count} goal(s)")
+        });
+
+        if !self.new_hypothesis_indices.is_empty() {
+            lines.push(format!("+{} hyp(s)", self.new_hypothesis_indices.len()));
+        }
+
+        lines
+    }
+}
+
 impl LayoutSize for ProofDagTacticNode {
     fn layout_size(&self) -> (u16, u16) {
-        let width = {
-            let title_width = self.tactic.text.len() + 8;
-            (title_width + 4) as u16
-        };
-        let height = {
-            // Border (2) + goals line (1) + optional hypotheses line (1)
-            let has_new_hyps = !self.new_hypothesis_indices.is_empty();
-            let content_lines = if has_new_hyps { 2 } else { 1 };
-            2 + content_lines
-        };
-        (width, height)
+        calculate_node_size(self)
     }
 }
 

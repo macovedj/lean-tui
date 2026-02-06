@@ -3,7 +3,7 @@ use std::{error::Error, fmt, ops::Deref};
 use ratatui::style::Color;
 
 use crate::{
-    graph::{Dag, DagNode, NavNode},
+    graph::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
     protocol::{
         AnnotatedTextTree, BindingKind, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId,
         PreresolvedNavigationTargets,
@@ -221,35 +221,31 @@ impl NavNode for DataFlowNode {
     }
 }
 
+impl NodeTextContent for DataFlowNode {
+    fn title(&self) -> String {
+        self.inner.content.to_plain_text()
+    }
+
+    fn content_lines(&self) -> Vec<String> {
+        let mut lines: Vec<String> = self
+            .bindings_after()
+            .iter()
+            .map(|b| format!("{}: {}", b.name, b.type_str))
+            .collect();
+
+        lines.push(
+            self.expected_type()
+                .map(|t| format!("⊢ {t}"))
+                .unwrap_or_else(|| "✓".to_string()),
+        );
+
+        lines
+    }
+}
+
 impl LayoutSize for DataFlowNode {
     fn layout_size(&self) -> (u16, u16) {
-        // Calculate title width (icon + expression + padding)
-        let title_width = self.inner.content.to_plain_text().len() + 10;
-
-        // Calculate max binding line width (each binding is on its own line: "name:
-        // type")
-        let bindings = self.bindings_after();
-        let max_binding_width = bindings
-            .iter()
-            .map(|b| b.name.len() + b.type_str.len() + 2) // "name: type"
-            .max()
-            .unwrap_or(0);
-
-        // Calculate type line width
-        let type_width = self
-            .expected_type()
-            .map(|t| t.len() + 4) // "⊢ " prefix + padding
-            .unwrap_or(12); // "✓ Complete" or "⊢ ..."
-
-        // Width is max of all lines + border padding
-        let content_width = title_width.max(max_binding_width).max(type_width);
-        let width = (content_width + 4).min(120) as u16; // cap at 120 chars
-
-        // Height: border (2) + type line (1) + one line per binding
-        let num_bindings = bindings.len();
-        let height = (2 + 1 + num_bindings) as u16;
-
-        (width, height)
+        calculate_node_size(self)
     }
 }
 
@@ -355,6 +351,48 @@ impl DataFlowDag {
         }
 
         graph
+    }
+
+    /// Convert to layout graph for force-directed layout computation.
+    pub fn to_layout_graph(&self) -> crate::graph::LayoutGraph {
+        use crate::{graph::LayoutGraph, shared::LayoutSize};
+
+        let mut layout = LayoutGraph::new();
+        let mut id_to_index = std::collections::HashMap::new();
+
+        for node in &self.nodes {
+            let (width, height) = node.layout_size();
+            let index = petgraph::graph::NodeIndex::new(layout.nodes.len());
+            id_to_index.insert(node.id(), index);
+            layout.add_node(index, node.id(), width, height);
+        }
+
+        for node in &self.nodes {
+            let Some(&from_idx) = id_to_index.get(&node.id()) else {
+                continue;
+            };
+            for edge in &node.inner.edges {
+                let Some(&to_idx) = id_to_index.get(&edge.target) else {
+                    continue;
+                };
+                layout.add_edge(
+                    from_idx,
+                    to_idx,
+                    edge.strength.map_or(1, std::num::NonZero::get),
+                );
+            }
+        }
+
+        if let Some(root_id) = self.root_node_id {
+            layout.root = id_to_index.get(&root_id).copied();
+        }
+        for &orphan_id in &self.orphans {
+            if let Some(&idx) = id_to_index.get(&orphan_id) {
+                layout.orphans.push(idx);
+            }
+        }
+
+        layout
     }
 }
 

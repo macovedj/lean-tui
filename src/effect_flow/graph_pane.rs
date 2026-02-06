@@ -15,7 +15,7 @@ use crate::{
         scroll_target, DagLayout, LayoutConfig,
     },
     protocol::NodeId,
-    shared::{ClickRegion, LayoutSize, NavigationRegion, Selection},
+    shared::{ClickRegion, NavigationRegion, Selection},
 };
 
 #[derive(Default)]
@@ -25,7 +25,7 @@ pub struct GraphPaneState {
     manual_scroll: bool,
     prev_current_node: Option<NodeId>,
     layout: DagLayout,
-    pub stretch_children: bool,
+    layout_node_count: usize,
     pub click_regions: Vec<ClickRegion>,
     pub navigation_regions: Vec<NavigationRegion>,
 }
@@ -71,14 +71,17 @@ pub fn render_graph_pane(
 
     let graph = dag.to_graph();
 
-    let layout_config = LayoutConfig {
-        top_down: config.top_down,
-        stretch_children: state.stretch_children,
-        h_gap: config.h_gap,
-        v_gap: config.v_gap,
-    };
+    // Only recalculate layout when node count changes
+    if state.layout_node_count != dag.len() {
+        let layout_graph = dag.to_layout_graph();
+        let layout_config = LayoutConfig {
+            top_down: config.top_down,
+            ..Default::default()
+        };
+        state.layout = calculate_layout(&layout_graph, layout_config);
+        state.layout_node_count = dag.len();
+    }
 
-    state.layout = calculate_layout(&graph, layout_config, |node| node.layout_size());
     if state.layout.nodes.is_empty() {
         return;
     }

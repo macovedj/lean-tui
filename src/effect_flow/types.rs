@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use ratatui::style::Color;
 
 use crate::{
-    graph::{Dag, DagNode, NavNode},
+    graph::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
     protocol::{self, DisplayStyle, GenericDag, GraphEdge, GraphNode, NodeId},
     shared::{LayoutSize, Theme},
 };
@@ -115,19 +115,6 @@ impl EdgeKind {
             Self::Unknown => Color::DarkGray,
         }
     }
-
-    /// Get a label for this edge kind to display on the graph.
-    pub const fn label(self) -> Option<&'static str> {
-        match self {
-            Self::Continuation => Some("then"),
-            Self::DataFlow => Some("expand"),
-            Self::ControlFlow => Some("branch"),
-            Self::EffectFlow => Some("effect"),
-            Self::ErrorPropagation => Some("error"),
-            Self::EarlyReturn => Some("return"),
-            Self::Unknown => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -211,19 +198,31 @@ impl NavNode for EffectFlowNode {
     }
 }
 
+impl NodeTextContent for EffectFlowNode {
+    fn title(&self) -> String {
+        self.content.to_plain_text()
+    }
+
+    fn content_lines(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+
+        if let Some(fwd) = &self.forward {
+            lines.push(format!("→ {fwd}"));
+        }
+        if let Some(bwd) = &self.backward {
+            lines.push(format!("← {bwd}"));
+        }
+        if lines.is_empty() {
+            lines.push(String::new());
+        }
+
+        lines
+    }
+}
+
 impl LayoutSize for EffectFlowNode {
     fn layout_size(&self) -> (u16, u16) {
-        let title_width = self.content.to_plain_text().len() + 12;
-        let fwd_width = self.forward.as_ref().map_or(0, |s| s.len() + 6);
-        let bwd_width = self.backward.as_ref().map_or(0, |s| s.len() + 6);
-        let width = title_width.max(fwd_width).max(bwd_width).min(80) as u16;
-
-        let content_lines = match (&self.forward, &self.backward) {
-            (Some(_), Some(_)) => 2,
-            (Some(_), None) | (None, Some(_)) => 1,
-            (None, None) => 0,
-        };
-        (width, 2 + content_lines.max(1))
+        calculate_node_size(self)
     }
 }
 
@@ -335,7 +334,7 @@ impl EffectFlowDag {
                     to_idx,
                     EdgeData {
                         style: Some(Style::new().fg(edge_kind.color())),
-                        label: edge_kind.label(),
+                        label: edge.label.clone(),
                     },
                 );
             }
@@ -359,6 +358,45 @@ impl EffectFlowDag {
         }
 
         graph
+    }
+
+    /// Convert to layout graph for force-directed layout computation.
+    pub fn to_layout_graph(&self) -> crate::graph::LayoutGraph {
+        use crate::{graph::LayoutGraph, shared::LayoutSize};
+
+        let mut layout = LayoutGraph::new();
+        let mut id_to_index = std::collections::HashMap::new();
+
+        for node in &self.nodes {
+            let (width, height) = node.layout_size();
+            let index = petgraph::graph::NodeIndex::new(layout.nodes.len());
+            id_to_index.insert(node.id, index);
+            layout.add_node(index, node.id, width, height);
+        }
+
+        for node in &self.nodes {
+            let Some(&from_idx) = id_to_index.get(&node.id) else {
+                continue;
+            };
+            for edge in &node.edges {
+                let Some(&to_idx) = id_to_index.get(&edge.target) else {
+                    continue;
+                };
+                let strength = edge.strength.map_or(1, std::num::NonZero::get);
+                layout.add_edge(from_idx, to_idx, strength);
+            }
+        }
+
+        if let Some(root_id) = self.root_node_id {
+            layout.root = id_to_index.get(&root_id).copied();
+        }
+        for &orphan_id in &self.orphans {
+            if let Some(&idx) = id_to_index.get(&orphan_id) {
+                layout.orphans.push(idx);
+            }
+        }
+
+        layout
     }
 }
 

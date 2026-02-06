@@ -1,8 +1,10 @@
 use std::{env, fs, path::PathBuf};
 
-const LEAN_DAG_COMMIT: &str = "b9a1143ca9342ad4c732132e8a01711af65531a6";
+const LEAN_DAG_COMMIT: &str = "885d18b2fe1b09d93fed547d74cf1f27764839c4";
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+
     let schema_json = env::var("LEAN_DAG_SCHEMA")
         .map(PathBuf::from)
         .ok()

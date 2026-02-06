@@ -17,10 +17,7 @@ use crate::{
         scroll_target, DagLayout, LayoutConfig,
     },
     protocol::{AnnotatedTextTree, NodeId},
-    shared::{
-        build_navigation_regions, theme::Theme, ClickRegion, LayoutSize, NavigationRegion,
-        Selection,
-    },
+    shared::{build_navigation_regions, theme::Theme, ClickRegion, NavigationRegion, Selection},
 };
 
 /// State for the functional tableau layout.
@@ -62,14 +59,6 @@ impl FunctionalTableauState {
             .chain(self.theorem.click_regions.iter().map(to_nav_region))
             .collect()
     }
-
-    pub fn toggle_stretch(&mut self) {
-        self.proof.stretch_children = !self.proof.stretch_children;
-    }
-
-    pub const fn stretch_enabled(&self) -> bool {
-        self.proof.stretch_children
-    }
 }
 
 /// State for the functional proof pane.
@@ -80,7 +69,7 @@ pub struct FunctionalProofPaneState {
     manual_scroll: bool,
     prev_current_node: Option<NodeId>,
     layout: DagLayout,
-    pub stretch_children: bool,
+    layout_node_count: usize,
     pub click_regions: Vec<ClickRegion>,
     pub navigation_regions: Vec<NavigationRegion>,
 }
@@ -126,19 +115,12 @@ pub struct FunctionalTableauLayout<'a> {
 }
 
 impl<'a> FunctionalTableauLayout<'a> {
-    pub const fn new(
-        dag: &'a DataFlowDag,
-        top_down: bool,
-        stretch_children: bool,
-        selection: Option<Selection>,
-    ) -> Self {
+    pub fn new(dag: &'a DataFlowDag, top_down: bool, selection: Option<Selection>) -> Self {
         Self {
             dag,
             config: LayoutConfig {
                 top_down,
-                stretch_children,
-                h_gap: 1,
-                v_gap: 1,
+                ..Default::default()
             },
             selection,
         }
@@ -222,19 +204,21 @@ fn render_proof_pane(
 
     let graph = dag.to_graph();
 
-    let layout_config = LayoutConfig {
-        top_down: config.top_down,
-        stretch_children: state.stretch_children,
-        h_gap: config.h_gap,
-        v_gap: config.v_gap,
-    };
+    // Only recalculate layout when node count changes
+    if state.layout_node_count != dag.len() {
+        let layout_graph = dag.to_layout_graph();
+        let layout_config = LayoutConfig {
+            top_down: config.top_down,
+            ..Default::default()
+        };
+        state.layout = calculate_layout(&layout_graph, layout_config);
+        state.layout_node_count = dag.len();
+        state.navigation_regions = build_navigation_regions(dag, &state.layout);
+    }
 
-    state.layout = calculate_layout(&graph, layout_config, |node| node.layout_size());
     if state.layout.nodes.is_empty() {
         return;
     }
-
-    state.navigation_regions = build_navigation_regions(dag, &state.layout);
 
     let selected_idx = selection.and_then(|sel| match sel {
         Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. } => graph.index_of(node_id),

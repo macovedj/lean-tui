@@ -258,10 +258,6 @@ impl InteractiveComponent for DataFlowMode {
                     self.tree_top_down = !self.tree_top_down;
                     true
                 }
-                KeyCode::Char('s') => {
-                    self.functional_tableau_state.toggle_stretch();
-                    true
-                }
                 _ => false,
             },
             KeyMouseEvent::Mouse(mouse) => {
@@ -289,7 +285,6 @@ impl InteractiveComponent for DataFlowMode {
             let widget = FunctionalTableauLayout::new(
                 dag,
                 self.tree_top_down,
-                self.functional_tableau_state.stretch_enabled(),
                 self.current_tree_selection(),
             );
             frame.render_stateful_widget(widget, content_area, &mut self.functional_tableau_state);
