@@ -16,7 +16,7 @@ use crate::{
         scroll_target, DagLayout, LayoutConfig,
     },
     protocol::NodeId,
-    shared::{build_navigation_regions, ClickRegion, LayoutSize, NavigationRegion, Selection},
+    shared::{build_navigation_regions, ClickRegion, NavigationRegion, Selection},
 };
 
 /// State for the proof pane widget.
@@ -27,6 +27,7 @@ pub struct ProofPaneState {
     manual_scroll: bool,
     prev_current_node: Option<NodeId>,
     layout: DagLayout,
+    layout_node_count: usize,
     pub click_regions: Vec<ClickRegion>,
     pub navigation_regions: Vec<NavigationRegion>,
 }
@@ -91,19 +92,21 @@ impl StatefulWidget for ProofPane<'_> {
 
         let graph = self.dag.to_graph();
 
-        let config = LayoutConfig {
-            top_down: self.top_down,
-            stretch_children: false,
-            h_gap: 1,
-            v_gap: 1,
-        };
+        // Only recalculate layout when node count changes
+        if state.layout_node_count != self.dag.len() {
+            let layout_graph = self.dag.to_layout_graph();
+            let config = LayoutConfig {
+                top_down: self.top_down,
+                ..Default::default()
+            };
+            state.layout = calculate_layout(&layout_graph, config);
+            state.layout_node_count = self.dag.len();
+            state.navigation_regions = build_navigation_regions(self.dag, &state.layout);
+        }
 
-        state.layout = calculate_layout(&graph, config, |node| node.layout_size());
         if state.layout.nodes.is_empty() {
             return;
         }
-
-        state.navigation_regions = build_navigation_regions(self.dag, &state.layout);
 
         let selected_idx = self.selection.and_then(|sel| match sel {
             Selection::Goal { node_id, .. } | Selection::Hyp { node_id, .. } => {

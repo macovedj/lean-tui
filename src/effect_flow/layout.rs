@@ -133,9 +133,7 @@ impl StatefulWidget for EffectTableauLayout<'_> {
             self.dag,
             LayoutConfig {
                 top_down: true,
-                stretch_children: false,
-                h_gap: 2,
-                v_gap: 1,
+                ..Default::default()
             },
             self.selection,
             areas.graph,
