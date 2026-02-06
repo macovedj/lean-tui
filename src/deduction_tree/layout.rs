@@ -12,7 +12,11 @@ use super::{
     theorem_pane::{TheoremPane, TheoremPaneState},
     types::CompleteProofDag,
 };
-use crate::{deduction_tree::TacticProofState, protocol::NodeId, shared::Selection};
+use crate::{
+    deduction_tree::TacticProofState,
+    protocol::NodeId,
+    shared::{find_region_at, Region, Selection},
+};
 
 /// Combined state for the semantic tableau layout.
 #[derive(Default)]
@@ -24,10 +28,23 @@ pub struct SemanticTableauState {
 
 impl SemanticTableauState {
     pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
+        [
+            self.given.click_regions.as_slice(),
+            self.proof.click_regions.as_slice(),
+            self.theorem.click_regions.as_slice(),
+        ]
+        .into_iter()
+        .find_map(|regions| find_region_at(regions, x, y))
+    }
+
+    pub fn navigation_regions(&self) -> Vec<Region> {
         self.given
-            .find_click_at(x, y)
-            .or_else(|| self.proof.find_click_at(x, y))
-            .or_else(|| self.theorem.find_click_at(x, y))
+            .click_regions
+            .iter()
+            .copied()
+            .chain(self.proof.navigation_regions().iter().copied())
+            .chain(self.theorem.click_regions.iter().copied())
+            .collect()
     }
 
     pub fn update_current_node(&mut self, current_node: Option<NodeId>) {

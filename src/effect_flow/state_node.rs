@@ -7,12 +7,12 @@ use ratatui::{
 };
 
 use super::types::{EffectFlowNode, EffectKind};
-use crate::shared::{theme::Theme, ClickRegion, Selection};
+use crate::shared::{theme::Theme, Region, Selection};
 
 /// State for a single effect state node widget.
 #[derive(Default)]
 pub struct EffectStateNodeState {
-    pub click_regions: Vec<ClickRegion>,
+    pub click_regions: Vec<Region>,
 }
 
 /// A single effect node widget with effect-kind-specific styling.
@@ -130,15 +130,15 @@ impl<'a> EffectStateNode<'a> {
         lines
     }
 
-    fn click_regions(&self, area: Rect) -> Vec<ClickRegion> {
+    fn click_regions(&self, area: Rect) -> Vec<Region> {
         // Click region is just the header row (top border with title)
-        vec![ClickRegion {
-            area: Rect::new(area.x, area.y, area.width, 1),
-            selection: Selection::Goal {
+        vec![Region::from_rect(
+            Rect::new(area.x, area.y, area.width, 1),
+            Selection::Goal {
                 node_id: self.node.id,
                 goal_idx: 0,
             },
-        }]
+        )]
     }
 }
 
@@ -148,9 +148,20 @@ impl StatefulWidget for EffectStateNode<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
+        // Fill background to make node opaque (hides edges behind it)
+        let bg_color = Theme::NODE_BG;
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                if let Some(cell) = buf.cell_mut((x, y)) {
+                    cell.set_bg(bg_color);
+                }
+            }
+        }
+
         let border_color = self.border_color();
         let border_style = Style::new()
             .fg(border_color)
+            .bg(bg_color)
             .add_modifier(if self.is_current {
                 Modifier::BOLD
             } else {

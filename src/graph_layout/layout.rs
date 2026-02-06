@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use petgraph::graph::NodeIndex;
 
-use super::types::NodeId;
+use super::graph::NodeId;
 
 pub const ORPHAN_GAP: i32 = 4;
-const VERTICAL_GAP: i32 = 1;
+const VERTICAL_GAP: i32 = 2;
 const HORIZONTAL_GAP: i32 = 2;
 
 // Node size calculation constants
@@ -177,7 +177,6 @@ fn layered_layout(
         current_y += max_height + VERTICAL_GAP;
     }
 
-    // Use hierarchical layout for X positions (children centered under parents)
     let x_positions = hierarchical_x_positions(nodes, edges, &depths, root);
 
     let positions: Vec<NodePosition> = nodes
@@ -263,9 +262,6 @@ fn calculate_depths(
     depths
 }
 
-/// Calculate X positions using a hierarchical tree layout.
-/// Children are centered under their parents, with stronger connections closer
-/// to center.
 fn hierarchical_x_positions(
     nodes: &[&LayoutNode],
     edges: &[LayoutEdge],
@@ -276,7 +272,6 @@ fn hierarchical_x_positions(
         return HashMap::new();
     }
 
-    // Build parent -> children mapping with strength
     let mut children_with_strength: HashMap<NodeIndex, Vec<(NodeIndex, u64)>> = HashMap::new();
     for edge in edges {
         children_with_strength
@@ -285,8 +280,6 @@ fn hierarchical_x_positions(
             .push((edge.to, edge.strength));
     }
 
-    // Sort children by strength (descending) and extract indices
-    // Stronger children will be positioned closer to parent center
     let children: HashMap<NodeIndex, Vec<NodeIndex>> = children_with_strength
         .into_iter()
         .map(|(parent, mut kids)| {
@@ -296,13 +289,11 @@ fn hierarchical_x_positions(
         })
         .collect();
 
-    // Build node width lookup
     let widths: HashMap<NodeIndex, i32> = nodes
         .iter()
         .map(|n| (n.index, i32::from(n.width)))
         .collect();
 
-    // Group nodes by depth
     let max_depth = depths.values().copied().max().unwrap_or(0);
     let mut layers: Vec<Vec<NodeIndex>> = vec![Vec::new(); max_depth + 1];
     for node in nodes {
@@ -312,12 +303,10 @@ fn hierarchical_x_positions(
 
     let mut x_positions: HashMap<NodeIndex, i32> = HashMap::new();
 
-    // Position root at 0
     if let Some(root_idx) = root.or_else(|| layers.first().and_then(|l| l.first().copied())) {
         x_positions.insert(root_idx, 0);
     }
 
-    // Process each layer top-down, positioning children centered under parents
     for depth in 0..=max_depth {
         let layer = &layers[depth];
 
@@ -327,7 +316,6 @@ fn hierarchical_x_positions(
                 let parent_width = widths.get(&node_idx).copied().unwrap_or(0);
                 let parent_center = parent_x + parent_width / 2;
 
-                // Calculate total width of children
                 let total_children_width: i32 = node_children
                     .iter()
                     .filter_map(|c| widths.get(c))
@@ -335,8 +323,6 @@ fn hierarchical_x_positions(
                     .sum::<i32>()
                     .saturating_sub(HORIZONTAL_GAP);
 
-                // Reorder children so strongest are near center (interleave from center
-                // outward)
                 let centered_children: Vec<NodeIndex> = {
                     let mut result = Vec::with_capacity(node_children.len());
                     let mut left = Vec::new();
@@ -354,7 +340,6 @@ fn hierarchical_x_positions(
                     result
                 };
 
-                // Position children centered under parent
                 let mut child_x = parent_center - total_children_width / 2;
                 for child_idx in centered_children {
                     let child_width = widths.get(&child_idx).copied().unwrap_or(0);
@@ -364,11 +349,9 @@ fn hierarchical_x_positions(
             }
         }
 
-        // Resolve overlaps within this layer
-        resolve_single_layer_overlaps(&layers[depth], &widths, &mut x_positions);
+        resolve_layer_overlaps(&layers[depth], &widths, &mut x_positions);
     }
 
-    // Normalize to start from 0
     let min_x = x_positions.values().copied().min().unwrap_or(0);
     if min_x < 0 {
         for x in x_positions.values_mut() {
@@ -379,8 +362,7 @@ fn hierarchical_x_positions(
     x_positions
 }
 
-/// Resolve overlaps within a single layer by pushing overlapping nodes apart.
-fn resolve_single_layer_overlaps(
+fn resolve_layer_overlaps(
     layer: &[NodeIndex],
     widths: &HashMap<NodeIndex, i32>,
     x_positions: &mut HashMap<NodeIndex, i32>,
@@ -389,14 +371,12 @@ fn resolve_single_layer_overlaps(
         return;
     }
 
-    // Sort by X position
     let mut sorted: Vec<_> = layer
         .iter()
         .map(|&idx| (idx, x_positions.get(&idx).copied().unwrap_or(0)))
         .collect();
     sorted.sort_by_key(|(_, x)| *x);
 
-    // Push overlapping nodes to the right
     let mut prev_right = i32::MIN;
     for (idx, _) in &sorted {
         let current_x = x_positions.get(idx).copied().unwrap_or(0);

@@ -32,25 +32,15 @@ use super::{
 };
 use crate::{
     data_flow::given_pane::{BindingGivenPane, BindingGivenPaneState},
-    graph::LayoutConfig,
+    graph_layout::LayoutConfig,
     protocol::NodeId,
-    shared::{theme::Theme, ClickRegion, NavigationRegion, Selection},
+    shared::{find_region_at, theme::Theme, Region, Selection},
 };
 
 /// State for the result pane.
 #[derive(Default)]
 pub struct ResultPaneState {
-    pub click_regions: Vec<ClickRegion>,
-}
-
-impl ResultPaneState {
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        let point = Rect::new(x, y, 1, 1);
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(point))
-            .map(|r| r.selection)
-    }
+    pub click_regions: Vec<Region>,
 }
 
 /// State for the effect flow tableau layout.
@@ -63,18 +53,27 @@ pub struct EffectTableauState {
 
 impl EffectTableauState {
     pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        self.given
-            .find_click_at(x, y)
-            .or_else(|| self.result.find_click_at(x, y))
-            .or_else(|| self.graph.find_click_at(x, y))
+        [
+            self.given.click_regions.as_slice(),
+            self.graph.click_regions.as_slice(),
+            self.result.click_regions.as_slice(),
+        ]
+        .into_iter()
+        .find_map(|regions| find_region_at(regions, x, y))
     }
 
     pub fn update_current_node(&mut self, current_node_id: Option<NodeId>) {
         self.graph.update_current_node(current_node_id);
     }
 
-    pub fn navigation_regions(&self) -> Vec<NavigationRegion> {
-        self.graph.navigation_regions().to_vec()
+    pub fn navigation_regions(&self) -> Vec<Region> {
+        self.given
+            .click_regions
+            .iter()
+            .copied()
+            .chain(self.graph.navigation_regions().iter().copied())
+            .chain(self.result.click_regions.iter().copied())
+            .collect()
     }
 }
 
@@ -190,8 +189,7 @@ fn render_result_pane(
         .style(style)
         .render(inner, buf);
 
-    state.click_regions.push(ClickRegion {
-        area: inner,
-        selection: Selection::Theorem,
-    });
+    state
+        .click_regions
+        .push(Region::from_rect(inner, Selection::Theorem));
 }

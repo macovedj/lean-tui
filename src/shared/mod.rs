@@ -11,12 +11,12 @@ pub use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;
 pub use interactive::{InteractiveComponent, InteractiveStatefulWidget};
 pub use navigation::{
-    build_navigation_regions, find_nearest_in_direction, Direction, NavigationRegion,
+    build_navigation_regions, find_nearest_in_direction, key_to_direction, Direction,
 };
-pub use selection::{ClickRegion, Selection};
+pub use selection::{find_region_at, ListSelection, Region, Selection};
 pub use theme::Theme;
 
-pub use crate::graph::LayoutSize;
+pub use crate::graph_layout::LayoutSize;
 
 /// Key or mouse event for interactive components.
 #[derive(Clone)]

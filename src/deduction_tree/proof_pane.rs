@@ -11,46 +11,11 @@ use super::{
 };
 use crate::{
     deduction_tree::TacticProofState,
-    graph::{
-        calculate_layout, center_on, clip_to_viewport, render_edges, render_scrollbars,
-        scroll_target, DagLayout, LayoutConfig,
-    },
-    protocol::NodeId,
-    shared::{build_navigation_regions, ClickRegion, NavigationRegion, Selection},
+    graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
+    shared::{build_navigation_regions, Selection},
 };
 
-/// State for the proof pane widget.
-#[derive(Default)]
-pub struct ProofPaneState {
-    scroll_x: i32,
-    scroll_y: i32,
-    manual_scroll: bool,
-    prev_current_node: Option<NodeId>,
-    layout: DagLayout,
-    layout_node_count: usize,
-    pub click_regions: Vec<ClickRegion>,
-    pub navigation_regions: Vec<NavigationRegion>,
-}
-
-impl ProofPaneState {
-    pub fn update_current_node(&mut self, current_node: Option<NodeId>) {
-        if current_node != self.prev_current_node {
-            self.manual_scroll = false;
-            self.prev_current_node = current_node;
-        }
-    }
-
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(Rect::new(x, y, 1, 1)))
-            .map(|r| r.selection)
-    }
-
-    pub fn navigation_regions(&self) -> &[NavigationRegion] {
-        &self.navigation_regions
-    }
-}
+pub type ProofPaneState = GraphViewport;
 
 /// Proof pane widget.
 pub struct ProofPane<'a> {
@@ -80,8 +45,7 @@ impl StatefulWidget for ProofPane<'_> {
     type State = ProofPaneState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        state.click_regions.clear();
-        state.navigation_regions.clear();
+        state.clear_click_regions();
 
         if self.dag.is_empty() || self.dag.root_node_id.is_none() {
             Paragraph::new("No proof steps")
@@ -91,16 +55,17 @@ impl StatefulWidget for ProofPane<'_> {
         }
 
         let graph = self.dag.to_graph();
+        let config = LayoutConfig {
+            top_down: self.top_down,
+            ..Default::default()
+        };
 
-        // Only recalculate layout when node count changes
-        if state.layout_node_count != self.dag.len() {
+        let layout_changed = state.update_layout_if_needed(self.dag.len(), || {
             let layout_graph = self.dag.to_layout_graph();
-            let config = LayoutConfig {
-                top_down: self.top_down,
-                ..Default::default()
-            };
-            state.layout = calculate_layout(&layout_graph, config);
-            state.layout_node_count = self.dag.len();
+            calculate_layout(&layout_graph, config)
+        });
+
+        if layout_changed {
             state.navigation_regions = build_navigation_regions(self.dag, &state.layout);
         }
 
@@ -115,37 +80,13 @@ impl StatefulWidget for ProofPane<'_> {
             _ => None,
         });
 
-        let (scroll_x, scroll_y) = if state.manual_scroll {
-            (state.scroll_x, state.scroll_y)
-        } else {
-            scroll_target(&state.layout, selected_idx, graph.current, graph.root)
-                .map(|t| {
-                    center_on(
-                        t,
-                        state.layout.content_width,
-                        state.layout.content_height,
-                        area,
-                    )
-                })
-                .unwrap_or((0, 0))
-        };
-        state.scroll_x = scroll_x;
-        state.scroll_y = scroll_y;
-
-        render_edges(
-            &graph,
-            &state.layout,
-            scroll_x,
-            scroll_y,
-            self.top_down,
-            area,
-            buf,
-        );
+        state.compute_scroll(selected_idx, graph.current, graph.root, area);
+        state.render_edges(&graph, config, area, buf);
 
         for pos in &state.layout.nodes {
-            let Some(render_area) = clip_to_viewport(
-                pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area,
-            ) else {
+            let Some(render_area) =
+                state.clip_node_to_viewport(pos.x, pos.y, pos.width, pos.height, area)
+            else {
                 continue;
             };
             let Some(node) = graph.get(pos.index) else {
@@ -168,13 +109,6 @@ impl StatefulWidget for ProofPane<'_> {
             state.click_regions.extend(node_state.click_regions);
         }
 
-        render_scrollbars(
-            buf,
-            area,
-            state.layout.content_width,
-            state.layout.content_height,
-            scroll_x,
-            scroll_y,
-        );
+        state.render_scrollbars(area, buf);
     }
 }

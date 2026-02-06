@@ -16,7 +16,7 @@ mod plain_goal;
 mod tactic_tree;
 
 // Shared components
-mod graph;
+mod graph_layout;
 mod shared;
 
 // App-level UI components

@@ -12,28 +12,28 @@ use super::{
     types::DataFlowDag,
 };
 use crate::{
-    graph::{
-        calculate_layout, center_on, clip_to_viewport, render_edges, render_scrollbars,
-        scroll_target, DagLayout, LayoutConfig,
-    },
+    graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
     protocol::{AnnotatedTextTree, NodeId},
-    shared::{build_navigation_regions, theme::Theme, ClickRegion, NavigationRegion, Selection},
+    shared::{build_navigation_regions, find_region_at, theme::Theme, Region, Selection},
 };
 
 /// State for the functional tableau layout.
 #[derive(Default)]
 pub struct FunctionalTableauState {
     pub given: BindingGivenPaneState,
-    pub proof: FunctionalProofPaneState,
+    pub proof: GraphViewport,
     pub theorem: TheoremPaneState,
 }
 
 impl FunctionalTableauState {
     pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        self.given
-            .find_click_at(x, y)
-            .or_else(|| self.proof.find_click_at(x, y))
-            .or_else(|| self.theorem.find_click_at(x, y))
+        [
+            self.given.click_regions.as_slice(),
+            self.proof.click_regions.as_slice(),
+            self.theorem.click_regions.as_slice(),
+        ]
+        .into_iter()
+        .find_map(|regions| find_region_at(regions, x, y))
     }
 
     pub fn update_current_node(&mut self, current_node_id: Option<NodeId>) {
@@ -42,69 +42,21 @@ impl FunctionalTableauState {
 
     /// Get all navigation regions including initial context bindings and
     /// theorem.
-    pub fn navigation_regions(&self) -> Vec<NavigationRegion> {
-        let to_nav_region = |cr: &ClickRegion| NavigationRegion {
-            x: i32::from(cr.area.x),
-            y: i32::from(cr.area.y),
-            width: cr.area.width,
-            height: cr.area.height,
-            selection: cr.selection,
-        };
-
+    pub fn navigation_regions(&self) -> Vec<Region> {
         self.given
             .click_regions
             .iter()
-            .map(to_nav_region)
-            .chain(self.proof.navigation_regions.iter().copied())
-            .chain(self.theorem.click_regions.iter().map(to_nav_region))
+            .copied()
+            .chain(self.proof.navigation_regions().iter().copied())
+            .chain(self.theorem.click_regions.iter().copied())
             .collect()
-    }
-}
-
-/// State for the functional proof pane.
-#[derive(Default)]
-pub struct FunctionalProofPaneState {
-    scroll_x: i32,
-    scroll_y: i32,
-    manual_scroll: bool,
-    prev_current_node: Option<NodeId>,
-    layout: DagLayout,
-    layout_node_count: usize,
-    pub click_regions: Vec<ClickRegion>,
-    pub navigation_regions: Vec<NavigationRegion>,
-}
-
-impl FunctionalProofPaneState {
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        let point = Rect::new(x, y, 1, 1);
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(point))
-            .map(|r| r.selection)
-    }
-
-    pub fn update_current_node(&mut self, current_node_id: Option<NodeId>) {
-        if self.prev_current_node != current_node_id {
-            self.prev_current_node = current_node_id;
-            self.manual_scroll = false;
-        }
     }
 }
 
 /// State for the theorem pane.
 #[derive(Default)]
 pub struct TheoremPaneState {
-    click_regions: Vec<ClickRegion>,
-}
-
-impl TheoremPaneState {
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        let point = Rect::new(x, y, 1, 1);
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(point))
-            .map(|r| r.selection)
-    }
+    pub click_regions: Vec<Region>,
 }
 
 /// Functional tableau layout widget.
@@ -190,10 +142,9 @@ fn render_proof_pane(
     selection: Option<Selection>,
     area: Rect,
     buf: &mut Buffer,
-    state: &mut FunctionalProofPaneState,
+    state: &mut GraphViewport,
 ) {
-    state.click_regions.clear();
-    state.navigation_regions.clear();
+    state.clear_click_regions();
 
     if dag.is_empty() || dag.root_node_id.is_none() {
         Paragraph::new("No expression steps")
@@ -204,15 +155,12 @@ fn render_proof_pane(
 
     let graph = dag.to_graph();
 
-    // Only recalculate layout when node count changes
-    if state.layout_node_count != dag.len() {
+    let layout_changed = state.update_layout_if_needed(dag.len(), || {
         let layout_graph = dag.to_layout_graph();
-        let layout_config = LayoutConfig {
-            top_down: config.top_down,
-            ..Default::default()
-        };
-        state.layout = calculate_layout(&layout_graph, layout_config);
-        state.layout_node_count = dag.len();
+        calculate_layout(&layout_graph, config)
+    });
+
+    if layout_changed {
         state.navigation_regions = build_navigation_regions(dag, &state.layout);
     }
 
@@ -225,41 +173,16 @@ fn render_proof_pane(
         _ => None,
     });
 
-    let (scroll_x, scroll_y) = if state.manual_scroll {
-        (state.scroll_x, state.scroll_y)
-    } else {
-        scroll_target(&state.layout, selected_idx, graph.current, graph.root)
-            .map(|t| {
-                center_on(
-                    t,
-                    state.layout.content_width,
-                    state.layout.content_height,
-                    area,
-                )
-            })
-            .unwrap_or((0, 0))
-    };
-    state.scroll_x = scroll_x;
-    state.scroll_y = scroll_y;
+    state.compute_scroll(selected_idx, graph.current, graph.root, area);
+    state.render_edges(&graph, config, area, buf);
 
-    render_edges(
-        &graph,
-        &state.layout,
-        scroll_x,
-        scroll_y,
-        config.top_down,
-        area,
-        buf,
-    );
-
-    let click_regions: Vec<ClickRegion> = state
+    let click_regions: Vec<_> = state
         .layout
         .nodes
         .iter()
         .filter_map(|pos| {
-            let render_area = clip_to_viewport(
-                pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area,
-            )?;
+            let render_area =
+                state.clip_node_to_viewport(pos.x, pos.y, pos.width, pos.height, area)?;
             let node = graph.get(pos.index)?;
             (render_area.width >= 3 && render_area.height >= 3).then_some((render_area, node, pos))
         })
@@ -274,17 +197,8 @@ fn render_proof_pane(
             node_state.click_regions
         })
         .collect();
-
-    state.click_regions = click_regions;
-
-    render_scrollbars(
-        buf,
-        area,
-        state.layout.content_width,
-        state.layout.content_height,
-        scroll_x,
-        scroll_y,
-    );
+    state.click_regions.extend(click_regions);
+    state.render_scrollbars(area, buf);
 }
 
 fn render_theorem_pane(
@@ -330,8 +244,7 @@ fn render_theorem_pane(
         .style(style)
         .render(inner, buf);
 
-    state.click_regions.push(ClickRegion {
-        area: inner,
-        selection: Selection::Theorem,
-    });
+    state
+        .click_regions
+        .push(Region::from_rect(inner, Selection::Theorem));
 }

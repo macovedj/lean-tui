@@ -10,46 +10,11 @@ use super::{
     types::EffectFlowDag,
 };
 use crate::{
-    graph::{
-        calculate_layout, center_on, clip_to_viewport, render_edges, render_scrollbars,
-        scroll_target, DagLayout, LayoutConfig,
-    },
-    protocol::NodeId,
-    shared::{ClickRegion, NavigationRegion, Selection},
+    graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
+    shared::{build_navigation_regions, Selection},
 };
 
-#[derive(Default)]
-pub struct GraphPaneState {
-    scroll_x: i32,
-    scroll_y: i32,
-    manual_scroll: bool,
-    prev_current_node: Option<NodeId>,
-    layout: DagLayout,
-    layout_node_count: usize,
-    pub click_regions: Vec<ClickRegion>,
-    pub navigation_regions: Vec<NavigationRegion>,
-}
-
-impl GraphPaneState {
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        let point = Rect::new(x, y, 1, 1);
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(point))
-            .map(|r| r.selection)
-    }
-
-    pub fn update_current_node(&mut self, current_node_id: Option<NodeId>) {
-        if self.prev_current_node != current_node_id {
-            self.prev_current_node = current_node_id;
-            self.manual_scroll = false;
-        }
-    }
-
-    pub fn navigation_regions(&self) -> &[NavigationRegion] {
-        &self.navigation_regions
-    }
-}
+pub type GraphPaneState = GraphViewport;
 
 pub fn render_graph_pane(
     dag: &EffectFlowDag,
@@ -59,8 +24,7 @@ pub fn render_graph_pane(
     buf: &mut Buffer,
     state: &mut GraphPaneState,
 ) {
-    state.click_regions.clear();
-    state.navigation_regions.clear();
+    state.clear_click_regions();
 
     if dag.is_empty() || dag.root_node_id.is_none() {
         Paragraph::new("No effect flow steps")
@@ -71,15 +35,13 @@ pub fn render_graph_pane(
 
     let graph = dag.to_graph();
 
-    // Only recalculate layout when node count changes
-    if state.layout_node_count != dag.len() {
+    let layout_changed = state.update_layout_if_needed(dag.len(), || {
         let layout_graph = dag.to_layout_graph();
-        let layout_config = LayoutConfig {
-            top_down: config.top_down,
-            ..Default::default()
-        };
-        state.layout = calculate_layout(&layout_graph, layout_config);
-        state.layout_node_count = dag.len();
+        calculate_layout(&layout_graph, config)
+    });
+
+    if layout_changed {
+        state.navigation_regions = build_navigation_regions(dag, &state.layout);
     }
 
     if state.layout.nodes.is_empty() {
@@ -91,41 +53,16 @@ pub fn render_graph_pane(
         _ => None,
     });
 
-    let (scroll_x, scroll_y) = if state.manual_scroll {
-        (state.scroll_x, state.scroll_y)
-    } else {
-        scroll_target(&state.layout, selected_idx, graph.current, graph.root)
-            .map(|t| {
-                center_on(
-                    t,
-                    state.layout.content_width,
-                    state.layout.content_height,
-                    area,
-                )
-            })
-            .unwrap_or((0, 0))
-    };
-    state.scroll_x = scroll_x;
-    state.scroll_y = scroll_y;
+    state.compute_scroll(selected_idx, graph.current, graph.root, area);
+    state.render_edges(&graph, config, area, buf);
 
-    render_edges(
-        &graph,
-        &state.layout,
-        scroll_x,
-        scroll_y,
-        config.top_down,
-        area,
-        buf,
-    );
-
-    let click_regions: Vec<ClickRegion> = state
+    let click_regions: Vec<_> = state
         .layout
         .nodes
         .iter()
         .filter_map(|pos| {
-            let render_area = clip_to_viewport(
-                pos.x, pos.y, pos.width, pos.height, scroll_x, scroll_y, area,
-            )?;
+            let render_area =
+                state.clip_node_to_viewport(pos.x, pos.y, pos.width, pos.height, area)?;
             let node = graph.get(pos.index)?;
             (render_area.width >= 3 && render_area.height >= 3).then_some((render_area, node, pos))
         })
@@ -142,15 +79,6 @@ pub fn render_graph_pane(
             node_state.click_regions
         })
         .collect();
-
-    state.click_regions = click_regions;
-
-    render_scrollbars(
-        buf,
-        area,
-        state.layout.content_width,
-        state.layout.content_height,
-        scroll_x,
-        scroll_y,
-    );
+    state.click_regions.extend(click_regions);
+    state.render_scrollbars(area, buf);
 }

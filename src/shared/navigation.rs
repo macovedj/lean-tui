@@ -1,17 +1,8 @@
+use crossterm::event::KeyCode;
 use tracing::trace;
 
-use super::Selection;
-use crate::graph::{Dag, DagLayout, NavNode, NodePosition};
-
-/// Region for keyboard navigation - uses virtual coordinates (i32).
-#[derive(Debug, Clone, Copy)]
-pub struct NavigationRegion {
-    pub x: i32,
-    pub y: i32,
-    pub width: u16,
-    pub height: u16,
-    pub selection: Selection,
-}
+use super::{Region, Selection};
+use crate::graph_layout::{Dag, DagLayout, NavNode, NodePosition};
 
 /// Direction for spatial navigation.
 #[derive(Debug, Clone, Copy)]
@@ -22,9 +13,20 @@ pub enum Direction {
     Right,
 }
 
+/// Convert vim-style hjkl and arrow keys to a Direction.
+pub fn key_to_direction(code: KeyCode) -> Option<Direction> {
+    match code {
+        KeyCode::Char('j') | KeyCode::Down => Some(Direction::Down),
+        KeyCode::Char('k') | KeyCode::Up => Some(Direction::Up),
+        KeyCode::Char('h') | KeyCode::Left => Some(Direction::Left),
+        KeyCode::Char('l') | KeyCode::Right => Some(Direction::Right),
+        _ => None,
+    }
+}
+
 impl Direction {
     /// Check if `other` is ahead of `cur` in this direction.
-    fn is_ahead(self, cur: &NavigationRegion, other: &NavigationRegion) -> bool {
+    fn is_ahead(self, cur: &Region, other: &Region) -> bool {
         match self {
             Self::Left => other.x + i32::from(other.width) <= cur.x,
             Self::Right => other.x >= cur.x + i32::from(cur.width),
@@ -34,7 +36,7 @@ impl Direction {
     }
 
     /// Calculate distance from `cur` to `other` in this direction.
-    fn distance(self, cur: &NavigationRegion, other: &NavigationRegion) -> i32 {
+    fn distance(self, cur: &Region, other: &Region) -> i32 {
         match self {
             Self::Left => (cur.x - (other.x + i32::from(other.width))).max(0),
             Self::Right => (other.x - (cur.x + i32::from(cur.width))).max(0),
@@ -60,7 +62,7 @@ pub fn ranges_overlap(a_start: i32, a_len: u16, b_start: i32, b_len: u16) -> boo
 const HYP_WIDTH: u16 = 15;
 
 /// Build navigation regions for all nodes in a layout.
-pub fn build_navigation_regions<D>(dag: &D, layout: &DagLayout) -> Vec<NavigationRegion>
+pub fn build_navigation_regions<D>(dag: &D, layout: &DagLayout) -> Vec<Region>
 where
     D: Dag,
     D::Node: NavNode,
@@ -94,13 +96,13 @@ where
 }
 
 /// Build navigation regions for hypotheses/bindings in a node.
-fn build_hyp_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<NavigationRegion> {
+fn build_hyp_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Region> {
     node.new_hyp_indices()
         .iter()
         .enumerate()
         .map(|(i, &hyp_idx)| {
             let hyp_offset = (i as i32) * (i32::from(HYP_WIDTH) + 1);
-            NavigationRegion {
+            Region {
                 x: pos.x + hyp_offset,
                 y: pos.y,
                 width: HYP_WIDTH,
@@ -115,7 +117,7 @@ fn build_hyp_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Navigation
 }
 
 /// Build navigation regions for goals in a node.
-fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<NavigationRegion> {
+fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Region> {
     if !node.has_selectable_goals() {
         return Vec::new();
     }
@@ -134,7 +136,7 @@ fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Navigatio
     (0..goal_count)
         .map(|i| {
             let goal_offset = (i as i32) * (i32::from(goal_width) + 1);
-            NavigationRegion {
+            Region {
                 x: pos.x + 1 + goal_offset,
                 y: pos.y + i32::from(pos.height.saturating_sub(2)),
                 width: goal_width,
@@ -149,13 +151,13 @@ fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Navigatio
 }
 
 pub fn find_nearest_in_direction(
-    regions: &[NavigationRegion],
+    regions: &[Region],
     current: Selection,
     direction: Direction,
 ) -> Option<Selection> {
     let cur = regions.iter().find(|r| r.selection == current)?;
 
-    let is_aligned = |r: &NavigationRegion| {
+    let is_aligned = |r: &Region| {
         let overlaps = if direction.is_horizontal() {
             ranges_overlap(cur.y, cur.height, r.y, r.height)
         } else {
@@ -175,8 +177,8 @@ pub fn find_nearest_in_direction(
 mod tests {
     use super::*;
 
-    fn hyp_region(node_id: u64, hyp_idx: usize, x: i32, y: i32) -> NavigationRegion {
-        NavigationRegion {
+    fn hyp_region(node_id: u64, hyp_idx: usize, x: i32, y: i32) -> Region {
+        Region {
             x,
             y,
             width: 15,
@@ -185,8 +187,8 @@ mod tests {
         }
     }
 
-    fn goal_region(node_id: u64, goal_idx: usize, x: i32, y: i32, width: u16) -> NavigationRegion {
-        NavigationRegion {
+    fn goal_region(node_id: u64, goal_idx: usize, x: i32, y: i32, width: u16) -> Region {
+        Region {
             x,
             y,
             width,

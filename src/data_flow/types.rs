@@ -3,7 +3,7 @@ use std::{error::Error, fmt, ops::Deref};
 use ratatui::style::Color;
 
 use crate::{
-    graph::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
+    graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
     protocol::{
         AnnotatedTextTree, BindingKind, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId,
         PreresolvedNavigationTargets,
@@ -306,10 +306,10 @@ impl DataFlowDag {
     }
 
     /// Convert to petgraph-based DagGraph for rendering.
-    pub fn to_graph(&self) -> crate::graph::DagGraph<DataFlowNode> {
+    pub fn to_graph(&self) -> crate::graph_layout::DagGraph<DataFlowNode> {
         use ratatui::style::Style;
 
-        use crate::graph::{DagGraph, EdgeData};
+        use crate::graph_layout::{DagGraph, EdgeData};
 
         let mut graph = DagGraph::new();
 
@@ -354,8 +354,8 @@ impl DataFlowDag {
     }
 
     /// Convert to layout graph for force-directed layout computation.
-    pub fn to_layout_graph(&self) -> crate::graph::LayoutGraph {
-        use crate::{graph::LayoutGraph, shared::LayoutSize};
+    pub fn to_layout_graph(&self) -> crate::graph_layout::LayoutGraph {
+        use crate::{graph_layout::LayoutGraph, shared::LayoutSize};
 
         let mut layout = LayoutGraph::new();
         let mut id_to_index = std::collections::HashMap::new();

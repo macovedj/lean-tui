@@ -8,22 +8,13 @@ use ratatui::{
 
 use crate::{
     protocol::{BindingKind, LocalBinding},
-    shared::{theme::Theme, ClickRegion, Selection},
+    shared::{theme::Theme, Region, Selection},
 };
 
 /// State for the binding given pane.
 #[derive(Default)]
 pub struct BindingGivenPaneState {
-    pub click_regions: Vec<ClickRegion>,
-}
-
-impl BindingGivenPaneState {
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(Rect::new(x, y, 1, 1)))
-            .map(|r| r.selection)
-    }
+    pub click_regions: Vec<Region>,
 }
 
 /// Given pane widget for functional DAG - displays initial bindings (function
@@ -106,12 +97,12 @@ impl StatefulWidget for BindingGivenPane<'_> {
             .take(5)
             .scan(inner.x, |x_offset, (binding_idx, binding)| {
                 let (span, width) = self.render_binding(*binding_idx, binding);
-                let region = ClickRegion {
-                    area: Rect::new(*x_offset, inner.y, width.min(inner.width), 1),
-                    selection: Selection::InitialHyp {
+                let region = Region::from_rect(
+                    Rect::new(*x_offset, inner.y, width.min(inner.width), 1),
+                    Selection::InitialHyp {
                         hyp_idx: *binding_idx,
                     },
-                };
+                );
                 *x_offset += width + 1;
                 Some(((span, *binding_idx != visible[0].0), region))
             })
@@ -125,7 +116,7 @@ impl StatefulWidget for BindingGivenPane<'_> {
             })
             .unzip();
 
-        state.click_regions = regions;
+        state.click_regions.extend(regions);
 
         let mut all_spans: Vec<Span> = spans.into_iter().flatten().collect();
         if visible.len() > 5 {

@@ -19,7 +19,7 @@ mod generated {
 }
 pub use generated::*;
 
-use crate::graph::{Dag, DagNode, NavNode};
+use crate::graph_layout::{Dag, DagNode, NavNode};
 
 /// Type alias for node IDs.
 pub type NodeId = u64;

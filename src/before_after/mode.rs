@@ -11,8 +11,8 @@ use crate::{
     display_mode::Mode,
     protocol::NodeId,
     shared::{
-        hypothesis_indices, render_helpers::render_error, selection::SelectionState, FilterToggle,
-        HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        hypothesis_indices, render_helpers::render_error, FilterToggle, HypothesisFilters,
+        InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
     },
 };
 
@@ -118,7 +118,7 @@ pub struct BeforeAfterMode {
     /// Name of the goal the cursor's tactic is working on.
     active_goal_name: Option<String>,
     filters: HypothesisFilters,
-    selection: SelectionState,
+    selection: ListSelection,
     show_previous: bool,
     show_next: bool,
     previous_column_state: GoalsColumnState,
@@ -137,7 +137,7 @@ impl Default for BeforeAfterMode {
             current_node_id: None,
             active_goal_name: None,
             filters: HypothesisFilters::default(),
-            selection: SelectionState::default(),
+            selection: ListSelection::default(),
             show_previous: true,
             show_next: false,
             previous_column_state: GoalsColumnState::default(),
@@ -311,7 +311,15 @@ impl InteractiveComponent for BeforeAfterMode {
             &mut self.current_column_state,
         );
         for region in self.current_column_state.click_regions() {
-            self.selection.add_region(region.area, region.selection);
+            self.selection.add_region(
+                Rect::new(
+                    region.x as u16,
+                    region.y as u16,
+                    region.width,
+                    region.height,
+                ),
+                region.selection,
+            );
         }
         col_idx += 1;
 

@@ -11,13 +11,13 @@ use ratatui::{
 use super::types::{DataFlowKind, DataFlowNode, SimpleBinding};
 use crate::{
     protocol::BindingKind,
-    shared::{theme::Theme, ClickRegion, Selection},
+    shared::{theme::Theme, Region, Selection},
 };
 
 /// State for a single functional state node widget.
 #[derive(Default)]
 pub struct FunctionalStateNodeState {
-    pub click_regions: Vec<ClickRegion>,
+    pub click_regions: Vec<Region>,
 }
 
 /// A single functional expression node widget.
@@ -128,7 +128,7 @@ impl<'a> FunctionalStateNode<'a> {
         }
     }
 
-    fn click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
+    fn click_regions(&self, inner: Rect) -> Vec<Region> {
         let bindings = self.node.bindings_after();
         let num_bindings = bindings.len() as u16;
 
@@ -139,32 +139,32 @@ impl<'a> FunctionalStateNode<'a> {
             (inner.y, inner.y + 1)
         };
 
-        let goal_region = ClickRegion {
-            area: Rect::new(inner.x, type_y, inner.width, 1),
-            selection: Selection::Goal {
+        let goal_region = Region::from_rect(
+            Rect::new(inner.x, type_y, inner.width, 1),
+            Selection::Goal {
                 node_id: self.node.id,
                 goal_idx: 0,
             },
-        };
+        );
 
         // Each binding is on its own line
-        let binding_regions: Vec<ClickRegion> = bindings
+        let binding_regions: Vec<Region> = bindings
             .iter()
             .enumerate()
             .map(|(idx, b)| {
                 let binding_width = (b.name.len() + b.type_str.len() + 2) as u16; // "name: type"
-                ClickRegion {
-                    area: Rect::new(
+                Region::from_rect(
+                    Rect::new(
                         inner.x,
                         bindings_start_y + idx as u16,
                         binding_width.min(inner.width),
                         1,
                     ),
-                    selection: Selection::Hyp {
+                    Selection::Hyp {
                         node_id: self.node.id,
                         hyp_idx: idx,
                     },
-                }
+                )
             })
             .collect();
 
@@ -177,6 +177,16 @@ impl StatefulWidget for FunctionalStateNode<'_> {
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
+
+        // Fill background to make node opaque (hides edges behind it)
+        let bg_color = Theme::NODE_BG;
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                if let Some(cell) = buf.cell_mut((x, y)) {
+                    cell.set_bg(bg_color);
+                }
+            }
+        }
 
         let border_color = self.border_color();
         let border_style = Style::new()

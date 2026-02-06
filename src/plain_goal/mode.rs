@@ -8,8 +8,8 @@ use crate::{
     plain_goal::widget::OpenGoalList,
     protocol::NodeId,
     shared::{
-        hypothesis_indices, render_helpers::render_error, selection::SelectionState, FilterToggle,
-        HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        hypothesis_indices, render_helpers::render_error, FilterToggle, HypothesisFilters,
+        InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
     },
 };
 
@@ -82,7 +82,7 @@ pub struct PlainList {
     definition: Option<DefinitionInfo>,
     error: Option<String>,
     filters: HypothesisFilters,
-    selection: SelectionState,
+    selection: ListSelection,
 }
 
 impl PlainList {
@@ -196,14 +196,14 @@ impl InteractiveComponent for PlainList {
         );
         let click_regions = goal_list.render_to_frame(frame, content_area);
 
-        let y_offset = content_area.y.saturating_sub(area.y);
+        let y_offset = i32::from(content_area.y.saturating_sub(area.y));
         for region in click_regions {
             self.selection.add_region(
                 Rect::new(
-                    region.area.x,
-                    region.area.y + y_offset,
-                    region.area.width,
-                    region.area.height,
+                    region.x as u16,
+                    (region.y + y_offset) as u16,
+                    region.width,
+                    region.height,
                 ),
                 region.selection,
             );

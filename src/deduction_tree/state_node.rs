@@ -9,13 +9,13 @@ use ratatui::{
 use super::{given_pane::hyp_style_colors, types::ProofDagTacticNode};
 use crate::{
     deduction_tree::TacticProofState,
-    shared::{theme::Theme, truncate_str, ClickRegion, Selection},
+    shared::{theme::Theme, truncate_str, Region, Selection},
 };
 
 /// State for a single state node widget.
 #[derive(Default)]
 pub struct StateNodeState {
-    pub click_regions: Vec<ClickRegion>,
+    pub click_regions: Vec<Region>,
 }
 
 /// A single proof state node widget.
@@ -201,7 +201,7 @@ impl<'a> StateNode<'a> {
         }
     }
 
-    fn build_click_regions(&self, inner: Rect) -> Vec<ClickRegion> {
+    fn build_click_regions(&self, inner: Rect) -> Vec<Region> {
         let mut regions = Vec::new();
         let has_hyps = !self.node.new_hypothesis_indices.is_empty();
 
@@ -222,13 +222,13 @@ impl<'a> StateNode<'a> {
 
             for goal_idx in 0..goal_count {
                 let goal_x = inner.x + (goal_idx as u16) * (goal_width + 1);
-                regions.push(ClickRegion {
-                    area: Rect::new(goal_x, goals_y, goal_width, 1),
-                    selection: Selection::Goal {
+                regions.push(Region::from_rect(
+                    Rect::new(goal_x, goals_y, goal_width, 1),
+                    Selection::Goal {
                         node_id: self.node.id,
                         goal_idx,
                     },
-                });
+                ));
             }
         }
 
@@ -236,13 +236,13 @@ impl<'a> StateNode<'a> {
             const HYP_WIDTH: u16 = 15;
             for (i, &hyp_idx) in self.node.new_hypothesis_indices.iter().enumerate() {
                 let hyp_x = inner.x + (i as u16) * (HYP_WIDTH + 1);
-                regions.push(ClickRegion {
-                    area: Rect::new(hyp_x, hyps_y, HYP_WIDTH, 1),
-                    selection: Selection::Hyp {
+                regions.push(Region::from_rect(
+                    Rect::new(hyp_x, hyps_y, HYP_WIDTH, 1),
+                    Selection::Hyp {
                         node_id: self.node.id,
                         hyp_idx: hyp_idx as usize,
                     },
-                });
+                ));
             }
         }
 
@@ -255,6 +255,16 @@ impl StatefulWidget for StateNode<'_> {
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
+
+        // Fill background to make node opaque (hides edges behind it)
+        let bg_color = Theme::NODE_BG;
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                if let Some(cell) = buf.cell_mut((x, y)) {
+                    cell.set_bg(bg_color);
+                }
+            }
+        }
 
         let border_color = self.border_color();
         let border_style = Style::new()
