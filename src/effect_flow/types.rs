@@ -145,10 +145,6 @@ pub struct EffectFlowNode {
     #[allow(dead_code)]
     pub given_back: Option<String>,
     #[allow(dead_code)]
-    pub forward_desc: Option<String>,
-    #[allow(dead_code)]
-    pub backward_desc: Option<String>,
-    #[allow(dead_code)]
     pub from_unfolding: bool,
 }
 
@@ -169,7 +165,7 @@ impl EffectFlowNode {
         let from_unfolding = node
             .metadata
             .get("fromUnfolding")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
         Some(Self {
@@ -182,8 +178,6 @@ impl EffectFlowNode {
             state_effect,
             forward_output: extract_str("forwardOutput"),
             given_back: extract_str("givenBack"),
-            forward_desc: extract_str("forwardDesc"),
-            backward_desc: extract_str("backwardDesc"),
             from_unfolding,
         })
     }

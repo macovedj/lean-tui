@@ -16,7 +16,10 @@ use crossterm::{
 };
 use futures::StreamExt;
 use ratatui::prelude::*;
-use tokio::{runtime::Builder as RuntimeBuilder, time::interval};
+use tokio::{
+    runtime::Builder as RuntimeBuilder,
+    time::{interval, Interval},
+};
 
 use crate::{
     app::App,
@@ -185,7 +188,7 @@ async fn handle_events(
     app: &mut App,
     pool: &mut ConnectionPool,
     event_stream: &mut EventStream,
-    scan_interval: &mut tokio::time::Interval,
+    scan_interval: &mut Interval,
 ) {
     // Wait for user input, scan interval, or a short timeout for message polling.
     // The short sleep ensures we don't busy-loop but still check for messages
