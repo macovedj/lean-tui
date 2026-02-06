@@ -226,17 +226,13 @@ impl LayoutSize for DataFlowNode {
         // Calculate title width (icon + expression + padding)
         let title_width = self.inner.content.to_plain_text().len() + 10;
 
-        // Calculate bindings line width
+        // Calculate max binding line width (each binding is on its own line: "name: type")
         let bindings = self.bindings_after();
-        let bindings_width = if bindings.is_empty() {
-            0
-        } else {
-            bindings
-                .iter()
-                .map(|b| b.name.len() + b.type_str.len() + 5) // " name: type "
-                .sum::<usize>()
-                + bindings.len().saturating_sub(1) // separators
-        };
+        let max_binding_width = bindings
+            .iter()
+            .map(|b| b.name.len() + b.type_str.len() + 2) // "name: type"
+            .max()
+            .unwrap_or(0);
 
         // Calculate type line width
         let type_width = self
@@ -245,13 +241,12 @@ impl LayoutSize for DataFlowNode {
             .unwrap_or(12); // "✓ Complete" or "⊢ ..."
 
         // Width is max of all lines + border padding
-        let content_width = title_width.max(bindings_width).max(type_width);
+        let content_width = title_width.max(max_binding_width).max(type_width);
         let width = (content_width + 4).min(120) as u16; // cap at 120 chars
 
-        // Height: border (2) + content lines
-        let has_bindings = !bindings.is_empty();
-        let content_lines = if has_bindings { 2 } else { 1 };
-        let height = (2 + content_lines) as u16;
+        // Height: border (2) + type line (1) + one line per binding
+        let num_bindings = bindings.len();
+        let height = (2 + 1 + num_bindings) as u16;
 
         (width, height)
     }
