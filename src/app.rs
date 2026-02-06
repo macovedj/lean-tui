@@ -457,9 +457,9 @@ impl App {
             format!(" {kind} {} ({}) ", def.name, filename)
         } else if let Some(cursor) = &self.cursor {
             let filename = cursor.filename().unwrap_or("?");
-            format!(" lean-tui [{}] ({}) ", self.display_mode.name(), filename)
+            format!("lean-tui ({filename}) ")
         } else {
-            format!(" lean-tui [{}] ", self.display_mode.name())
+            "lean-tui".to_string()
         }
     }
 
