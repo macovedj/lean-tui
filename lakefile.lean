@@ -4,9 +4,9 @@ open Lake DSL
 package «lean-tui-test» where
   version := v!"0.1.0"
 
-require LeanDag from git
-  -- "https://codeberg.org/wvhulle/lean-dag.git" @ "main"
-  "../lean-dag" @ "main" -- for local dev
+require LeanPrism from git
+  -- "https://codeberg.org/wvhulle/lean-prism.git" @ "main"
+  "../lean-prism" @ "main" -- for local dev
 
 
 require mathlib from git

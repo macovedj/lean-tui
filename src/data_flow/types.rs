@@ -11,7 +11,7 @@ use crate::{
     shared::{LayoutSize, Theme},
 };
 
-/// Data flow node kinds from the lean-dag backend.
+/// Data flow node kinds from the lean-prism backend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataFlowKind {
     /// Let binding: `let x := v; body`

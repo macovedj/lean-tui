@@ -72,28 +72,28 @@ cargo install lean-tui
 
 If `~/.cargo/bin` is in your path, you can now run this program with `lean-tui`.
 
-### 2. Add `LeanDag` Dependency
+### 2. Add `LeanPrism` Dependency
 
-Add [LeanDag](https://codeberg.org/wvhulle/lean-dag) as a Lake dependency.
+Add [LeanPrism](https://codeberg.org/wvhulle/lean-prism) as a Lake dependency.
 
 In your `lakefile.toml`:
 
 ```toml
 [[require]]
-name = "LeanDag"
-git = "https://codeberg.org/wvhulle/lean-dag.git"
+name = "LeanPrism"
+git = "https://codeberg.org/wvhulle/lean-prism.git"
 rev = "main"
 ```
 
 Fetch the source code of the latest version (Lean only hosts on Git, does not provide prebuilt dependencies):
 
 ```bash
-lake update LeanDag
+lake update LeanPrism
 ```
 
 ## Configuration
 
-Configure your editor to use `lake serve` as the Lean LSP server. This connects to lean-dag which provides the extended RPC methods.
+Configure your editor to use `lake serve` as the Lean LSP server. This connects to lean-prism which provides the extended RPC methods.
 
 For example, for Helix:
 
@@ -111,7 +111,7 @@ name = "lean"
 Add this to the top of your Lean file (or build target):
 
 ```lean
-import LeanDag
+import LeanPrism
 ```
 
 ## Usage
@@ -159,6 +159,6 @@ For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproo
 
 For the **Neovim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ...) since the Lean plugin relies on Neovim specific features. It is not a generic one.
 
-The `lean-dag` LSP server and this front-end is my attempt at a more generic one, not bound to any editor in particular, and usable from any terminal window.
+The `lean-prism` LSP server and this front-end is my attempt at a more generic one, not bound to any editor in particular, and usable from any terminal window.
 
 Let me know if you tried it out and encountered any issues! PRs are also welcome.

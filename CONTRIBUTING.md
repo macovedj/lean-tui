@@ -4,19 +4,19 @@ This is a more in-depth guide for advanced users or contributors.
 
 ## How Does It Work?
 
-This is mainly a front for [**lean-dag**](github.com/wvhulle/lean-dag/tree/main), a custom LSP server that adds an RPC method on top of the built-in LSP-compliant RPC methods provided by Lean's LSP. The additional RPC methods uses Lean's internal APIs to extract detailed proof information (tactic applications, goal transformations, go-to locations) that isn't available through standard LSP.
+This is mainly a front for [**lean-prism**](codeberg.org/wvhulle/lean-prism/tree/main), a custom LSP server that adds an RPC method on top of the built-in LSP-compliant RPC methods provided by Lean's LSP. The additional RPC methods uses Lean's internal APIs to extract detailed proof information (tactic applications, goal transformations, go-to locations) that isn't available through standard LSP.
 
-The name `lean-dag` comes from Lean [Directed Acyclic Graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph) since its main goal is showing your proof state as a graph.
+The name `lean-prism` comes from showing proof state through different "prisms" or perspectives - the various graph and visualization modes that let you examine your proofs from different angles.
 
 ```mermaid
 flowchart
 
-subgraph lean-dag-process["Lean RPC Server Process"]
+subgraph lean-prism-process["Lean RPC Server Process"]
     subgraph lean-worker[Lean RPC Worker]
         lean-runtime((Lean Runtime))
         original-lean-lsp[Official Lean.Server]
         custom-rpc-server[RPC Server with Extension]
-        rpc-method[LeanDag RPC Method]
+        rpc-method[LeanPrism RPC Method]
 
         rpc-method <-->|Lean| custom-rpc-server
         lean-runtime <-->|Lean| rpc-method
@@ -43,7 +43,7 @@ subgraph Editor
     editor-ui <--> editor-lsp-client
 end
 
-TUI <-->|"TCP:9742 JSON"| lean-dag-process
+TUI <-->|"TCP:9742 JSON"| lean-prism-process
 editor-lsp-client -->|LSP/JSON| lake-serve
 ```
 
@@ -52,7 +52,7 @@ editor-lsp-client -->|LSP/JSON| lake-serve
 If you see errors in the editor like "incompatible headers", you can try
 
 1. Close both the TUI view and the LSP client and restart.
-2. Rebuilding `lean-dag`
+2. Rebuilding `lean-prism`
 
 If that does not help, follow along with the logs while reproducing the bug (and paste the output in a bug report):
 

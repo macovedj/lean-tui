@@ -1,4 +1,4 @@
-import LeanDag
+import LeanPrism
 
 
 /-! ## StateM Examples - State Read/Write Effects -/

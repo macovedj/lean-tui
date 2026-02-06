@@ -1,4 +1,4 @@
-import LeanDag
+import LeanPrism
 
 
 def insert (x : Nat) : List Nat → List Nat

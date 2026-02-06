@@ -8,7 +8,7 @@ use crate::{
     shared::{LayoutSize, Theme},
 };
 
-/// Effect node kinds from the lean-dag backend.
+/// Effect node kinds from the lean-prism backend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectKind {
     EffectBind,

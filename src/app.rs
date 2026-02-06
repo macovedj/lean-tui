@@ -45,7 +45,7 @@ pub struct DefinitionInfo {
 
 /// Application state.
 pub struct App {
-    /// TCP port for lean-dag connection.
+    /// TCP port for lean-prism connection.
     port: u16,
     /// Current cursor position from editor.
     pub cursor: Option<EditorCursorPosition>,
@@ -53,7 +53,7 @@ pub struct App {
     pub definition: Option<DefinitionInfo>,
     /// Current error message.
     pub error: Option<String>,
-    /// Whether connected to lean-dag server.
+    /// Whether connected to lean-prism server.
     pub connected: bool,
     /// Whether app should exit.
     pub should_exit: bool,
@@ -178,7 +178,7 @@ impl App {
         mem::take(&mut self.outgoing_commands)
     }
 
-    /// Handle incoming message from lean-dag server.
+    /// Handle incoming message from lean-prism server.
     pub fn handle_message(&mut self, msg: ServerToClientMessage) {
         match msg {
             ServerToClientMessage::Connected {
