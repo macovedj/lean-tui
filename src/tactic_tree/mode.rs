@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
+    style::Color,
     Frame,
 };
 
@@ -16,8 +17,9 @@ use crate::{
     protocol::NodeId,
     shared::{
         hypothesis_indices,
+        legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
-        theme::FocusedPane,
+        theme::{FocusedPane, Theme},
         FilterToggle, HypothesisFilters, InteractiveComponent, InteractiveStatefulWidget,
         KeyMouseEvent, ListSelection, Selection,
     },
@@ -413,5 +415,19 @@ impl Mode for TacticTree {
         self.selection
             .current_selection(&self.selectable_items())
             .copied()
+    }
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![LegendSection::new(
+            "Tactic Tree",
+            Color::White,
+            vec![
+                LegendItem::new("▶", Theme::CURRENT_NODE_BORDER, "current step"),
+                LegendItem::new("⊢", Theme::CURRENT_NODE_BORDER, "active goal"),
+                LegendItem::new("⊢", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
+                LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
+                LegendItem::new("uses", Color::Yellow, "dependency"),
+            ],
+        )]
     }
 }

@@ -1,6 +1,7 @@
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
+    style::Color,
     Frame,
 };
 
@@ -11,8 +12,12 @@ use crate::{
     display_mode::Mode,
     protocol::NodeId,
     shared::{
-        hypothesis_indices, render_helpers::render_error, FilterToggle, HypothesisFilters,
-        InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
+        hypothesis_indices,
+        legend::{LegendItem, LegendSection},
+        render_helpers::render_error,
+        theme::Theme,
+        FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, ListSelection,
+        Selection,
     },
 };
 
@@ -366,5 +371,19 @@ impl Mode for BeforeAfterMode {
         self.selection
             .current_selection(&self.selectable_items())
             .copied()
+    }
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![LegendSection::new(
+            "Diff",
+            Color::White,
+            vec![
+                LegendItem::new("■", Theme::CURRENT_NODE_BORDER, "current"),
+                LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
+                LegendItem::new("+", Color::Green, "added"),
+                LegendItem::new("~", Color::Yellow, "changed"),
+                LegendItem::new("-", Color::Red, "removed"),
+            ],
+        )]
     }
 }

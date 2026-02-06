@@ -392,7 +392,6 @@ impl App {
                 filters: self.display_mode.filters(),
                 keybindings: self.display_mode.keybindings(),
                 supported_filters: self.display_mode.supported_filters(),
-                follow_mode: self.follow_mode,
             },
         );
     }
@@ -429,13 +428,11 @@ impl App {
 
         let title = self.build_title();
         let mode_name = format!(" {} ", self.display_mode.name());
-        let backend = self.build_backend_display();
         let position_info = self.build_position_info();
 
         let block = Block::bordered()
             .title(title)
             .title_top(Line::from(mode_name).right_aligned())
-            .title_bottom(Line::from(backend).left_aligned())
             .title_bottom(Line::from(position_info).right_aligned())
             .border_style(Style::new().fg(Color::Cyan));
 
@@ -467,22 +464,19 @@ impl App {
     }
 
     fn build_position_info(&self) -> String {
-        self.cursor.as_ref().map_or(String::new(), |cursor| {
-            format!(
-                " {}:{} ({}) ",
-                cursor.position.line + 1,
-                cursor.position.character + 1,
-                cursor.method
-            )
-        })
-    }
-
-    fn build_backend_display(&self) -> String {
-        if self.display_mode.dag.is_some() {
-            " lean-dag ".to_string()
-        } else {
-            String::new()
-        }
+        let follow = if self.follow_mode { "follow" } else { "manual" };
+        self.cursor.as_ref().map_or_else(
+            || format!(" [{follow}] "),
+            |cursor| {
+                format!(
+                    " {}:{} ({}) [{}] ",
+                    cursor.position.line + 1,
+                    cursor.position.character + 1,
+                    cursor.method,
+                    follow
+                )
+            },
+        )
     }
 
     /// Handle crossterm events.

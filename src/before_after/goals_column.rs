@@ -241,13 +241,13 @@ fn render_divider(div_area: Rect, buf: &mut Buffer) {
 
 fn create_border_block(title: &str, is_current: bool) -> Block<'static> {
     let border_color = if is_current {
-        Theme::TITLE_GOAL
+        Theme::CURRENT_NODE_BORDER
     } else {
         Theme::BORDER
     };
     let title_style = if is_current {
         Style::new()
-            .fg(Theme::TITLE_GOAL)
+            .fg(Theme::CURRENT_NODE_BORDER)
             .add_modifier(Modifier::BOLD)
     } else {
         Theme::DIM

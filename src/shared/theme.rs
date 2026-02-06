@@ -12,7 +12,6 @@ impl Theme {
     pub const BORDER: Color = Color::DarkGray;
     pub const BORDER_FOCUSED: Color = Color::Cyan;
     pub const TITLE_HYPOTHESIS: Color = Color::Blue;
-    pub const TITLE_GOAL: Color = Color::Cyan;
     pub const SELECTION_BG: Color = Color::Rgb(50, 50, 80);
 
     pub const HYP_NAME: Color = Color::Blue;
@@ -30,7 +29,6 @@ impl Theme {
     pub const COMPLETED_NODE_BORDER: Color = Color::Green;
     pub const GOAL_FG: Color = Color::Rgb(200, 140, 140);
     pub const COMPLETED_GOAL_FG: Color = Color::Green;
-    pub const NODE_BG: Color = Color::Rgb(30, 30, 30);
 
     pub const EFFECT_BIND: Color = Color::Cyan;
     pub const EFFECT_STATE_READ: Color = Color::Green;

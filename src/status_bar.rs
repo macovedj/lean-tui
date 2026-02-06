@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -15,7 +13,6 @@ pub struct StatusBarInput {
     pub filters: HypothesisFilters,
     pub keybindings: &'static [(&'static str, &'static str)],
     pub supported_filters: &'static [FilterToggle],
-    pub follow_mode: bool,
 }
 
 /// State for the status bar widget.
@@ -24,7 +21,6 @@ pub struct StatusBar {
     filters: HypothesisFilters,
     keybindings: &'static [(&'static str, &'static str)],
     supported_filters: &'static [FilterToggle],
-    follow_mode: bool,
 }
 
 /// Widget for rendering the status bar.
@@ -75,17 +71,10 @@ impl StatefulWidget for StatusBarWidget {
         let filter_span = (!filter_status.is_empty())
             .then(|| Span::styled(format!(" [{filter_status}]"), Style::new().fg(Color::Green)));
 
-        let follow_span = if state.follow_mode {
-            Span::styled(" [Follow]", Style::new().fg(Color::Blue))
-        } else {
-            Span::styled(" [Manual]", Style::new().fg(Color::DarkGray))
-        };
-
         let spans: Vec<Span> = global_spans
             .chain(mode_spans)
             .chain(nav_spans)
             .chain(filter_span)
-            .chain(once(follow_span))
             .collect();
         Paragraph::new(Line::from(spans)).render(area, buf);
     }
@@ -99,7 +88,6 @@ impl InteractiveStatefulWidget for StatusBarWidget {
         state.filters = input.filters;
         state.keybindings = input.keybindings;
         state.supported_filters = input.supported_filters;
-        state.follow_mode = input.follow_mode;
     }
 }
 

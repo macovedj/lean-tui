@@ -15,6 +15,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("g", "goto origin"),
     ("y", "copy to clipboard"),
     ("f", "select file"),
+    ("F", "toggle follow mode"),
     ("L", "legend"),
     ("?", "close help"),
     ("q", "quit"),

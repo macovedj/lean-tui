@@ -2,12 +2,12 @@ use std::collections::HashSet;
 
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Rect},
+    layout::Rect,
     style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
+    text::{Line, Span},
     widgets::{
-        Block, Borders, Cell, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState,
-        StatefulWidget, Table, Widget,
+        Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
+        Widget,
     },
 };
 
@@ -122,7 +122,7 @@ impl StatefulWidget for GoalSection {
             track_goal_click_regions(&mut state.click_regions, node_id, &layout);
         }
 
-        let rows: Vec<Row<'static>> = state
+        let lines: Vec<Line<'static>> = state
             .goals
             .iter()
             .enumerate()
@@ -131,28 +131,14 @@ impl StatefulWidget for GoalSection {
                     state.selection,
                     Some(Selection::Goal { goal_idx: gi, .. }) if gi == goal_idx
                 );
-                let is_spawned = goal
-                    .username_str()
-                    .is_some_and(|name| state.spawned_goal_ids.contains(name));
                 let is_active = goal
                     .username_str()
                     .is_some_and(|name| state.active_goal_name.as_deref() == Some(name));
-                goal_row(goal, is_selected, is_spawned, is_active)
+                goal_line(goal, is_selected, is_active)
             })
             .collect();
 
-        Widget::render(
-            Table::new(
-                rows,
-                [
-                    Constraint::Length(12), // case label
-                    Constraint::Fill(1),    // goal type
-                ],
-            )
-            .column_spacing(1),
-            inner,
-            buf,
-        );
+        Paragraph::new(lines).render(inner, buf);
 
         if total_goals > viewport_height && inner.width > 1 {
             let scrollbar_area = Rect {
@@ -188,12 +174,7 @@ fn track_goal_click_regions(
     );
 }
 
-fn goal_row(
-    goal: &ProofObligation,
-    is_selected: bool,
-    _is_spawned: bool,
-    is_active: bool,
-) -> Row<'static> {
+fn goal_line(goal: &ProofObligation, is_selected: bool, is_active: bool) -> Line<'static> {
     let base_color = if is_active {
         Theme::CURRENT_NODE_BORDER
     } else {
@@ -208,11 +189,8 @@ fn goal_row(
     let case_label = goal
         .username_str()
         .map_or(String::new(), |n| format!("{n}: "));
-    let col1 = Cell::from(Line::from(vec![Span::styled(case_label, style)]));
 
-    let mut spans = vec![Span::styled("⊢ ", style)];
+    let mut spans = vec![Span::styled(case_label, style), Span::styled("⊢ ", style)];
     spans.extend(goal.type_.to_spans(style));
-    let col2 = Cell::from(Text::from(Line::from(spans)));
-
-    Row::new(vec![col1, col2])
+    Line::from(spans)
 }
