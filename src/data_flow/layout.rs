@@ -111,7 +111,7 @@ impl StatefulWidget for FunctionalTableauLayout<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let (given_area, proof_area, theorem_area) = self.pane_areas(area);
 
-        BindingGivenPane::new(&self.dag.initial_context, self.selection).render(
+        BindingGivenPane::new(&self.dag.block_input, self.selection).render(
             given_area,
             buf,
             &mut state.given,
@@ -228,7 +228,7 @@ fn render_theorem_pane(
     }
 
     let type_text = dag
-        .definition_type
+        .block_output
         .as_ref()
         .map_or_else(|| "...".to_string(), AnnotatedTextTree::to_plain_text);
 

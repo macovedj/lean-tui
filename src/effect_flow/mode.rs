@@ -108,7 +108,7 @@ impl EffectFlowMode {
         }
 
         let initial_hyps = dag
-            .initial_context
+            .block_input
             .iter()
             .enumerate()
             .filter(|(_, b)| !b.is_implicit && !b.is_instance)

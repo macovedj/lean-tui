@@ -271,8 +271,8 @@ pub struct EffectFlowDag {
     pub current_node_id: Option<NodeId>,
     pub orphans: Vec<NodeId>,
     pub metadata: serde_json::Map<String, serde_json::Value>,
-    pub initial_context: Vec<protocol::LocalBinding>,
-    pub definition_type: Option<protocol::AnnotatedTextTree>,
+    pub block_input: Vec<protocol::LocalBinding>,
+    pub block_output: Option<protocol::AnnotatedTextTree>,
 }
 
 impl EffectFlowDag {
@@ -445,8 +445,8 @@ impl TryFrom<GenericDag> for EffectFlowDag {
             current_node_id: dag.current_node_id,
             orphans: dag.orphans,
             metadata: dag.metadata,
-            initial_context: dag.initial_context,
-            definition_type: dag.definition_type,
+            block_input: dag.block_input,
+            block_output: dag.block_output,
         })
     }
 }

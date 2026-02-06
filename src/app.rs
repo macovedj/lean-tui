@@ -226,11 +226,12 @@ impl App {
                     ),
                     dag.as_ref().and_then(|d| d.current_node_id)
                 );
-                let definition_name = dag.as_ref().and_then(|dag| dag.definition_name.clone());
+                let block_name = dag.as_ref().and_then(|dag| dag.block_name.clone());
+                let block_kind = dag.as_ref().and_then(|dag| dag.block_kind.clone());
 
-                self.definition = definition_name.map(|name| DefinitionInfo {
+                self.definition = block_name.map(|name| DefinitionInfo {
                     name,
-                    kind: None,
+                    kind: block_kind,
                     line: None,
                 });
                 self.display_mode.dag = match dag {
@@ -315,7 +316,7 @@ impl App {
             }),
             DagState::Dataflow(dag) => selection.and_then(|sel| match sel {
                 Selection::InitialHyp { hyp_idx } => dag
-                    .initial_context
+                    .block_input
                     .get(hyp_idx)
                     .and_then(|b| b.navigation_locations.as_ref())
                     .and_then(|nav| nav.definition.as_ref())
@@ -453,8 +454,10 @@ impl App {
     fn build_title(&self) -> String {
         if let (Some(def), Some(cursor)) = (&self.definition, &self.cursor) {
             let filename = cursor.filename().unwrap_or("?");
-            let kind = def.kind.as_deref().unwrap_or("proof");
-            format!(" {kind} {} ({}) ", def.name, filename)
+            match &def.kind {
+                Some(kind) => format!(" {kind} {} ({}) ", def.name, filename),
+                None => format!(" {} ({}) ", def.name, filename),
+            }
         } else if let Some(cursor) = &self.cursor {
             let filename = cursor.filename().unwrap_or("?");
             format!("lean-tui ({filename}) ")
