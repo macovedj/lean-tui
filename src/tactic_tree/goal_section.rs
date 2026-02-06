@@ -14,7 +14,7 @@ use ratatui::{
 use crate::{
     deduction_tree::{ProofObligation, TacticProofState},
     protocol::NodeId,
-    shared::{diff_text::AnnotatedTextTreeExt, theme::Theme, ClickRegion, Selection},
+    shared::{diff_text::AnnotatedTextTreeExt, theme::Theme, Region, Selection},
 };
 
 /// State for the goal section widget.
@@ -27,7 +27,7 @@ pub struct GoalSectionState {
     node_id: Option<NodeId>,
     /// Name of the goal the cursor's tactic is working on.
     active_goal_name: Option<String>,
-    click_regions: Vec<ClickRegion>,
+    click_regions: Vec<Region>,
     scroll_state: ScrollbarState,
     vertical_scroll: usize,
     /// Whether this pane is currently focused.
@@ -57,7 +57,7 @@ impl GoalSectionState {
     }
 
     /// Get the click regions computed during the last render.
-    pub fn click_regions(&self) -> &[ClickRegion] {
+    pub fn click_regions(&self) -> &[Region] {
         &self.click_regions
     }
 
@@ -171,7 +171,7 @@ impl StatefulWidget for GoalSection {
 }
 
 fn track_goal_click_regions(
-    click_regions: &mut Vec<ClickRegion>,
+    click_regions: &mut Vec<Region>,
     node_id: NodeId,
     layout: &GoalClickLayout,
 ) {
@@ -179,9 +179,11 @@ fn track_goal_click_regions(
         (0..layout.goal_count)
             .map(|goal_idx| (goal_idx, layout.area.y + goal_idx as u16))
             .take_while(|&(_, y)| y < layout.area.y + layout.area.height)
-            .map(|(goal_idx, y)| ClickRegion {
-                area: Rect::new(layout.area.x, y, layout.area.width, 1),
-                selection: Selection::Goal { node_id, goal_idx },
+            .map(|(goal_idx, y)| {
+                Region::from_rect(
+                    Rect::new(layout.area.x, y, layout.area.width, 1),
+                    Selection::Goal { node_id, goal_idx },
+                )
             }),
     );
 }

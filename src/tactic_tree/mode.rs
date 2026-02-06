@@ -17,10 +17,9 @@ use crate::{
     shared::{
         hypothesis_indices,
         render_helpers::{render_error, render_no_goals},
-        selection::SelectionState,
         theme::FocusedPane,
         FilterToggle, HypothesisFilters, InteractiveComponent, InteractiveStatefulWidget,
-        KeyMouseEvent, Selection,
+        KeyMouseEvent, ListSelection, Selection,
     },
     tactic_tree::{
         goal_section::{GoalSection, GoalSectionState},
@@ -100,7 +99,7 @@ pub struct TacticTree {
     goal_section_state: GoalSectionState,
     sidebar_state: ProofStepsSidebarState,
     filters: HypothesisFilters,
-    selection: SelectionState,
+    selection: ListSelection,
     /// Which pane is currently focused for keyboard navigation.
     focused_pane: FocusedPane,
     /// Last known sidebar viewport height (for scroll bounds).
@@ -356,7 +355,10 @@ impl InteractiveComponent for TacticTree {
             .set_focused(self.focused_pane == FocusedPane::Hypotheses);
         frame.render_stateful_widget(HypSection, layout.hyps, &mut self.hyp_section_state);
         for region in self.hyp_section_state.click_regions() {
-            self.selection.add_region(region.area, region.selection);
+            self.selection.add_region(
+                Rect::new(region.x as u16, region.y as u16, region.width, region.height),
+                region.selection,
+            );
         }
 
         frame.render_widget(divider(), layout.div);
@@ -372,7 +374,10 @@ impl InteractiveComponent for TacticTree {
             .set_focused(self.focused_pane == FocusedPane::Goals);
         frame.render_stateful_widget(GoalSection, layout.goals, &mut self.goal_section_state);
         for region in self.goal_section_state.click_regions() {
-            self.selection.add_region(region.area, region.selection);
+            self.selection.add_region(
+                Rect::new(region.x as u16, region.y as u16, region.width, region.height),
+                region.selection,
+            );
         }
     }
 }

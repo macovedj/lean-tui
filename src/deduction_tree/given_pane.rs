@@ -8,22 +8,13 @@ use ratatui::{
 
 use crate::{
     deduction_tree::ProofContextHypothesis,
-    shared::{theme::Theme, truncate_str, ClickRegion, Selection},
+    shared::{theme::Theme, truncate_str, Region, Selection},
 };
 
 /// State for the given pane.
 #[derive(Default)]
 pub struct GivenPaneState {
-    pub click_regions: Vec<ClickRegion>,
-}
-
-impl GivenPaneState {
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(Rect::new(x, y, 1, 1)))
-            .map(|r| r.selection)
-    }
+    pub click_regions: Vec<Region>,
 }
 
 /// Given pane widget - displays initial hypotheses.
@@ -108,10 +99,10 @@ impl StatefulWidget for GivenPane<'_> {
                 let text = format!(" {}: {} ", h.name, truncated_type);
                 let text_width = text.chars().count() as u16;
 
-                state.click_regions.push(ClickRegion {
-                    area: Rect::new(x_offset, inner.y, text_width.min(inner.width), 1),
-                    selection: Selection::InitialHyp { hyp_idx: *hyp_idx },
-                });
+                state.click_regions.push(Region::from_rect(
+                    Rect::new(x_offset, inner.y, text_width.min(inner.width), 1),
+                    Selection::InitialHyp { hyp_idx: *hyp_idx },
+                ));
                 x_offset += text_width;
 
                 spans.push(Span::styled(text, style));

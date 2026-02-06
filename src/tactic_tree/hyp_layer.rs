@@ -11,7 +11,7 @@ use crate::{
     protocol::NodeId,
     shared::{
         diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
-        ClickRegion, Selection,
+        Region, Selection,
     },
 };
 
@@ -61,7 +61,7 @@ impl HypLayer {
     pub fn render(
         &self,
         ctx: &HypLayerRenderContext<'_>,
-        click_regions: &mut Vec<ClickRegion>,
+        click_regions: &mut Vec<Region>,
     ) -> Vec<Line<'static>> {
         if let Some(node_id) = self.node_id {
             self.track_click_regions(click_regions, node_id, ctx);
@@ -82,7 +82,7 @@ impl HypLayer {
 
     fn track_click_regions(
         &self,
-        click_regions: &mut Vec<ClickRegion>,
+        click_regions: &mut Vec<Region>,
         node_id: NodeId,
         ctx: &HypLayerRenderContext<'_>,
     ) {
@@ -92,9 +92,11 @@ impl HypLayer {
                 .enumerate()
                 .map(|(i, (hyp_idx, _))| (ctx.base_y + i as u16, *hyp_idx))
                 .take_while(|&(y, _)| y < ctx.area.y + ctx.area.height)
-                .map(|(y, hyp_idx)| ClickRegion {
-                    area: Rect::new(ctx.area.x, y, ctx.area.width, 1),
-                    selection: Selection::Hyp { node_id, hyp_idx },
+                .map(|(y, hyp_idx)| {
+                    Region::from_rect(
+                        Rect::new(ctx.area.x, y, ctx.area.width, 1),
+                        Selection::Hyp { node_id, hyp_idx },
+                    )
                 }),
         );
     }

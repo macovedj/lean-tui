@@ -11,7 +11,7 @@ use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{
-        diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, ClickRegion,
+        diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, Region,
         HypothesisFilters, Selection,
     },
 };
@@ -28,7 +28,7 @@ pub struct OpenGoalList<'a> {
 
 #[derive(Default)]
 pub struct OpenGoalListState {
-    click_regions: Vec<ClickRegion>,
+    click_regions: Vec<Region>,
 }
 
 impl<'a> OpenGoalList<'a> {
@@ -49,7 +49,7 @@ impl<'a> OpenGoalList<'a> {
     }
 
     /// Render using Frame (convenience method for non-stateful usage).
-    pub fn render_to_frame(&self, frame: &mut Frame, area: Rect) -> Vec<ClickRegion> {
+    pub fn render_to_frame(&self, frame: &mut Frame, area: Rect) -> Vec<Region> {
         let mut render_state = OpenGoalListState::default();
         frame.render_stateful_widget(
             OpenGoalList::new(
@@ -134,13 +134,13 @@ impl StatefulWidget for OpenGoalList<'_> {
             Paragraph::new(line).render(line_area, buf);
 
             if let Some(nid) = self.node_id {
-                state.click_regions.push(ClickRegion {
-                    area: line_area,
-                    selection: Selection::Hyp {
+                state.click_regions.push(Region::from_rect(
+                    line_area,
+                    Selection::Hyp {
                         node_id: nid,
                         hyp_idx,
                     },
-                });
+                ));
             }
 
             y += 1;
@@ -187,13 +187,13 @@ impl StatefulWidget for OpenGoalList<'_> {
             Paragraph::new(line).render(line_area, buf);
 
             if let Some(nid) = self.node_id {
-                state.click_regions.push(ClickRegion {
-                    area: line_area,
-                    selection: Selection::Goal {
+                state.click_regions.push(Region::from_rect(
+                    line_area,
+                    Selection::Goal {
                         node_id: nid,
                         goal_idx,
                     },
-                });
+                ));
             }
 
             y += 1;

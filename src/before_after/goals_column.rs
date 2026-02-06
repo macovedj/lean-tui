@@ -10,7 +10,7 @@ use crate::{
     deduction_tree::{ProofContextHypothesis, ProofObligation, TacticProofState},
     protocol::NodeId,
     shared::{
-        diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, ClickRegion,
+        diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, Region,
         HypothesisFilters, Selection,
     },
 };
@@ -18,12 +18,12 @@ use crate::{
 /// State for the goals column widget (render artifacts only).
 #[derive(Default)]
 pub struct GoalsColumnState {
-    click_regions: Vec<ClickRegion>,
+    click_regions: Vec<Region>,
 }
 
 impl GoalsColumnState {
     /// Get the click regions computed during the last render.
-    pub fn click_regions(&self) -> &[ClickRegion] {
+    pub fn click_regions(&self) -> &[Region] {
         &self.click_regions
     }
 }
@@ -138,13 +138,13 @@ impl GoalsColumn<'_> {
             Paragraph::new(line).render(line_area, buf);
 
             if let Some(nid) = node_id {
-                state.click_regions.push(ClickRegion {
-                    area: line_area,
-                    selection: Selection::Hyp {
+                state.click_regions.push(Region::from_rect(
+                    line_area,
+                    Selection::Hyp {
                         node_id: nid,
                         hyp_idx,
                     },
-                });
+                ));
             }
         }
     }
@@ -181,13 +181,13 @@ impl GoalsColumn<'_> {
             Paragraph::new(line).render(line_area, buf);
 
             if let Some(nid) = node_id {
-                state.click_regions.push(ClickRegion {
-                    area: line_area,
-                    selection: Selection::Goal {
+                state.click_regions.push(Region::from_rect(
+                    line_area,
+                    Selection::Goal {
                         node_id: nid,
                         goal_idx,
                     },
-                });
+                ));
             }
         }
     }

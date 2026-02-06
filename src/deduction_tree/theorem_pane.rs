@@ -6,21 +6,12 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use crate::shared::{theme::Theme, ClickRegion, Selection};
+use crate::shared::{theme::Theme, Region, Selection};
 
 /// State for the theorem pane.
 #[derive(Default)]
 pub struct TheoremPaneState {
-    pub click_regions: Vec<ClickRegion>,
-}
-
-impl TheoremPaneState {
-    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        self.click_regions
-            .iter()
-            .find(|r| r.area.intersects(Rect::new(x, y, 1, 1)))
-            .map(|r| r.selection)
-    }
+    pub click_regions: Vec<Region>,
 }
 
 /// Theorem pane widget - displays the theorem conclusion.
@@ -43,10 +34,9 @@ impl StatefulWidget for TheoremPane<'_> {
 
         let is_selected = matches!(self.selection, Some(Selection::Theorem));
 
-        state.click_regions.push(ClickRegion {
-            area,
-            selection: Selection::Theorem,
-        });
+        state
+            .click_regions
+            .push(Region::from_rect(area, Selection::Theorem));
 
         let block = Block::default()
             .borders(Borders::ALL)

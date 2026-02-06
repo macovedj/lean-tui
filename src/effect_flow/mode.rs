@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -16,8 +16,9 @@ use crate::{
         types::EffectFlowDag,
     },
     shared::{
-        find_nearest_in_direction, legend::LegendSection, render_helpers::render_error, Direction,
-        FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        find_nearest_in_direction, key_to_direction, legend::LegendSection,
+        render_helpers::render_error, Direction, FilterToggle, HypothesisFilters,
+        InteractiveComponent, KeyMouseEvent, Selection,
     },
 };
 
@@ -268,13 +269,12 @@ impl InteractiveComponent for EffectFlowMode {
 
     fn handle_event(&mut self, event: Self::Event) -> bool {
         match event {
-            KeyMouseEvent::Key(key) => match key.code {
-                KeyCode::Char('j') | KeyCode::Down => self.move_in_direction(Direction::Down),
-                KeyCode::Char('k') | KeyCode::Up => self.move_in_direction(Direction::Up),
-                KeyCode::Char('h') | KeyCode::Left => self.move_in_direction(Direction::Left),
-                KeyCode::Char('l') | KeyCode::Right => self.move_in_direction(Direction::Right),
-                _ => false,
-            },
+            KeyMouseEvent::Key(key) => {
+                if let Some(dir) = key_to_direction(key.code) {
+                    return self.move_in_direction(dir);
+                }
+                false
+            }
             KeyMouseEvent::Mouse(mouse) => {
                 if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
                     return false;

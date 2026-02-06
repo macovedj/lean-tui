@@ -14,7 +14,7 @@ use super::hyp_layer::{HypLayer, HypLayerRenderContext};
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
-    shared::{theme::Theme, ClickRegion, HypothesisFilters, Selection},
+    shared::{theme::Theme, Region, HypothesisFilters, Selection},
 };
 
 /// State for the hypothesis section widget.
@@ -23,7 +23,7 @@ pub struct HypSectionState {
     layer: HypLayer,
     depends_on: HashSet<String>,
     selection: Option<Selection>,
-    click_regions: Vec<ClickRegion>,
+    click_regions: Vec<Region>,
     scroll_state: ScrollbarState,
     vertical_scroll: usize,
     /// Whether this pane is currently focused.
@@ -60,7 +60,7 @@ impl HypSectionState {
     }
 
     /// Get the click regions computed during the last render.
-    pub fn click_regions(&self) -> &[ClickRegion] {
+    pub fn click_regions(&self) -> &[Region] {
         &self.click_regions
     }
 

@@ -17,7 +17,7 @@ use crate::{
     },
     display_mode::Mode,
     shared::{
-        find_nearest_in_direction,
+        find_nearest_in_direction, key_to_direction,
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
         Direction, FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
@@ -249,17 +249,18 @@ impl InteractiveComponent for DataFlowMode {
 
     fn handle_event(&mut self, event: Self::Event) -> bool {
         match event {
-            KeyMouseEvent::Key(key) => match key.code {
-                KeyCode::Char('j') | KeyCode::Down => self.move_in_direction(Direction::Down),
-                KeyCode::Char('k') | KeyCode::Up => self.move_in_direction(Direction::Up),
-                KeyCode::Char('h') | KeyCode::Left => self.move_in_direction(Direction::Left),
-                KeyCode::Char('l') | KeyCode::Right => self.move_in_direction(Direction::Right),
-                KeyCode::Char('t') => {
-                    self.tree_top_down = !self.tree_top_down;
-                    true
+            KeyMouseEvent::Key(key) => {
+                if let Some(dir) = key_to_direction(key.code) {
+                    return self.move_in_direction(dir);
                 }
-                _ => false,
-            },
+                match key.code {
+                    KeyCode::Char('t') => {
+                        self.tree_top_down = !self.tree_top_down;
+                        true
+                    }
+                    _ => false,
+                }
+            }
             KeyMouseEvent::Mouse(mouse) => {
                 if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
                     return false;
