@@ -1,4 +1,4 @@
-//! Protocol types generated from lean-dag JSON schema.
+//! Protocol types generated from lean-prism JSON schema.
 //!
 //! Types are generated at build time from `protocol-schema.json`.
 //! This module re-exports them and adds helper methods.

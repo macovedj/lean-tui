@@ -1,5 +1,5 @@
 # Option 1: Standard Lake serve (recommended)
-# Handles dependencies automatically, uses LeanDag RPC when imported
+# Handles dependencies automatically, uses LeanPrism RPC when imported
 [language-server.lake-serve]
 command = "lake"
 args = ["serve"]

@@ -35,7 +35,7 @@ pub struct Args {
     #[arg(short, long)]
     verbose: bool,
 
-    /// TCP port for lean-dag connection
+    /// TCP port for lean-prism connection
     #[arg(short, long, default_value_t = Args::default().port)]
     port: u16,
 }

@@ -1,4 +1,4 @@
-//! TCP client for connecting to lean-dag servers.
+//! TCP client for connecting to lean-prism servers.
 
 use std::{collections::HashMap, io, time::Duration};
 
@@ -16,7 +16,7 @@ use crate::{
     protocol::{ClientToServerCommand, ServerToClientMessage},
 };
 
-/// Information about a discovered lean-dag worker.
+/// Information about a discovered lean-prism worker.
 #[derive(Debug, Clone)]
 pub struct WorkerInfo {
     /// TCP port the worker is listening on.
@@ -57,18 +57,18 @@ pub enum Connection {
 }
 
 impl Connection {
-    /// Try to connect to lean-dag server.
+    /// Try to connect to lean-prism server.
     pub async fn connect(port: u16) -> Self {
         let addr = format!("127.0.0.1:{port}");
         match TcpStream::connect(&addr).await {
             Ok(stream) => {
-                tracing::info!("Connected to lean-dag at {addr}");
+                tracing::info!("Connected to lean-prism at {addr}");
                 let (reader, writer) = stream.into_split();
                 let reader = BufReader::new(reader).lines();
                 Self::Connected { reader, writer }
             }
             Err(e) => {
-                tracing::trace!("Failed to connect to lean-dag at {addr}: {e}");
+                tracing::trace!("Failed to connect to lean-prism at {addr}: {e}");
                 Self::Disconnected
             }
         }
@@ -106,7 +106,7 @@ impl Connection {
                 }
             },
             Ok(None) => {
-                tracing::info!("Disconnected from lean-dag");
+                tracing::info!("Disconnected from lean-prism");
                 *self = Self::Disconnected;
                 Ok(None)
             }
@@ -137,7 +137,7 @@ impl Connection {
     }
 }
 
-/// Probe a single port to check if a lean-dag worker is listening.
+/// Probe a single port to check if a lean-prism worker is listening.
 /// Returns [`WorkerInfo`] if successful.
 async fn probe_port(port: u16) -> Option<WorkerInfo> {
     let addr = format!("127.0.0.1:{port}");
@@ -170,7 +170,7 @@ async fn probe_port(port: u16) -> Option<WorkerInfo> {
     }
 }
 
-/// Scan a range of ports to discover active lean-dag workers.
+/// Scan a range of ports to discover active lean-prism workers.
 pub async fn discover_workers(port_min: u16, port_max: u16) -> Vec<WorkerInfo> {
     tracing::info!("Scanning ports {port_min}–{port_max} for workers");
 
@@ -195,7 +195,7 @@ pub struct PoolMessage {
     pub message: ServerToClientMessage,
 }
 
-/// Pool of connections to multiple lean-dag workers.
+/// Pool of connections to multiple lean-prism workers.
 pub struct ConnectionPool {
     connections: HashMap<u16, Connection>,
     port_to_uri: HashMap<u16, String>,
