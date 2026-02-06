@@ -47,8 +47,8 @@ impl FunctionalTableauState {
     /// theorem.
     pub fn navigation_regions(&self) -> Vec<NavigationRegion> {
         let to_nav_region = |cr: &ClickRegion| NavigationRegion {
-            x: cr.area.x as i32,
-            y: cr.area.y as i32,
+            x: i32::from(cr.area.x),
+            y: i32::from(cr.area.y),
             width: cr.area.width,
             height: cr.area.height,
             selection: cr.selection,
@@ -58,7 +58,7 @@ impl FunctionalTableauState {
             .click_regions
             .iter()
             .map(to_nav_region)
-            .chain(self.proof.navigation_regions.iter().cloned())
+            .chain(self.proof.navigation_regions.iter().copied())
             .chain(self.theorem.click_regions.iter().map(to_nav_region))
             .collect()
     }

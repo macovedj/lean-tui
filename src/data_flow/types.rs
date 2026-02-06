@@ -226,7 +226,8 @@ impl LayoutSize for DataFlowNode {
         // Calculate title width (icon + expression + padding)
         let title_width = self.inner.content.to_plain_text().len() + 10;
 
-        // Calculate max binding line width (each binding is on its own line: "name: type")
+        // Calculate max binding line width (each binding is on its own line: "name:
+        // type")
         let bindings = self.bindings_after();
         let max_binding_width = bindings
             .iter()
