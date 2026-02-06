@@ -54,7 +54,10 @@ impl Region {
 
 /// Find a selection at screen coordinates (x, y) in a slice of regions.
 pub fn find_region_at(regions: &[Region], x: u16, y: u16) -> Option<Selection> {
-    regions.iter().find(|r| r.contains(x, y)).map(|r| r.selection)
+    regions
+        .iter()
+        .find(|r| r.contains(x, y))
+        .map(|r| r.selection)
 }
 
 /// Manages selection state for linear (list-based) navigation.

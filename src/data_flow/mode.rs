@@ -321,6 +321,7 @@ impl Mode for DataFlowMode {
                 "Node States",
                 Color::White,
                 vec![
+                    LegendItem::new("■", Theme::CURRENT_NODE_BORDER, "current"),
                     LegendItem::new("■", Theme::COMPLETED_GOAL_FG, "complete"),
                     LegendItem::new("■", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
                 ],

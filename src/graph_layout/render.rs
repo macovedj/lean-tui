@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -6,6 +8,57 @@ use ratatui::{
 };
 
 use super::{graph::DagGraph, layout::DagLayout, viewport};
+
+struct HorizontalSegment {
+    mid_y: i32,
+    x_left: i32,
+    x_right: i32,
+}
+
+struct EdgeRoute<'a> {
+    from_x: i32,
+    from_y: i32,
+    to_x: i32,
+    to_y: i32,
+    segment: HorizontalSegment,
+    style: Style,
+    label: Option<&'a str>,
+}
+
+fn compute_y_offsets(routes: &[EdgeRoute<'_>]) -> Vec<i32> {
+    let mut by_y: HashMap<i32, Vec<(usize, i32, i32)>> = HashMap::new();
+    for (idx, route) in routes.iter().enumerate() {
+        by_y.entry(route.segment.mid_y).or_default().push((
+            idx,
+            route.segment.x_left,
+            route.segment.x_right,
+        ));
+    }
+
+    let mut offsets = vec![0i32; routes.len()];
+
+    for segments in by_y.values_mut() {
+        segments.sort_by_key(|(_, x_left, _)| *x_left);
+
+        // channels[c] = rightmost x_end currently in channel c
+        let mut channels: Vec<i32> = Vec::new();
+
+        for &(idx, x_left, x_right) in segments.iter() {
+            let channel = channels
+                .iter()
+                .position(|&end| end < x_left)
+                .unwrap_or_else(|| {
+                    channels.push(i32::MIN);
+                    channels.len() - 1
+                });
+
+            channels[channel] = x_right;
+            offsets[idx] = -(channel as i32);
+        }
+    }
+
+    offsets
+}
 
 pub fn render_edges<N>(
     dag: &DagGraph<N>,
@@ -73,8 +126,7 @@ struct EdgeRenderer {
 
 impl EdgeRenderer {
     fn render<N>(&self, dag: &DagGraph<N>, layout: &DagLayout, viewport: Rect, buf: &mut Buffer) {
-        // Collect all edges with their routing info
-        let mut edges_to_draw: Vec<_> = layout
+        let routes: Vec<EdgeRoute<'_>> = layout
             .nodes
             .iter()
             .flat_map(|pos| {
@@ -85,130 +137,95 @@ impl EdgeRenderer {
                     pos.y
                 };
 
-                dag.edges_from(pos.index).filter_map(move |(child_idx, edge_data)| {
-                    let child_pos = layout.find(child_idx)?;
-                    let child_x = child_pos.x + i32::from(child_pos.width) / 2;
-                    let child_y = if self.top_down {
-                        child_pos.y
-                    } else {
-                        child_pos.y + i32::from(child_pos.height)
-                    };
-                    Some((parent_x, parent_y, child_x, child_y, edge_data))
-                })
+                dag.edges_from(pos.index)
+                    .filter_map(move |(child_idx, edge_data)| {
+                        let child_pos = layout.find(child_idx)?;
+                        let child_x = child_pos.x + i32::from(child_pos.width) / 2;
+                        let child_y = if self.top_down {
+                            child_pos.y
+                        } else {
+                            child_pos.y + i32::from(child_pos.height)
+                        };
+
+                        let mid_y = i32::midpoint(parent_y, child_y);
+                        let (x_left, x_right) = if parent_x <= child_x {
+                            (parent_x, child_x)
+                        } else {
+                            (child_x, parent_x)
+                        };
+
+                        Some(EdgeRoute {
+                            from_x: parent_x,
+                            from_y: parent_y,
+                            to_x: child_x,
+                            to_y: child_y,
+                            segment: HorizontalSegment {
+                                mid_y,
+                                x_left,
+                                x_right,
+                            },
+                            style: edge_data.style.unwrap_or_default(),
+                            label: edge_data.label.as_deref(),
+                        })
+                    })
             })
             .collect();
 
-        // Sort edges by their routing level and horizontal position
-        // Include X midpoint in sort to group only edges that actually overlap horizontally
-        edges_to_draw.sort_by_key(|(px, py, cx, cy, _)| {
-            let x_mid = (*px + *cx) / 2;
-            (*py, *cy, x_mid / 15) // Bucket by X to group only nearby edges
-        });
+        let y_offsets = compute_y_offsets(&routes);
 
-        // Assign routing channel offsets to prevent overlap
-        // Only edges at similar horizontal positions get grouped and offset
-        let mut prev_routing_key = (i32::MIN, i32::MIN, i32::MIN);
-        let mut channel_count = 0i32;
-
-        for (parent_x, parent_y, child_x, child_y, edge_data) in edges_to_draw {
-            let x_mid = (parent_x + child_x) / 2;
-            let routing_key = (parent_y, child_y, x_mid / 15);
-            if routing_key == prev_routing_key {
-                channel_count += 1;
-            } else {
-                channel_count = 0;
-                prev_routing_key = routing_key;
-            }
-            // Alternate X offsets: 0, 1, -1, 2, -2, ...
-            let x_offset = if channel_count == 0 {
-                0
-            } else {
-                let half = (channel_count + 1) / 2;
-                if channel_count % 2 == 1 { half } else { -half }
-            };
-            // Y offset: only for overlapping edges (channel_count > 0), shift upward
-            let y_offset = -channel_count;
-
-            let style = edge_data.style.unwrap_or_default();
-            self.draw_edge_with_channel(
-                parent_x,
-                parent_y,
-                child_x,
-                child_y,
-                x_offset,
-                y_offset,
-                style,
-                edge_data.label.as_deref(),
-                viewport,
-                buf,
-            );
+        for (route, &y_offset) in routes.iter().zip(y_offsets.iter()) {
+            self.draw_edge(route, y_offset, viewport, buf);
         }
     }
 
-    fn draw_edge_with_channel(
-        &self,
-        from_x: i32,
-        from_y: i32,
-        to_x: i32,
-        to_y: i32,
-        x_offset: i32,
-        y_offset: i32,
-        style: Style,
-        label: Option<&str>,
-        viewport: Rect,
-        buf: &mut Buffer,
-    ) {
-        // Apply X offset (alternating left/right) and Y offset (upward, away from boxes)
-        let base_mid_y = i32::midpoint(from_y, to_y);
-        let mid_y = base_mid_y + y_offset;
+    fn draw_edge(&self, route: &EdgeRoute<'_>, y_offset: i32, viewport: Rect, buf: &mut Buffer) {
+        let EdgeRoute {
+            from_x,
+            from_y,
+            to_x,
+            to_y,
+            style,
+            label,
+            ..
+        } = *route;
+        let mid_y = route.segment.mid_y + y_offset;
 
         if from_x == to_x {
-            // Straight vertical edge - apply horizontal offset to spread parallel edges
-            let offset_x = from_x + x_offset;
-            self.draw_vertical_line(offset_x, from_y, to_y, style, '│', viewport, buf);
+            self.draw_vertical_line(from_x, from_y, to_y, style, '│', viewport, buf);
         } else {
-            // Edge needs horizontal routing
-            // Apply X offset to spread edges horizontally
-            let offset_from_x = from_x + x_offset;
-            let offset_to_x = to_x + x_offset;
             let going_down = from_y < to_y;
 
-            // Vertical line from source to routing level
             if going_down {
-                self.draw_vertical_line(offset_from_x, from_y, mid_y - 1, style, '│', viewport, buf);
+                self.draw_vertical_line(from_x, from_y, mid_y - 1, style, '│', viewport, buf);
             } else {
-                self.draw_vertical_line(offset_from_x, from_y, mid_y + 1, style, '│', viewport, buf);
+                self.draw_vertical_line(from_x, from_y, mid_y + 1, style, '│', viewport, buf);
             }
 
-            // Horizontal line at routing level
-            let (start_x, end_x) = if offset_from_x < offset_to_x {
-                (offset_from_x + 1, offset_to_x - 1)
+            let (start_x, end_x) = if from_x < to_x {
+                (from_x + 1, to_x - 1)
             } else {
-                (offset_to_x + 1, offset_from_x - 1)
+                (to_x + 1, from_x - 1)
             };
             if start_x <= end_x {
                 self.draw_horizontal_line(start_x, end_x, mid_y, style, '─', viewport, buf);
             }
 
-            // Corner characters
-            let (from_corner, to_corner) = match (self.top_down, offset_from_x < offset_to_x) {
+            let (from_corner, to_corner) = match (self.top_down, from_x < to_x) {
                 (true, true) => ('╰', '╮'),
                 (true, false) => ('╯', '╭'),
                 (false, true) => ('╭', '╯'),
                 (false, false) => ('╮', '╰'),
             };
-            self.draw_char(offset_from_x, mid_y, style, from_corner, viewport, buf);
-            self.draw_char(offset_to_x, mid_y, style, to_corner, viewport, buf);
+            self.draw_char(from_x, mid_y, style, from_corner, viewport, buf);
+            self.draw_char(to_x, mid_y, style, to_corner, viewport, buf);
 
-            // Vertical line from routing level to target
             if going_down {
-                self.draw_vertical_line(offset_to_x, mid_y + 1, to_y, style, '│', viewport, buf);
+                self.draw_vertical_line(to_x, mid_y + 1, to_y, style, '│', viewport, buf);
             } else {
-                self.draw_vertical_line(offset_to_x, mid_y - 1, to_y, style, '│', viewport, buf);
+                self.draw_vertical_line(to_x, mid_y - 1, to_y, style, '│', viewport, buf);
             }
         }
 
-        // Draw edge label at the midpoint
         if let Some(label_text) = label {
             let label_len = label_text.chars().count() as i32;
             let (label_x, label_y) = if from_x == to_x {
@@ -221,7 +238,15 @@ impl EdgeRenderer {
         }
     }
 
-    fn draw_char(&self, vx: i32, vy: i32, style: Style, ch: char, viewport: Rect, buf: &mut Buffer) {
+    fn draw_char(
+        &self,
+        vx: i32,
+        vy: i32,
+        style: Style,
+        ch: char,
+        viewport: Rect,
+        buf: &mut Buffer,
+    ) {
         let screen_x = vx - self.scroll_x + i32::from(viewport.x);
         let screen_y = vy - self.scroll_y + i32::from(viewport.y);
 
@@ -238,7 +263,15 @@ impl EdgeRenderer {
         }
     }
 
-    fn draw_text(&self, vx: i32, vy: i32, style: Style, text: &str, viewport: Rect, buf: &mut Buffer) {
+    fn draw_text(
+        &self,
+        vx: i32,
+        vy: i32,
+        style: Style,
+        text: &str,
+        viewport: Rect,
+        buf: &mut Buffer,
+    ) {
         for (i, ch) in text.chars().enumerate() {
             self.draw_char(vx + i as i32, vy, style, ch, viewport, buf);
         }

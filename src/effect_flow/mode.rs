@@ -13,12 +13,14 @@ use crate::{
     display_mode::Mode,
     effect_flow::{
         layout::{EffectTableauLayout, EffectTableauState},
-        types::EffectFlowDag,
+        types::{EdgeKind, EffectFlowDag, EffectKind},
     },
     shared::{
-        find_nearest_in_direction, key_to_direction, legend::LegendSection,
-        render_helpers::render_error, Direction, FilterToggle, HypothesisFilters,
-        InteractiveComponent, KeyMouseEvent, Selection,
+        find_nearest_in_direction, key_to_direction,
+        legend::{LegendItem, LegendSection},
+        render_helpers::render_error,
+        Direction, FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
+        Theme,
     },
 };
 
@@ -160,7 +162,16 @@ impl EffectFlowMode {
         };
 
         let items = self.tree_selectable_items();
-        let navigation_regions = self.effect_tableau_state.navigation_regions();
+
+        // When in graph pane, only navigate within graph regions
+        let navigation_regions: Vec<_> = if matches!(current_sel, Selection::Goal { .. }) {
+            self.effect_tableau_state
+                .graph
+                .navigation_regions()
+                .to_vec()
+        } else {
+            self.effect_tableau_state.navigation_regions()
+        };
 
         trace!(
             ?current_sel,
@@ -322,6 +333,49 @@ impl Mode for EffectFlowMode {
     }
 
     fn legend_sections(&self) -> Vec<LegendSection> {
-        Vec::new()
+        vec![
+            LegendSection::new(
+                "Nodes",
+                Color::White,
+                vec![
+                    LegendItem::new("■", Theme::CURRENT_NODE_BORDER, "current"),
+                    LegendItem::new(EffectKind::EffectBind.icon(), Theme::EFFECT_BIND, "bind"),
+                    LegendItem::new(
+                        EffectKind::StateRead.icon(),
+                        Theme::EFFECT_STATE_READ,
+                        "read",
+                    ),
+                    LegendItem::new(
+                        EffectKind::StateWrite.icon(),
+                        Theme::EFFECT_STATE_WRITE,
+                        "write",
+                    ),
+                    LegendItem::new(
+                        EffectKind::StateModify.icon(),
+                        Theme::EFFECT_STATE_MODIFY,
+                        "modify",
+                    ),
+                    LegendItem::new(
+                        EffectKind::EffectReturn.icon(),
+                        Theme::EFFECT_RETURN,
+                        "return",
+                    ),
+                    LegendItem::new(EffectKind::EffectThrow.icon(), Theme::EFFECT_THROW, "throw"),
+                    LegendItem::new(EffectKind::Pure.icon(), Theme::EFFECT_PURE, "pure"),
+                ],
+            ),
+            LegendSection::new(
+                "Edges",
+                Color::White,
+                vec![
+                    LegendItem::new("─", EdgeKind::DataFlow.color(), "data"),
+                    LegendItem::new("─", EdgeKind::ControlFlow.color(), "control"),
+                    LegendItem::new("─", EdgeKind::EffectFlow.color(), "effect"),
+                    LegendItem::new("─", EdgeKind::ErrorPropagation.color(), "error"),
+                    LegendItem::new("─", EdgeKind::EarlyReturn.color(), "early return"),
+                    LegendItem::new("─", EdgeKind::Continuation.color(), "continuation"),
+                ],
+            ),
+        ]
     }
 }

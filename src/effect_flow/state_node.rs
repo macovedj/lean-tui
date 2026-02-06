@@ -159,14 +159,15 @@ impl StatefulWidget for EffectStateNode<'_> {
         }
 
         let border_color = self.border_color();
-        let border_style = Style::new()
-            .fg(border_color)
-            .bg(bg_color)
-            .add_modifier(if self.is_current {
-                Modifier::BOLD
-            } else {
-                Modifier::empty()
-            });
+        let border_style =
+            Style::new()
+                .fg(border_color)
+                .bg(bg_color)
+                .add_modifier(if self.is_current {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                });
 
         let title_spans = self.title();
 

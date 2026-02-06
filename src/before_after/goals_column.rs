@@ -10,8 +10,8 @@ use crate::{
     deduction_tree::{ProofContextHypothesis, ProofObligation, TacticProofState},
     protocol::NodeId,
     shared::{
-        diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, Region,
-        HypothesisFilters, Selection,
+        diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, HypothesisFilters,
+        Region, Selection,
     },
 };
 

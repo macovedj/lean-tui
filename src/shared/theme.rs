@@ -25,8 +25,8 @@ impl Theme {
     pub const DATA_HYP_FG: Color = Color::Rgb(200, 180, 120);
 
     pub const TACTIC_BORDER: Color = Color::DarkGray;
-    pub const CURRENT_NODE_BORDER: Color = Color::Cyan;
-    pub const INCOMPLETE_NODE_BORDER: Color = Color::Yellow;
+    pub const CURRENT_NODE_BORDER: Color = Color::Rgb(180, 255, 100); // bright lime
+    pub const INCOMPLETE_NODE_BORDER: Color = Color::Rgb(255, 150, 120); // coral
     pub const COMPLETED_NODE_BORDER: Color = Color::Green;
     pub const GOAL_FG: Color = Color::Rgb(200, 140, 140);
     pub const COMPLETED_GOAL_FG: Color = Color::Green;
@@ -34,23 +34,24 @@ impl Theme {
 
     pub const EFFECT_BIND: Color = Color::Cyan;
     pub const EFFECT_STATE_READ: Color = Color::Green;
-    pub const EFFECT_STATE_WRITE: Color = Color::Yellow;
+    pub const EFFECT_STATE_WRITE: Color = Color::Rgb(240, 180, 80); // golden
     pub const EFFECT_STATE_MODIFY: Color = Color::Magenta;
     pub const EFFECT_RETURN: Color = Color::Blue;
     pub const EFFECT_THROW: Color = Color::Red;
     pub const EFFECT_CATCH: Color = Color::LightRed;
     pub const EFFECT_PURE: Color = Color::White;
 
-    pub const EDGE_DATA_FLOW: Color = Color::Cyan;
-    pub const EDGE_CONTROL_FLOW: Color = Color::White;
-    pub const EDGE_EFFECT_FLOW: Color = Color::Magenta;
-    pub const EDGE_ERROR_PROPAGATION: Color = Color::Red;
-    pub const EDGE_EARLY_RETURN: Color = Color::Yellow;
-    pub const EDGE_CONTINUATION: Color = Color::DarkGray;
+    // Edge colors - intentionally distinct from node colors
+    pub const EDGE_DATA_FLOW: Color = Color::Rgb(100, 180, 255); // soft blue
+    pub const EDGE_CONTROL_FLOW: Color = Color::Rgb(160, 160, 160); // silver
+    pub const EDGE_EFFECT_FLOW: Color = Color::Rgb(180, 100, 200); // purple
+    pub const EDGE_ERROR_PROPAGATION: Color = Color::Rgb(255, 130, 80); // orange
+    pub const EDGE_EARLY_RETURN: Color = Color::Rgb(255, 190, 90); // gold
+    pub const EDGE_CONTINUATION: Color = Color::Rgb(100, 100, 100); // dim gray
 
     pub const DATAFLOW_BINDING: Color = Color::Cyan;
     pub const DATAFLOW_LAMBDA: Color = Color::Magenta;
-    pub const DATAFLOW_BRANCH: Color = Color::Yellow;
+    pub const DATAFLOW_BRANCH: Color = Color::Rgb(255, 200, 100); // amber
     pub const DATAFLOW_CONDITION: Color = Color::Blue;
 }
 

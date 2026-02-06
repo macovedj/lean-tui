@@ -356,7 +356,12 @@ impl InteractiveComponent for TacticTree {
         frame.render_stateful_widget(HypSection, layout.hyps, &mut self.hyp_section_state);
         for region in self.hyp_section_state.click_regions() {
             self.selection.add_region(
-                Rect::new(region.x as u16, region.y as u16, region.width, region.height),
+                Rect::new(
+                    region.x as u16,
+                    region.y as u16,
+                    region.width,
+                    region.height,
+                ),
                 region.selection,
             );
         }
@@ -375,7 +380,12 @@ impl InteractiveComponent for TacticTree {
         frame.render_stateful_widget(GoalSection, layout.goals, &mut self.goal_section_state);
         for region in self.goal_section_state.click_regions() {
             self.selection.add_region(
-                Rect::new(region.x as u16, region.y as u16, region.width, region.height),
+                Rect::new(
+                    region.x as u16,
+                    region.y as u16,
+                    region.width,
+                    region.height,
+                ),
                 region.selection,
             );
         }

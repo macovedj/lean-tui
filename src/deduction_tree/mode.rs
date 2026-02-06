@@ -316,6 +316,7 @@ impl Mode for SemanticTableau {
             "Node States",
             Color::White,
             vec![
+                LegendItem::new("■", Theme::CURRENT_NODE_BORDER, "current"),
                 LegendItem::new("■", Theme::HYP_NAME, "hypothesis"),
                 LegendItem::new("■", Theme::GOAL_FG, "goal"),
                 LegendItem::new("■", Theme::COMPLETED_GOAL_FG, "completed"),
