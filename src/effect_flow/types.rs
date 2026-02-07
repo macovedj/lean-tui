@@ -4,7 +4,10 @@ use ratatui::style::Color;
 
 use crate::{
     graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
-    protocol::{self, DisplayStyle, GenericDag, GraphEdge, GraphNode, NodeId},
+    protocol::{
+        self, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphEdge, GraphNode,
+        NodeId,
+    },
     shared::{LayoutSize, Theme},
 };
 
@@ -133,6 +136,7 @@ pub struct EffectFlowNode {
     pub given_back: Option<String>,
     #[allow(dead_code)]
     pub from_unfolding: bool,
+    pub diagnostics: Vec<DiagnosticInfo>,
 }
 
 impl EffectFlowNode {
@@ -155,6 +159,8 @@ impl EffectFlowNode {
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
+        let diagnostics = node.diagnostics.clone();
+
         Some(Self {
             id: node.id,
             content: node.content,
@@ -166,11 +172,19 @@ impl EffectFlowNode {
             forward_output: extract_str("forwardOutput"),
             given_back: extract_str("givenBack"),
             from_unfolding,
+            diagnostics,
         })
     }
 
     pub fn is_leaf(&self) -> bool {
         self.edges.is_empty()
+    }
+
+    /// Check if this node has any error diagnostics.
+    pub fn has_error(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Error)
     }
 }
 
@@ -212,8 +226,20 @@ impl NodeTextContent for EffectFlowNode {
         if let Some(bwd) = &self.backward {
             lines.push(format!("← {bwd}"));
         }
-        if lines.is_empty() {
-            lines.push(String::new());
+
+        // Include error diagnostics in content for layout size calculation
+        for d in &self.diagnostics {
+            if d.severity == DiagnosticSeverity::Error {
+                for (i, line) in d.message.lines().enumerate() {
+                    let prefix = if i == 0 { "✗ " } else { "  " };
+                    lines.push(format!("{prefix}{line}"));
+                }
+            }
+        }
+
+        // Add placeholder for checkmark only if leaf node without errors
+        if lines.is_empty() && self.is_leaf() && !self.has_error() {
+            lines.push("✓".to_string());
         }
 
         lines

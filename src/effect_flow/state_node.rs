@@ -7,7 +7,13 @@ use ratatui::{
 };
 
 use super::types::{EffectFlowNode, EffectKind};
-use crate::shared::{theme::Theme, Region, Selection};
+use crate::{
+    protocol::DiagnosticSeverity,
+    shared::{
+        theme::{Red, Theme},
+        Region, Selection,
+    },
+};
 
 /// State for a single effect state node widget.
 #[derive(Default)]
@@ -40,6 +46,11 @@ impl<'a> EffectStateNode<'a> {
     }
 
     fn border_color(&self) -> Color {
+        // Error nodes get red border regardless of other state
+        if self.node.has_error() {
+            return Red::BRIGHT;
+        }
+
         if self.is_current {
             return Theme::CURRENT_NODE_BORDER;
         }
@@ -70,9 +81,17 @@ impl<'a> EffectStateNode<'a> {
     fn title(&self) -> Vec<Span<'static>> {
         let kind = self.effect_kind();
         let expr_text = self.node.content.to_plain_text();
+        let has_error = self.node.has_error();
 
-        let icon_style = Style::new().fg(kind.color());
-        let mut text_style = if self.is_current {
+        let icon_style = if has_error {
+            Style::new().fg(Red::BRIGHT)
+        } else {
+            Style::new().fg(kind.color())
+        };
+
+        let mut text_style = if has_error {
+            Style::new().fg(Red::BRIGHT).add_modifier(Modifier::BOLD)
+        } else if self.is_current {
             Style::new().fg(Color::White).add_modifier(Modifier::BOLD)
         } else {
             Style::new().fg(Color::Gray)
@@ -82,10 +101,15 @@ impl<'a> EffectStateNode<'a> {
             text_style = text_style.add_modifier(Modifier::UNDERLINED);
         }
 
-        let mut spans = vec![
-            Span::styled(format!(" {} ", kind.icon()), icon_style),
-            Span::styled(expr_text, text_style),
-        ];
+        let mut spans = Vec::new();
+
+        // Add warning icon for error nodes
+        if has_error {
+            spans.push(Span::styled(" ⚠", Style::new().fg(Red::BRIGHT)));
+        }
+
+        spans.push(Span::styled(format!(" {} ", kind.icon()), icon_style));
+        spans.push(Span::styled(expr_text, text_style));
 
         // Show edge count if multiple outgoing edges
         if self.node.edges.len() > 1 {
@@ -118,13 +142,26 @@ impl<'a> EffectStateNode<'a> {
             ]));
         }
 
-        if lines.is_empty() && self.is_leaf() {
+        if lines.is_empty() && self.is_leaf() && !self.node.has_error() {
             lines.push(Line::from(Span::styled(
                 "✓",
                 Style::new()
                     .fg(Theme::COMPLETED_GOAL_FG)
                     .add_modifier(Modifier::BOLD),
             )));
+        }
+
+        // Add error diagnostics with red styling (show all lines)
+        for d in &self.node.diagnostics {
+            if d.severity == DiagnosticSeverity::Error {
+                for (i, line) in d.message.lines().enumerate() {
+                    let prefix = if i == 0 { "✗ " } else { "  " };
+                    lines.push(Line::from(vec![
+                        Span::styled(prefix, Style::new().fg(Red::BRIGHT)),
+                        Span::styled(line.to_string(), Style::new().fg(Red::BRIGHT)),
+                    ]));
+                }
+            }
         }
 
         lines
@@ -149,13 +186,13 @@ impl StatefulWidget for EffectStateNode<'_> {
         state.click_regions.clear();
 
         let border_color = self.border_color();
-        let border_style = Style::new()
-            .fg(border_color)
-            .add_modifier(if self.is_current {
+        let border_style = Style::new().fg(border_color).add_modifier(
+            if self.is_current || self.node.has_error() {
                 Modifier::BOLD
             } else {
                 Modifier::empty()
-            });
+            },
+        );
 
         let title_spans = self.title();
 

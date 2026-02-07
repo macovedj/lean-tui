@@ -104,11 +104,7 @@ impl AlignedTable {
     }
 
     fn max_name_width(&self) -> u16 {
-        self.rows
-            .iter()
-            .map(|r| r.name_width())
-            .max()
-            .unwrap_or(0) as u16
+        self.rows.iter().map(|r| r.name_width()).max().unwrap_or(0) as u16
     }
 }
 

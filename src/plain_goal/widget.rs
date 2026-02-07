@@ -203,11 +203,7 @@ impl OpenGoalList<'_> {
         } else {
             Orange::MUTED
         };
-        let title = if is_focused {
-            "▶ Goals "
-        } else {
-            " Goals "
-        };
+        let title = if is_focused { "▶ Goals " } else { " Goals " };
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -220,7 +216,11 @@ impl OpenGoalList<'_> {
 
         if self.state.goals.is_empty() {
             Paragraph::new("✓ All goals completed!")
-                .style(Style::new().fg(Theme::COMPLETED_GOAL_FG).add_modifier(Modifier::BOLD))
+                .style(
+                    Style::new()
+                        .fg(Theme::COMPLETED_GOAL_FG)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .render(inner, buf);
             return;
         }

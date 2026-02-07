@@ -5,8 +5,8 @@ use serde::de::DeserializeOwned;
 use crate::{
     graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
     protocol::{
-        AnnotatedTextTree, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag,
-        GraphNode, LineCharacterPosition, PreresolvedNavigationTargets,
+        AnnotatedTextTree, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
+        LineCharacterPosition, PreresolvedNavigationTargets,
     },
     shared::LayoutSize,
 };

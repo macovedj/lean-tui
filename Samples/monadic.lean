@@ -11,8 +11,9 @@ structure Counter where
 def increment : StateM Counter Nat := do
   let s ← get
   let newValue := s.value + 1
+
   set { value := newValue, operations := s.operations + 1 : Counter }
-  pure newValue
+  pure false
 
 def double : StateM Counter Nat := do
   let s ← get

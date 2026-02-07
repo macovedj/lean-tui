@@ -140,12 +140,12 @@ impl Theme {
     pub const EFFECT_PURE: Color = Color::White;
 
     // === Edge Colors (Graph rendering) ===
-    pub const EDGE_DATA_FLOW: Color = Color::Rgb(100, 180, 255); // Soft blue
+    pub const EDGE_DATA_FLOW: Color = Color::Rgb(120, 80, 140); // Dimmed purple (expand)
     pub const EDGE_CONTROL_FLOW: Color = Color::Rgb(160, 160, 160); // Silver
     pub const EDGE_EFFECT_FLOW: Color = Color::Rgb(180, 100, 200); // Purple
     pub const EDGE_ERROR_PROPAGATION: Color = Color::Rgb(255, 130, 80); // Orange
     pub const EDGE_EARLY_RETURN: Color = Color::Rgb(255, 190, 90); // Gold
-    pub const EDGE_CONTINUATION: Color = Color::Rgb(100, 100, 100); // Dim gray
+    pub const EDGE_CONTINUATION: Color = Color::Rgb(80, 100, 140); // Dimmed blue (then)
 
     // === Data Flow Node Colors ===
     pub const DATAFLOW_BINDING: Color = Color::Cyan;
