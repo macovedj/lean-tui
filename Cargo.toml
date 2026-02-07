@@ -6,7 +6,7 @@ keywords = ["lean4", "proof-assistant", "tui", "mathematics"]
 license = "MIT"
 name = "lean-tui"
 repository = "https://codeberg.org/wvhulle/lean-tui"
-version = "0.6.1"
+version = "0.6.2"
 exclude =["screenshots"]
 
 [lints.clippy]

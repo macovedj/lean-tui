@@ -8,7 +8,7 @@ use ratatui::{
 
 use super::types::{EffectFlowNode, EffectKind};
 use crate::{
-    protocol::DiagnosticSeverity,
+    protocol::{DiagnosticInfo, DiagnosticSeverity},
     shared::{
         theme::{Red, Theme},
         Region, Selection,
@@ -103,7 +103,6 @@ impl<'a> EffectStateNode<'a> {
 
         let mut spans = Vec::new();
 
-        // Add warning icon for error nodes
         if has_error {
             spans.push(Span::styled(" ⚠", Style::new().fg(Red::BRIGHT)));
         }
@@ -111,7 +110,6 @@ impl<'a> EffectStateNode<'a> {
         spans.push(Span::styled(format!(" {} ", kind.icon()), icon_style));
         spans.push(Span::styled(expr_text, text_style));
 
-        // Show edge count if multiple outgoing edges
         if self.node.edges.len() > 1 {
             spans.push(Span::styled(
                 format!(" [{}→]", self.node.edges.len()),
@@ -126,7 +124,6 @@ impl<'a> EffectStateNode<'a> {
     fn content_lines(&self) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
 
-        // Return component - what the operation produces
         if let Some(fwd) = &self.node.forward {
             lines.push(Line::from(vec![
                 Span::styled("→ ", Style::new().fg(Color::Green)),
@@ -134,7 +131,6 @@ impl<'a> EffectStateNode<'a> {
             ]));
         }
 
-        // Effect component - what state changes are given back
         if let Some(bwd) = &self.node.backward {
             lines.push(Line::from(vec![
                 Span::styled("← ", Style::new().fg(Color::Magenta)),
@@ -151,19 +147,7 @@ impl<'a> EffectStateNode<'a> {
             )));
         }
 
-        // Add error diagnostics with red styling (show all lines)
-        for d in &self.node.diagnostics {
-            if d.severity == DiagnosticSeverity::Error {
-                for (i, line) in d.message.lines().enumerate() {
-                    let prefix = if i == 0 { "✗ " } else { "  " };
-                    lines.push(Line::from(vec![
-                        Span::styled(prefix, Style::new().fg(Red::BRIGHT)),
-                        Span::styled(line.to_string(), Style::new().fg(Red::BRIGHT)),
-                    ]));
-                }
-            }
-        }
-
+        lines.extend(format_diagnostic_lines(&self.node.diagnostics));
         lines
     }
 
@@ -212,4 +196,20 @@ impl StatefulWidget for EffectStateNode<'_> {
 
         state.click_regions = self.click_regions(area);
     }
+}
+
+fn format_diagnostic_lines(diagnostics: &[DiagnosticInfo]) -> Vec<Line<'static>> {
+    diagnostics
+        .iter()
+        .filter(|d| d.severity == DiagnosticSeverity::Error)
+        .flat_map(|d| {
+            d.message.lines().enumerate().map(|(i, line)| {
+                let prefix = if i == 0 { "✗ " } else { "  " };
+                Line::from(vec![
+                    Span::styled(prefix, Style::new().fg(Red::BRIGHT)),
+                    Span::styled(line.to_string(), Style::new().fg(Red::BRIGHT)),
+                ])
+            })
+        })
+        .collect()
 }

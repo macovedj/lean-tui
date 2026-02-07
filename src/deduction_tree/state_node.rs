@@ -214,7 +214,6 @@ impl<'a> StateNode<'a> {
             .override_state
             .map_or(self.node.proof_state_after.goals.len(), |s| s.goals.len());
 
-        // Count error diagnostics
         let error_count = self
             .node
             .diagnostics
@@ -319,12 +318,16 @@ impl StatefulWidget for StateNode<'_> {
         rows.extend(self.build_goal_rows());
 
         let table_height = rows.len() as u16;
-        let table_area = Rect::new(inner.x, inner.y, inner.width, table_height.min(inner.height));
+        let table_area = Rect::new(
+            inner.x,
+            inner.y,
+            inner.width,
+            table_height.min(inner.height),
+        );
 
         let table = AlignedTable::new(rows);
         Widget::render(table, table_area, buf);
 
-        // Render errors below the table
         let error_rows = self.build_error_rows();
         let error_y = inner.y + table_height;
         for (i, (msg, style)) in error_rows.into_iter().enumerate() {
@@ -332,7 +335,12 @@ impl StatefulWidget for StateNode<'_> {
             if row_y >= inner.y + inner.height {
                 break;
             }
-            buf.set_line(inner.x, row_y, &Line::from(Span::styled(msg, style)), inner.width);
+            buf.set_line(
+                inner.x,
+                row_y,
+                &Line::from(Span::styled(msg, style)),
+                inner.width,
+            );
         }
 
         state.click_regions = self.build_click_regions(inner);

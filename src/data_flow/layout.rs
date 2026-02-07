@@ -70,10 +70,7 @@ impl<'a> FunctionalTableauLayout<'a> {
     pub fn new(dag: &'a DataFlowDag, top_down: bool, selection: Option<Selection>) -> Self {
         Self {
             dag,
-            config: LayoutConfig {
-                top_down,
-                ..Default::default()
-            },
+            config: LayoutConfig { top_down },
             selection,
         }
     }

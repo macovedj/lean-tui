@@ -12,8 +12,10 @@ use crate::{
     protocol::{DiagnosticInfo, NodeId},
     shared::{
         errors_section::{ErrorsSection, ErrorsSectionState},
-        hypothesis_indices, render_helpers::render_error, FilterToggle, HypothesisFilters,
-        InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
+        hypothesis_indices,
+        render_helpers::render_error,
+        FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, ListSelection,
+        Selection,
     },
 };
 
@@ -226,11 +228,9 @@ impl InteractiveComponent for PlainList {
             let max_error_height = (content_area.height / 3).max(3);
             let error_height = ((error_lines as u16) + 2).min(max_error_height);
 
-            let [main, errors] = Layout::vertical([
-                Constraint::Fill(1),
-                Constraint::Length(error_height),
-            ])
-            .areas(content_area);
+            let [main, errors] =
+                Layout::vertical([Constraint::Fill(1), Constraint::Length(error_height)])
+                    .areas(content_area);
             (main, Some(errors))
         } else {
             (content_area, None)

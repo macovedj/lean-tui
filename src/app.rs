@@ -4,7 +4,7 @@ use std::{io::stdout, mem};
 
 use crossterm::{
     clipboard::CopyToClipboard,
-    event::{Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{Event, KeyCode, KeyEvent, KeyEventKind, MouseEvent},
     ExecutableCommand,
 };
 use ratatui::{
@@ -434,11 +434,14 @@ impl App {
 
         // Render error overlay on top of everything
         if let Some(ref error_msg) = self.error_overlay {
-            use crate::shared::error_banner::ErrorBanner;
             use ratatui::widgets::Clear;
 
+            use crate::shared::error_banner::ErrorBanner;
+
             let banner = ErrorBanner::new(error_msg);
-            let height = banner.required_height(main_area.width).min(main_area.height / 2);
+            let height = banner
+                .required_height(main_area.width)
+                .min(main_area.height / 2);
             let overlay_area = Rect::new(main_area.x, main_area.y, main_area.width, height);
             frame.render_widget(Clear, overlay_area);
             frame.render_widget(banner, overlay_area);
@@ -481,10 +484,10 @@ impl App {
     fn build_title(&self) -> String {
         if let (Some(def), Some(cursor)) = (&self.definition, &self.cursor) {
             let filename = cursor.filename().unwrap_or("?");
-            match &def.kind {
-                Some(kind) => format!(" {kind} {} ({}) ", def.name, filename),
-                None => format!(" {} ({}) ", def.name, filename),
-            }
+            def.kind.as_ref().map_or_else(
+                || format!(" {} ({}) ", def.name, filename),
+                |kind| format!(" {kind} {} ({}) ", def.name, filename),
+            )
         } else if let Some(cursor) = &self.cursor {
             let filename = cursor.filename().unwrap_or("?");
             format!("lean-tui ({filename}) ")
@@ -511,45 +514,53 @@ impl App {
 
     /// Handle crossterm events.
     pub fn handle_event(&mut self, event: &Event) {
-        use crossterm::event::{MouseButton, MouseEventKind};
-
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
                 self.handle_key_event(*key);
             }
-            Event::Mouse(mouse) => {
-                let is_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
-                self.display_mode.handle_event(KeyMouseEvent::Mouse(*mouse));
-                // Only check for error selection on actual clicks
-                if is_click {
-                    self.update_error_overlay_from_selection();
-                    // Also check for clicked errors from TacticTree mode
-                    if let Some(error_msg) = self.display_mode.take_clicked_error() {
-                        self.error_overlay = Some(error_msg);
-                    }
-                }
-            }
+            Event::Mouse(mouse) => self.handle_mouse_event(*mouse),
             _ => {}
         }
     }
 
-    /// Update error_overlay based on current selection.
-    fn update_error_overlay_from_selection(&mut self) {
-        let selection = self.display_mode.current_selection();
-        if let Some(Selection::Error { node_id, error_idx }) = selection {
-            if let DagState::Proof(dag) = &self.display_mode.dag {
-                if let Some(node) = dag.get(node_id) {
-                    use crate::protocol::DiagnosticSeverity;
-                    let error_msg = node
-                        .diagnostics
-                        .iter()
-                        .filter(|d| d.severity == DiagnosticSeverity::Error)
-                        .nth(error_idx)
-                        .map(|d| d.message.clone());
-                    self.error_overlay = error_msg;
-                }
-            }
+    fn handle_mouse_event(&mut self, mouse: MouseEvent) {
+        use crossterm::event::{MouseButton, MouseEventKind};
+
+        let is_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
+        self.display_mode.handle_event(KeyMouseEvent::Mouse(mouse));
+
+        if !is_click {
+            return;
         }
+
+        self.update_error_overlay_from_selection();
+        if let Some(error_msg) = self.display_mode.take_clicked_error() {
+            self.error_overlay = Some(error_msg);
+        }
+    }
+
+    /// Update `error_overlay` based on current selection.
+    fn update_error_overlay_from_selection(&mut self) {
+        use crate::protocol::DiagnosticSeverity;
+
+        let Some(Selection::Error { node_id, error_idx }) = self.display_mode.current_selection()
+        else {
+            return;
+        };
+
+        let DagState::Proof(dag) = &self.display_mode.dag else {
+            return;
+        };
+
+        self.error_overlay = dag
+            .get(node_id)
+            .and_then(|node| {
+                node.diagnostics
+                    .iter()
+                    .filter(|d| d.severity == DiagnosticSeverity::Error)
+                    .nth(error_idx)
+            })
+            .map(|d| d.message.clone());
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {

@@ -1,14 +1,19 @@
-use std::{error::Error, fmt};
+use std::{collections::HashMap, error::Error, fmt};
 
+use petgraph::graph::NodeIndex;
+use ratatui::style::Style;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
+    graph_layout::{
+        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode,
+        NodeTextContent,
+    },
     protocol::{
         AnnotatedTextTree, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
         LineCharacterPosition, PreresolvedNavigationTargets,
     },
-    shared::LayoutSize,
+    shared::{LayoutSize, Theme},
 };
 
 /// A hypothesis in a proof context.
@@ -121,14 +126,6 @@ impl ProofDagTacticNode {
             .iter()
             .any(|d| d.severity == DiagnosticSeverity::Error)
     }
-
-    /// Get the first error message, if any.
-    pub fn first_error_message(&self) -> Option<&str> {
-        self.diagnostics
-            .iter()
-            .find(|d| d.severity == DiagnosticSeverity::Error)
-            .map(|d| d.message.as_str())
-    }
 }
 
 /// Complete proof DAG.
@@ -178,32 +175,8 @@ impl CompleteProofDag {
         &self.initial_proof_state
     }
 
-    /// Collect all error diagnostics from all nodes.
-    pub fn collect_errors(&self) -> Vec<&DiagnosticInfo> {
-        self.nodes
-            .iter()
-            .flat_map(|node| {
-                node.diagnostics
-                    .iter()
-                    .filter(|d| d.severity == DiagnosticSeverity::Error)
-            })
-            .collect()
-    }
-
-    /// Check if any node has errors.
-    pub fn has_errors(&self) -> bool {
-        self.nodes.iter().any(ProofDagTacticNode::has_error)
-    }
-
-    /// Convert to petgraph-based DagGraph for rendering.
-    pub fn to_graph(&self) -> crate::graph_layout::DagGraph<ProofDagTacticNode> {
-        use ratatui::style::Style;
-
-        use crate::{
-            graph_layout::{DagGraph, EdgeData},
-            shared::Theme,
-        };
-
+    /// Convert to petgraph-based `DagGraph` for rendering.
+    pub fn to_graph(&self) -> DagGraph<ProofDagTacticNode> {
         let mut graph = DagGraph::new();
 
         for node in &self.nodes {
@@ -211,77 +184,81 @@ impl CompleteProofDag {
         }
 
         for node in &self.nodes {
-            let Some(from_idx) = graph.index_of(node.id) else {
-                continue;
-            };
-            for &child_id in &node.children {
-                let Some(to_idx) = graph.index_of(child_id) else {
-                    continue;
-                };
-                graph.add_edge(
-                    from_idx,
-                    to_idx,
-                    EdgeData {
-                        style: Some(Style::new().fg(Theme::BORDER)),
-                        label: None,
-                    },
-                );
-            }
+            add_proof_edges(node, &mut graph);
         }
 
-        if let Some(root_id) = self.root_node_id {
-            if let Some(idx) = graph.index_of(root_id) {
-                graph.root = Some(idx);
-            }
-        }
-        if let Some(current_id) = self.current_node_id {
-            graph.current = graph.index_of(current_id);
-        }
-        for &orphan_id in &self.orphans {
-            if let Some(idx) = graph.index_of(orphan_id) {
-                graph.orphans.push(idx);
-            }
-        }
+        graph.root = self.root_node_id.and_then(|id| graph.index_of(id));
+        graph.current = self.current_node_id.and_then(|id| graph.index_of(id));
+        graph.orphans = self
+            .orphans
+            .iter()
+            .filter_map(|&id| graph.index_of(id))
+            .collect();
 
         graph
     }
 
     /// Convert to layout graph for force-directed layout computation.
-    pub fn to_layout_graph(&self) -> crate::graph_layout::LayoutGraph {
-        use crate::{graph_layout::LayoutGraph, shared::LayoutSize};
-
+    pub fn to_layout_graph(&self) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
-        let mut id_to_index = std::collections::HashMap::new();
+        let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
             let (width, height) = node.layout_size();
-            let index = petgraph::graph::NodeIndex::new(layout.nodes.len());
+            let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
             layout.add_node(index, node.id, width, height);
         }
 
         for node in &self.nodes {
-            let Some(&from_idx) = id_to_index.get(&node.id) else {
-                continue;
-            };
-            for &child_id in &node.children {
-                let Some(&to_idx) = id_to_index.get(&child_id) else {
-                    continue;
-                };
-                layout.add_edge(from_idx, to_idx, 1);
-            }
+            add_proof_layout_edges(node, &id_to_index, &mut layout);
         }
 
-        if let Some(root_id) = self.root_node_id {
-            layout.root = id_to_index.get(&root_id).copied();
-        }
-        for &orphan_id in &self.orphans {
-            if let Some(&idx) = id_to_index.get(&orphan_id) {
-                layout.orphans.push(idx);
-            }
-        }
+        layout.root = self
+            .root_node_id
+            .and_then(|id| id_to_index.get(&id).copied());
+        layout.orphans = self
+            .orphans
+            .iter()
+            .filter_map(|id| id_to_index.get(id).copied())
+            .collect();
 
         layout
+    }
+}
+
+fn add_proof_edges(node: &ProofDagTacticNode, graph: &mut DagGraph<ProofDagTacticNode>) {
+    let Some(from_idx) = graph.index_of(node.id) else {
+        return;
+    };
+    for &child_id in &node.children {
+        let Some(to_idx) = graph.index_of(child_id) else {
+            continue;
+        };
+        graph.add_edge(
+            from_idx,
+            to_idx,
+            EdgeData {
+                style: Some(Style::new().fg(Theme::BORDER)),
+                label: None,
+            },
+        );
+    }
+}
+
+fn add_proof_layout_edges(
+    node: &ProofDagTacticNode,
+    id_to_index: &HashMap<NodeId, NodeIndex>,
+    layout: &mut LayoutGraph,
+) {
+    let Some(&from_idx) = id_to_index.get(&node.id) else {
+        return;
+    };
+    for &child_id in &node.children {
+        let Some(&to_idx) = id_to_index.get(&child_id) else {
+            continue;
+        };
+        layout.add_edge(from_idx, to_idx, 1);
     }
 }
 
@@ -480,11 +457,10 @@ impl NodeTextContent for ProofDagTacticNode {
         } else {
             for g in &self.proof_state_after.goals {
                 let goal_type = g.type_.to_plain_text();
-                let line = match g.username_str() {
-                    Some(name) => format!("{name} ⊢ {goal_type}"),
-                    None => format!("⊢ {goal_type}"),
-                };
-                lines.push(line);
+                lines.push(g.username_str().map_or_else(
+                    || format!("⊢ {goal_type}"),
+                    |name| format!("{name} ⊢ {goal_type}"),
+                ));
             }
         }
 

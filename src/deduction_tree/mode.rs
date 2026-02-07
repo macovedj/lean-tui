@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -152,12 +154,14 @@ impl SemanticTableau {
                 .count();
             let error_selections =
                 (0..error_count).map(move |error_idx| Selection::Error { node_id, error_idx });
-            hyp_selections.chain(goal_selections).chain(error_selections)
+            hyp_selections
+                .chain(goal_selections)
+                .chain(error_selections)
         });
 
         initial_hyps
             .chain(node_selections)
-            .chain(std::iter::once(Selection::Theorem))
+            .chain(once(Selection::Theorem))
             .collect()
     }
 

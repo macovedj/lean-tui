@@ -181,18 +181,7 @@ impl OpenGoalList<'_> {
         Widget::render(table, inner, buf);
 
         if let Some(nid) = self.node_id {
-            for (row, &hyp_idx) in visible_hyps.iter().enumerate() {
-                let row_y = inner.y + row as u16;
-                if row_y < inner.bottom() {
-                    state.click_regions.push(Region::from_rect(
-                        Rect::new(inner.x, row_y, inner.width, 1),
-                        Selection::Hyp {
-                            node_id: nid,
-                            hyp_idx,
-                        },
-                    ));
-                }
-            }
+            register_hyp_regions(&mut state.click_regions, inner, nid, &visible_hyps);
         }
     }
 
@@ -274,18 +263,46 @@ impl OpenGoalList<'_> {
         Widget::render(table, inner, buf);
 
         if let Some(nid) = self.node_id {
-            for (row, &(goal_idx, _)) in visible_goals.iter().enumerate() {
-                let row_y = inner.y + row as u16;
-                if row_y < inner.bottom() {
-                    state.click_regions.push(Region::from_rect(
-                        Rect::new(inner.x, row_y, inner.width, 1),
-                        Selection::Goal {
-                            node_id: nid,
-                            goal_idx,
-                        },
-                    ));
-                }
-            }
+            register_goal_regions(&mut state.click_regions, inner, nid, &visible_goals);
         }
+    }
+}
+
+fn register_hyp_regions(
+    regions: &mut Vec<Region>,
+    inner: Rect,
+    node_id: NodeId,
+    visible_hyps: &[usize],
+) {
+    for (row, &hyp_idx) in visible_hyps.iter().enumerate() {
+        let row_y = inner.y + row as u16;
+        if row_y >= inner.bottom() {
+            break;
+        }
+        regions.push(Region::from_rect(
+            Rect::new(inner.x, row_y, inner.width, 1),
+            Selection::Hyp { node_id, hyp_idx },
+        ));
+    }
+}
+
+fn register_goal_regions<T>(
+    regions: &mut Vec<Region>,
+    inner: Rect,
+    node_id: NodeId,
+    visible_goals: &[(usize, T)],
+) {
+    for (row, (goal_idx, _)) in visible_goals.iter().enumerate() {
+        let row_y = inner.y + row as u16;
+        if row_y >= inner.bottom() {
+            break;
+        }
+        regions.push(Region::from_rect(
+            Rect::new(inner.x, row_y, inner.width, 1),
+            Selection::Goal {
+                node_id,
+                goal_idx: *goal_idx,
+            },
+        ));
     }
 }

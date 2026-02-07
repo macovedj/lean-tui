@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, iter::once};
 
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
@@ -113,6 +113,23 @@ impl DataFlowMode {
         self.clicked_error.take()
     }
 
+    fn get_error_message(&self, node_id: u64, error_idx: usize) -> Option<String> {
+        self.dag
+            .as_ref()
+            .and_then(|dag| dag.get(node_id))
+            .and_then(|node| node.diagnostics.get(error_idx))
+            .map(|e| e.message.clone())
+    }
+
+    fn handle_error_click(&mut self, sel: Selection) -> bool {
+        let Selection::Error { node_id, error_idx } = sel else {
+            return false;
+        };
+        self.get_error_message(node_id, error_idx)
+            .map(|msg| self.clicked_error = Some(msg))
+            .is_some()
+    }
+
     /// Build selectable items for data flow DAG.
     fn tree_selectable_items(&self) -> Vec<Selection> {
         let Some(dag) = &self.dag else {
@@ -135,7 +152,7 @@ impl DataFlowMode {
             let binding_count = node.bindings_after().len();
             (0..binding_count)
                 .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx })
-                .chain(std::iter::once(Selection::Goal {
+                .chain(once(Selection::Goal {
                     node_id,
                     goal_idx: 0,
                 }))
@@ -143,7 +160,7 @@ impl DataFlowMode {
 
         initial_hyps
             .chain(node_selections)
-            .chain(std::iter::once(Selection::Theorem))
+            .chain(once(Selection::Theorem))
             .collect()
     }
 
@@ -278,22 +295,16 @@ impl InteractiveComponent for DataFlowMode {
                     .functional_tableau_state
                     .find_click_at(mouse.column, mouse.row);
 
-                if let Some(sel) = clicked {
-                    // Handle error clicks specially - show full error in banner
-                    if let Selection::Error { node_id, error_idx } = sel {
-                        if let Some(dag) = &self.dag {
-                            if let Some(node) = dag.get(node_id) {
-                                if let Some(error) = node.diagnostics.get(error_idx) {
-                                    self.clicked_error = Some(error.message.clone());
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    self.select_by_selection(sel);
+                let Some(sel) = clicked else {
+                    return false;
+                };
+
+                if self.handle_error_click(sel) {
                     return true;
                 }
-                false
+
+                self.select_by_selection(sel);
+                true
             }
         }
     }

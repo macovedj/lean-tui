@@ -2,6 +2,7 @@
 
 use std::{collections::HashMap, io, time::Duration};
 
+use futures::future::join_all;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
     net::{
@@ -178,7 +179,7 @@ pub async fn discover_workers(port_min: u16, port_max: u16) -> Vec<WorkerInfo> {
         .map(|port| tokio::spawn(probe_port(port)))
         .collect();
 
-    let mut workers: Vec<_> = futures::future::join_all(handles)
+    let mut workers: Vec<_> = join_all(handles)
         .await
         .into_iter()
         .filter_map(|result| result.ok().flatten())
@@ -259,27 +260,30 @@ impl ConnectionPool {
         }
 
         let conn = Connection::connect(worker.port).await;
-        if conn.is_connected() {
-            tracing::info!("Connected to worker on port {}", worker.port);
-            self.connections.insert(worker.port, conn);
-            if let Some(uri) = &worker.file_uri {
-                self.port_to_uri.insert(worker.port, uri.clone());
-            }
-            // Activate if no active port, or if this was the last active port
-            // (reconnection)
-            let is_reconnection = self.last_active_port == Some(worker.port);
-            let should_activate = self.active_port.is_none() || is_reconnection;
-            if should_activate {
-                self.active_port = Some(worker.port);
-                if is_reconnection {
-                    self.reconnected_port = Some(worker.port);
-                    self.last_active_port = None;
-                }
-            }
-            // Send Ready command to request current state from server
-            if let Some(conn) = self.connections.get_mut(&worker.port) {
-                let _ = conn.send(&ClientToServerCommand::Ready).await;
-            }
+        if !conn.is_connected() {
+            return;
+        }
+
+        tracing::info!("Connected to worker on port {}", worker.port);
+        self.connections.insert(worker.port, conn);
+
+        if let Some(uri) = &worker.file_uri {
+            self.port_to_uri.insert(worker.port, uri.clone());
+        }
+
+        let is_reconnection = self.last_active_port == Some(worker.port);
+        let should_activate = self.active_port.is_none() || is_reconnection;
+
+        if should_activate {
+            self.active_port = Some(worker.port);
+        }
+        if is_reconnection {
+            self.reconnected_port = Some(worker.port);
+            self.last_active_port = None;
+        }
+
+        if let Some(conn) = self.connections.get_mut(&worker.port) {
+            let _ = conn.send(&ClientToServerCommand::Ready).await;
         }
     }
 

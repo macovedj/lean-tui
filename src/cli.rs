@@ -18,7 +18,7 @@ use futures::StreamExt;
 use ratatui::prelude::*;
 use tokio::{
     runtime::Builder as RuntimeBuilder,
-    time::{interval, Interval},
+    time::{interval, sleep, Interval},
 };
 
 use crate::{
@@ -200,7 +200,7 @@ async fn handle_events(
         _ = scan_interval.tick() => {
             app.scan_requested = true;
         }
-        () = tokio::time::sleep(Duration::from_millis(16)) => {
+        () = sleep(Duration::from_millis(16)) => {
             // ~60fps polling for network messages
         }
     }

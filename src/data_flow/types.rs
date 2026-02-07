@@ -1,9 +1,13 @@
-use std::{error::Error, fmt, ops::Deref};
+use std::{collections::HashMap, error::Error, fmt, num::NonZero, ops::Deref};
 
-use ratatui::style::Color;
+use petgraph::graph::NodeIndex;
+use ratatui::style::{Color, Style};
 
 use crate::{
-    graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
+    graph_layout::{
+        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode,
+        NodeTextContent,
+    },
     protocol::{
         AnnotatedTextTree, BindingKind, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
         GenericDag, GraphNode, LocalBinding, NodeId, PreresolvedNavigationTargets,
@@ -63,10 +67,8 @@ impl DataFlowKind {
         match self {
             Self::Binding => Theme::DATAFLOW_BINDING,
             Self::Lambda => Theme::DATAFLOW_LAMBDA,
-            Self::Branch => Theme::DATAFLOW_BRANCH,
-            Self::Condition => Theme::DATAFLOW_CONDITION,
-            Self::ConditionPart => Theme::DATAFLOW_CONDITION,
-            Self::MatchScrutinee => Theme::DATAFLOW_BRANCH,
+            Self::Branch | Self::MatchScrutinee => Theme::DATAFLOW_BRANCH,
+            Self::Condition | Self::ConditionPart => Theme::DATAFLOW_CONDITION,
             Self::Result => Color::Green,
             Self::Custom(_) => Color::Gray,
         }
@@ -100,11 +102,10 @@ pub struct SimpleBinding {
 }
 
 impl SimpleBinding {
-    /// Convert binding_kind string to BindingKind enum.
+    /// Convert `binding_kind` string to `BindingKind` enum.
     pub fn kind(&self) -> BindingKind {
         match self.binding_kind.as_str() {
             "let_bind" => BindingKind::LetBind,
-            "fun_param" => BindingKind::FunParam,
             "match_var" => BindingKind::MatchVar,
             "for_var" => BindingKind::ForVar,
             _ => BindingKind::FunParam,
@@ -174,7 +175,7 @@ impl DataFlowNode {
         self.inner
             .metadata
             .get("is_complete")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(self.inner.edges.is_empty())
     }
 
@@ -245,12 +246,8 @@ impl NodeTextContent for DataFlowNode {
 
         lines.push(
             self.expected_type()
-                .map(|t| format!("⊢ {t}"))
-                .unwrap_or_else(|| "✓".to_string()),
+                .map_or_else(|| "✓".to_string(), |t| format!("⊢ {t}")),
         );
-
-        // Include first line of error diagnostics for layout size calculation
-        // (matches compact display in state_node.rs - full error shown on click)
         for d in &self.diagnostics {
             if d.severity == DiagnosticSeverity::Error {
                 let msg = d.message.lines().next().unwrap_or(&d.message);
@@ -324,12 +321,8 @@ impl DataFlowDag {
         }
     }
 
-    /// Convert to petgraph-based DagGraph for rendering.
-    pub fn to_graph(&self) -> crate::graph_layout::DagGraph<DataFlowNode> {
-        use ratatui::style::Style;
-
-        use crate::graph_layout::{DagGraph, EdgeData};
-
+    /// Convert to petgraph-based `DagGraph` for rendering.
+    pub fn to_graph(&self) -> DagGraph<DataFlowNode> {
         let mut graph = DagGraph::new();
 
         for node in &self.nodes {
@@ -337,79 +330,44 @@ impl DataFlowDag {
         }
 
         for node in &self.nodes {
-            let Some(from_idx) = graph.index_of(node.id()) else {
-                continue;
-            };
-            for edge in &node.inner.edges {
-                let Some(to_idx) = graph.index_of(edge.target) else {
-                    continue;
-                };
-                graph.add_edge(
-                    from_idx,
-                    to_idx,
-                    EdgeData {
-                        style: Some(Style::new().fg(Theme::BORDER)),
-                        label: None,
-                    },
-                );
-            }
+            add_data_flow_edges(node, &mut graph);
         }
 
-        if let Some(root_id) = self.root_node_id {
-            if let Some(idx) = graph.index_of(root_id) {
-                graph.root = Some(idx);
-            }
-        }
-        if let Some(current_id) = self.current_node_id {
-            graph.current = graph.index_of(current_id);
-        }
-        for &orphan_id in &self.orphans {
-            if let Some(idx) = graph.index_of(orphan_id) {
-                graph.orphans.push(idx);
-            }
-        }
+        graph.root = self.root_node_id.and_then(|id| graph.index_of(id));
+        graph.current = self.current_node_id.and_then(|id| graph.index_of(id));
+        graph.orphans = self
+            .orphans
+            .iter()
+            .filter_map(|&id| graph.index_of(id))
+            .collect();
 
         graph
     }
 
     /// Convert to layout graph for force-directed layout computation.
-    pub fn to_layout_graph(&self) -> crate::graph_layout::LayoutGraph {
-        use crate::{graph_layout::LayoutGraph, shared::LayoutSize};
-
+    pub fn to_layout_graph(&self) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
-        let mut id_to_index = std::collections::HashMap::new();
+        let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
             let (width, height) = node.layout_size();
-            let index = petgraph::graph::NodeIndex::new(layout.nodes.len());
+            let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id(), index);
             layout.add_node(index, node.id(), width, height);
         }
 
         for node in &self.nodes {
-            let Some(&from_idx) = id_to_index.get(&node.id()) else {
-                continue;
-            };
-            for edge in &node.inner.edges {
-                let Some(&to_idx) = id_to_index.get(&edge.target) else {
-                    continue;
-                };
-                layout.add_edge(
-                    from_idx,
-                    to_idx,
-                    edge.strength.map_or(1, std::num::NonZero::get),
-                );
-            }
+            add_data_flow_layout_edges(node, &id_to_index, &mut layout);
         }
 
-        if let Some(root_id) = self.root_node_id {
-            layout.root = id_to_index.get(&root_id).copied();
-        }
-        for &orphan_id in &self.orphans {
-            if let Some(&idx) = id_to_index.get(&orphan_id) {
-                layout.orphans.push(idx);
-            }
-        }
+        layout.root = self
+            .root_node_id
+            .and_then(|id| id_to_index.get(&id).copied());
+        layout.orphans = self
+            .orphans
+            .iter()
+            .filter_map(|id| id_to_index.get(id).copied())
+            .collect();
 
         layout
     }
@@ -430,6 +388,41 @@ impl<'a> Iterator for DataFlowDfsIterator<'a> {
             self.stack.push(child_id);
         }
         Some(node)
+    }
+}
+
+fn add_data_flow_edges(node: &DataFlowNode, graph: &mut DagGraph<DataFlowNode>) {
+    let Some(from_idx) = graph.index_of(node.id()) else {
+        return;
+    };
+    for edge in &node.inner.edges {
+        let Some(to_idx) = graph.index_of(edge.target) else {
+            continue;
+        };
+        graph.add_edge(
+            from_idx,
+            to_idx,
+            EdgeData {
+                style: Some(Style::new().fg(Theme::BORDER)),
+                label: None,
+            },
+        );
+    }
+}
+
+fn add_data_flow_layout_edges(
+    node: &DataFlowNode,
+    id_to_index: &HashMap<NodeId, NodeIndex>,
+    layout: &mut LayoutGraph,
+) {
+    let Some(&from_idx) = id_to_index.get(&node.id()) else {
+        return;
+    };
+    for edge in &node.inner.edges {
+        let Some(&to_idx) = id_to_index.get(&edge.target) else {
+            continue;
+        };
+        layout.add_edge(from_idx, to_idx, edge.strength.map_or(1, NonZero::get));
     }
 }
 

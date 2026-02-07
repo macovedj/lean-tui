@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, HashSet, VecDeque},
+};
 
 use petgraph::graph::NodeIndex;
 
@@ -235,23 +238,7 @@ fn calculate_depths(
     });
 
     if let Some(root) = root_idx {
-        let mut queue = VecDeque::new();
-        queue.push_back((root, 0usize));
-
-        while let Some((idx, depth)) = queue.pop_front() {
-            if depths.contains_key(&idx) {
-                continue;
-            }
-            depths.insert(idx, depth);
-
-            if let Some(child_list) = children.get(&idx) {
-                for &child in child_list {
-                    if node_set.contains(&child) && !depths.contains_key(&child) {
-                        queue.push_back((child, depth + 1));
-                    }
-                }
-            }
-        }
+        bfs_depths(root, children, &node_set, &mut depths);
     }
 
     for node in nodes {
@@ -259,6 +246,32 @@ fn calculate_depths(
     }
 
     depths
+}
+
+fn bfs_depths(
+    root: NodeIndex,
+    children: &HashMap<NodeIndex, Vec<NodeIndex>>,
+    node_set: &HashSet<NodeIndex>,
+    depths: &mut HashMap<NodeIndex, usize>,
+) {
+    let mut queue = VecDeque::new();
+    queue.push_back((root, 0usize));
+
+    while let Some((idx, depth)) = queue.pop_front() {
+        if depths.contains_key(&idx) {
+            continue;
+        }
+        depths.insert(idx, depth);
+
+        let Some(child_list) = children.get(&idx) else {
+            continue;
+        };
+        for &child in child_list {
+            if node_set.contains(&child) && !depths.contains_key(&child) {
+                queue.push_back((child, depth + 1));
+            }
+        }
+    }
 }
 
 fn hierarchical_x_positions(
@@ -282,7 +295,7 @@ fn hierarchical_x_positions(
     let children: HashMap<NodeIndex, Vec<NodeIndex>> = children_with_strength
         .into_iter()
         .map(|(parent, mut kids)| {
-            kids.sort_by(|a, b| b.1.cmp(&a.1));
+            kids.sort_by_key(|k| Reverse(k.1));
             let sorted_indices: Vec<NodeIndex> = kids.into_iter().map(|(idx, _)| idx).collect();
             (parent, sorted_indices)
         })
@@ -306,49 +319,18 @@ fn hierarchical_x_positions(
         x_positions.insert(root_idx, 0);
     }
 
-    for depth in 0..=max_depth {
-        let layer = &layers[depth];
-
+    for layer in layers.iter().take(max_depth + 1) {
         for &node_idx in layer {
-            if let Some(node_children) = children.get(&node_idx) {
-                let parent_x = x_positions.get(&node_idx).copied().unwrap_or(0);
-                let parent_width = widths.get(&node_idx).copied().unwrap_or(0);
-                let parent_center = parent_x + parent_width / 2;
+            let Some(node_children) = children.get(&node_idx) else {
+                continue;
+            };
+            let parent_x = x_positions.get(&node_idx).copied().unwrap_or(0);
+            let parent_width = widths.get(&node_idx).copied().unwrap_or(0);
+            let parent_center = parent_x + parent_width / 2;
 
-                let total_children_width: i32 = node_children
-                    .iter()
-                    .filter_map(|c| widths.get(c))
-                    .map(|w| w + HORIZONTAL_GAP)
-                    .sum::<i32>()
-                    .saturating_sub(HORIZONTAL_GAP);
-
-                let centered_children: Vec<NodeIndex> = {
-                    let mut result = Vec::with_capacity(node_children.len());
-                    let mut left = Vec::new();
-                    let mut right = Vec::new();
-                    for (i, &child) in node_children.iter().enumerate() {
-                        if i % 2 == 0 {
-                            right.push(child);
-                        } else {
-                            left.push(child);
-                        }
-                    }
-                    left.reverse();
-                    result.extend(left);
-                    result.extend(right);
-                    result
-                };
-
-                let mut child_x = parent_center - total_children_width / 2;
-                for child_idx in centered_children {
-                    let child_width = widths.get(&child_idx).copied().unwrap_or(0);
-                    x_positions.insert(child_idx, child_x);
-                    child_x += child_width + HORIZONTAL_GAP;
-                }
-            }
+            position_children(node_children, parent_center, &widths, &mut x_positions);
         }
-
-        resolve_layer_overlaps(&layers[depth], &widths, &mut x_positions);
+        resolve_layer_overlaps(layer, &widths, &mut x_positions);
     }
 
     let min_x = x_positions.values().copied().min().unwrap_or(0);
@@ -359,6 +341,45 @@ fn hierarchical_x_positions(
     }
 
     x_positions
+}
+
+/// Interleave children in centered order (alternating left/right from center).
+fn interleave_children(children: &[NodeIndex]) -> Vec<NodeIndex> {
+    let mut left = Vec::new();
+    let mut right = Vec::new();
+    for (i, &child) in children.iter().enumerate() {
+        if i % 2 == 0 {
+            right.push(child);
+        } else {
+            left.push(child);
+        }
+    }
+    left.reverse();
+    left.into_iter().chain(right).collect()
+}
+
+/// Position children centered under their parent.
+fn position_children(
+    node_children: &[NodeIndex],
+    parent_center: i32,
+    widths: &HashMap<NodeIndex, i32>,
+    x_positions: &mut HashMap<NodeIndex, i32>,
+) {
+    let total_children_width: i32 = node_children
+        .iter()
+        .filter_map(|c| widths.get(c))
+        .map(|w| w + HORIZONTAL_GAP)
+        .sum::<i32>()
+        .saturating_sub(HORIZONTAL_GAP);
+
+    let centered_children = interleave_children(node_children);
+    let mut child_x = parent_center - total_children_width / 2;
+
+    for child_idx in centered_children {
+        let child_width = widths.get(&child_idx).copied().unwrap_or(0);
+        x_positions.insert(child_idx, child_x);
+        child_x += child_width + HORIZONTAL_GAP;
+    }
 }
 
 fn resolve_layer_overlaps(
