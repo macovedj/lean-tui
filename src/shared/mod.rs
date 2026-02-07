@@ -1,6 +1,7 @@
 pub mod aligned_table;
 pub mod diff_text;
 pub mod error_banner;
+pub mod errors_section;
 pub mod interactive;
 pub mod legend;
 pub mod navigation;

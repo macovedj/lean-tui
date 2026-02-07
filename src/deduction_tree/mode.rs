@@ -15,6 +15,7 @@ use crate::{
         TacticProofState,
     },
     display_mode::Mode,
+    protocol::DiagnosticSeverity,
     shared::{
         find_nearest_in_direction, key_to_direction,
         legend::{LegendItem, LegendSection},
@@ -144,7 +145,14 @@ impl SemanticTableau {
                     });
             let goal_selections = (0..node.proof_state_after.goals.len())
                 .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
-            hyp_selections.chain(goal_selections)
+            let error_count = node
+                .diagnostics
+                .iter()
+                .filter(|d| d.severity == DiagnosticSeverity::Error)
+                .count();
+            let error_selections =
+                (0..error_count).map(move |error_idx| Selection::Error { node_id, error_idx });
+            hyp_selections.chain(goal_selections).chain(error_selections)
         });
 
         initial_hyps

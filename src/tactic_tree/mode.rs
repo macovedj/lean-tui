@@ -16,6 +16,7 @@ use crate::{
     display_mode::Mode,
     protocol::NodeId,
     shared::{
+        errors_section::{ErrorsSection, ErrorsSectionState},
         hypothesis_indices,
         legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
@@ -24,7 +25,6 @@ use crate::{
         KeyMouseEvent, ListSelection, Selection,
     },
     tactic_tree::{
-        errors_section::{ErrorsSection, ErrorsSectionState},
         goal_section::{GoalSection, GoalSectionState},
         hyp_section::{HypSection, HypSectionState},
         proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},

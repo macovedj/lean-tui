@@ -10,8 +10,9 @@ use crate::{
     before_after::goals_column::{GoalsColumn, GoalsColumnState},
     deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
-    protocol::NodeId,
+    protocol::{DiagnosticInfo, NodeId},
     shared::{
+        errors_section::{ErrorsSection, ErrorsSectionState},
         hypothesis_indices,
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
@@ -129,6 +130,9 @@ pub struct BeforeAfterMode {
     previous_column_state: GoalsColumnState,
     current_column_state: GoalsColumnState,
     next_column_state: GoalsColumnState,
+    /// Errors from the current node.
+    current_node_errors: Vec<DiagnosticInfo>,
+    errors_section_state: ErrorsSectionState,
 }
 
 impl Default for BeforeAfterMode {
@@ -148,6 +152,8 @@ impl Default for BeforeAfterMode {
             previous_column_state: GoalsColumnState::default(),
             current_column_state: GoalsColumnState::default(),
             next_column_state: GoalsColumnState::default(),
+            current_node_errors: Vec::new(),
+            errors_section_state: ErrorsSectionState::default(),
         }
     }
 }
@@ -209,6 +215,9 @@ impl InteractiveComponent for BeforeAfterMode {
         self.active_goal_name = current_node
             .and_then(|node| node.proof_state_before.goals.first())
             .and_then(|g| g.username_str().map(String::from));
+        self.current_node_errors = current_node
+            .map(|node| node.diagnostics.clone())
+            .unwrap_or_default();
         if state_changed {
             self.selection.reset(self.selectable_items().len());
         }
@@ -264,6 +273,18 @@ impl InteractiveComponent for BeforeAfterMode {
 
         let content_area = render_error(frame, area, self.error.as_deref());
 
+        let has_errors = !self.current_node_errors.is_empty();
+        let (main_area, errors_area) = if has_errors {
+            let [main, errors] = Layout::vertical([
+                Constraint::Fill(1),
+                Constraint::Length(5),
+            ])
+            .areas(content_area);
+            (main, Some(errors))
+        } else {
+            (content_area, None)
+        };
+
         let has_prev = self.previous_state.is_some() && self.show_previous;
         let has_next = self.next_state.is_some() && self.show_next;
 
@@ -278,7 +299,7 @@ impl InteractiveComponent for BeforeAfterMode {
             (false, false) => vec![Constraint::Percentage(100)],
         };
 
-        let columns = Layout::horizontal(constraints).split(content_area);
+        let columns = Layout::horizontal(constraints).split(main_area);
         let mut col_idx = 0;
 
         let selection = self.current_selection();
@@ -344,6 +365,16 @@ impl InteractiveComponent for BeforeAfterMode {
                     &mut self.next_column_state,
                 );
             }
+        }
+
+        if let Some(errors_area) = errors_area {
+            self.errors_section_state
+                .update(self.current_node_errors.clone());
+            frame.render_stateful_widget(
+                ErrorsSection,
+                errors_area,
+                &mut self.errors_section_state,
+            );
         }
     }
 }

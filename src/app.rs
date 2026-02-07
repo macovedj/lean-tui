@@ -80,6 +80,8 @@ pub struct App {
     known_worker_ports: Vec<u16>,
     /// Whether to auto-follow file switches from the editor.
     follow_mode: bool,
+    /// Error message to show as overlay (from clicking on error in graph).
+    error_overlay: Option<String>,
 }
 
 impl App {
@@ -103,6 +105,7 @@ impl App {
             scan_requested: true, // Trigger initial scan on startup
             known_worker_ports: Vec::new(),
             follow_mode: true,
+            error_overlay: None,
         }
     }
 
@@ -313,7 +316,7 @@ impl App {
                 Selection::Goal { node_id, .. } => dag
                     .get(node_id)
                     .map(|node| (cursor.uri.clone(), node.position)),
-                Selection::Theorem => None,
+                Selection::Theorem | Selection::Error { .. } => None,
             }),
             DagState::Dataflow(dag) => selection.and_then(|sel| match sel {
                 Selection::InitialHyp { hyp_idx } => dag
@@ -335,6 +338,7 @@ impl App {
                     .root_node_id
                     .and_then(|id| dag.get(id))
                     .map(|node| (cursor.uri.clone(), node.position)),
+                Selection::Error { .. } => None,
             }),
             DagState::Effectflow(_) | DagState::None => None,
         };
@@ -368,6 +372,16 @@ impl App {
                 .goals
                 .first()
                 .map(|g| g.type_.to_plain_text()),
+            Selection::Error { node_id, error_idx } => {
+                use crate::protocol::DiagnosticSeverity;
+                dag.get(node_id).and_then(|node| {
+                    node.diagnostics
+                        .iter()
+                        .filter(|d| d.severity == DiagnosticSeverity::Error)
+                        .nth(error_idx)
+                        .map(|d| d.message.clone())
+                })
+            }
         }
     }
 
@@ -417,6 +431,18 @@ impl App {
             frame.area(),
             &mut self.worker_selector,
         );
+
+        // Render error overlay on top of everything
+        if let Some(ref error_msg) = self.error_overlay {
+            use crate::shared::error_banner::ErrorBanner;
+            use ratatui::widgets::Clear;
+
+            let banner = ErrorBanner::new(error_msg);
+            let height = banner.required_height(main_area.width).min(main_area.height / 2);
+            let overlay_area = Rect::new(main_area.x, main_area.y, main_area.width, height);
+            frame.render_widget(Clear, overlay_area);
+            frame.render_widget(banner, overlay_area);
+        }
     }
 
     fn render_main(&mut self, frame: &mut Frame, area: Rect) {
@@ -485,14 +511,40 @@ impl App {
 
     /// Handle crossterm events.
     pub fn handle_event(&mut self, event: &Event) {
+        use crossterm::event::{MouseButton, MouseEventKind};
+
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
                 self.handle_key_event(*key);
             }
             Event::Mouse(mouse) => {
+                let is_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
                 self.display_mode.handle_event(KeyMouseEvent::Mouse(*mouse));
+                // Only check for error selection on actual clicks
+                if is_click {
+                    self.update_error_overlay_from_selection();
+                }
             }
             _ => {}
+        }
+    }
+
+    /// Update error_overlay based on current selection.
+    fn update_error_overlay_from_selection(&mut self) {
+        let selection = self.display_mode.current_selection();
+        if let Some(Selection::Error { node_id, error_idx }) = selection {
+            if let DagState::Proof(dag) = &self.display_mode.dag {
+                if let Some(node) = dag.get(node_id) {
+                    use crate::protocol::DiagnosticSeverity;
+                    let error_msg = node
+                        .diagnostics
+                        .iter()
+                        .filter(|d| d.severity == DiagnosticSeverity::Error)
+                        .nth(error_idx)
+                        .map(|d| d.message.clone());
+                    self.error_overlay = error_msg;
+                }
+            }
         }
     }
 
@@ -529,6 +581,10 @@ impl App {
 
     fn handle_global_key(&mut self, code: KeyCode) -> bool {
         match code {
+            KeyCode::Esc if self.error_overlay.is_some() => {
+                self.error_overlay = None;
+                true
+            }
             KeyCode::Char('q') => {
                 self.should_exit = true;
                 true
