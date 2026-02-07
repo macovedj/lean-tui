@@ -1,3 +1,4 @@
+mod errors_section;
 mod goal_section;
 mod hyp_layer;
 mod hyp_section;

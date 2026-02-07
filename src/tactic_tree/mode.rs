@@ -24,6 +24,7 @@ use crate::{
         KeyMouseEvent, ListSelection, Selection,
     },
     tactic_tree::{
+        errors_section::{ErrorsSection, ErrorsSectionState},
         goal_section::{GoalSection, GoalSectionState},
         hyp_section::{HypSection, HypSectionState},
         proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
@@ -97,6 +98,7 @@ pub struct TacticTree {
     /// Current node ID in the DAG (for building selections).
     current_node_id: Option<NodeId>,
     hyp_section_state: HypSectionState,
+    errors_section_state: ErrorsSectionState,
     goal_section_state: GoalSectionState,
     sidebar_state: ProofStepsSidebarState,
     filters: HypothesisFilters,
@@ -150,13 +152,31 @@ impl TacticTree {
         }
     }
 
-    fn layout_main(area: Rect) -> MainLayout {
-        let [hyps, goals] = Layout::vertical([
-            Constraint::Fill(1), // Hypotheses expand
-            Constraint::Fill(1), // Goals expand equally
-        ])
-        .areas(area);
-        MainLayout { hyps, goals }
+    fn layout_main(area: Rect, has_errors: bool) -> MainLayout {
+        if has_errors {
+            let [hyps, errors, goals] = Layout::vertical([
+                Constraint::Fill(1), // Hypotheses expand
+                Constraint::Length(5), // Errors section - fixed height
+                Constraint::Fill(1), // Goals expand equally
+            ])
+            .areas(area);
+            MainLayout {
+                hyps,
+                errors: Some(errors),
+                goals,
+            }
+        } else {
+            let [hyps, goals] = Layout::vertical([
+                Constraint::Fill(1), // Hypotheses expand
+                Constraint::Fill(1), // Goals expand equally
+            ])
+            .areas(area);
+            MainLayout {
+                hyps,
+                errors: None,
+                goals,
+            }
+        }
     }
 
     fn current_node(&self) -> Option<&ProofDagTacticNode> {
@@ -274,6 +294,7 @@ impl TacticTree {
 
 struct MainLayout {
     hyps: Rect,
+    errors: Option<Rect>,
     goals: Rect,
 }
 
@@ -322,26 +343,31 @@ impl InteractiveComponent for TacticTree {
             frame.render_stateful_widget(ProofStepsSidebar, sidebar_area, &mut self.sidebar_state);
         }
 
-        let layout = Self::layout_main(main);
-        let current_node = self.current_node();
-
-        let depends_on: HashSet<String> = current_node
-            .map(|node| node.hypothesis_dependencies.iter().cloned().collect())
-            .unwrap_or_default();
-
-        let spawned_goal_ids: HashSet<String> = current_node
-            .map(|node| {
-                node.proof_state_after
-                    .goals
-                    .iter()
-                    .filter_map(|g| g.username_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let active_goal_name = current_node
-            .and_then(|node| node.proof_state_before.goals.first())
-            .and_then(|g| g.username_str().map(String::from));
+        // Extract all data from current_node before any mutable self operations
+        let (has_errors, current_node_errors, depends_on, spawned_goal_ids, active_goal_name) = {
+            let current_node = self.current_node();
+            let has_errors = current_node.is_some_and(|node| node.has_error());
+            let errors = current_node
+                .map(|node| node.diagnostics.clone())
+                .unwrap_or_default();
+            let depends_on: HashSet<String> = current_node
+                .map(|node| node.hypothesis_dependencies.iter().cloned().collect())
+                .unwrap_or_default();
+            let spawned_goal_ids: HashSet<String> = current_node
+                .map(|node| {
+                    node.proof_state_after
+                        .goals
+                        .iter()
+                        .filter_map(|g| g.username_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let active_goal_name = current_node
+                .and_then(|node| node.proof_state_before.goals.first())
+                .and_then(|g| g.username_str().map(String::from));
+            (has_errors, errors, depends_on, spawned_goal_ids, active_goal_name)
+        };
+        let layout = Self::layout_main(main, has_errors);
 
         self.hyp_section_state.update(
             &self.state,
@@ -362,6 +388,15 @@ impl InteractiveComponent for TacticTree {
                     region.height,
                 ),
                 region.selection,
+            );
+        }
+
+        if let Some(errors_area) = layout.errors {
+            self.errors_section_state.update(current_node_errors);
+            frame.render_stateful_widget(
+                ErrorsSection,
+                errors_area,
+                &mut self.errors_section_state,
             );
         }
 
