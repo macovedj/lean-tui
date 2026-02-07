@@ -11,7 +11,7 @@ use crate::{
     deduction_tree::TacticProofState,
     shared::{
         aligned_table::{AlignedRow, AlignedTable},
-        theme::Theme,
+        theme::{Red, Theme},
         Region, Selection,
     },
 };
@@ -51,6 +51,19 @@ impl<'a> StateNode<'a> {
     }
 
     fn border_color(&self) -> Color {
+        // Error nodes get red border regardless of other state
+        if !self.node.diagnostics.is_empty() {
+            tracing::info!(
+                node_id = self.node.id,
+                diagnostics_count = self.node.diagnostics.len(),
+                "Node has diagnostics: {:?}",
+                self.node.diagnostics
+            );
+        }
+        if self.node.has_error() {
+            return Red::BRIGHT;
+        }
+
         let dominated_vars = (
             self.is_current,
             self.node.is_leaf(),
@@ -65,14 +78,16 @@ impl<'a> StateNode<'a> {
     }
 
     fn build_title(&self) -> String {
+        let error_prefix = if self.node.has_error() { "⚠ " } else { "" };
         if self.node.children.len() > 1 {
             format!(
-                " {} [{}→] ",
+                " {}{} [{}→] ",
+                error_prefix,
                 self.node.tactic.text,
                 self.node.children.len()
             )
         } else {
-            format!(" {} ", self.node.tactic.text)
+            format!(" {}{} ", error_prefix, self.node.tactic.text)
         }
     }
 
@@ -173,6 +188,22 @@ impl<'a> StateNode<'a> {
             .collect()
     }
 
+    fn build_error_rows(&self) -> Vec<AlignedRow> {
+        use crate::protocol::DiagnosticSeverity;
+
+        self.node
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .map(|d| {
+                let error_style = Style::new().fg(Red::BRIGHT);
+                // Truncate message to first line for compact display
+                let msg = d.message.lines().next().unwrap_or(&d.message);
+                AlignedRow::new("", Style::default(), "✗", error_style, msg, error_style)
+            })
+            .collect()
+    }
+
     fn build_click_regions(&self, inner: Rect) -> Vec<Region> {
         let mut regions = Vec::new();
         let hyp_count = self.node.new_hypothesis_indices.len();
@@ -232,12 +263,14 @@ impl StatefulWidget for StateNode<'_> {
 
         let title = self.build_title();
         let title_style = Style::new()
-            .fg(if self.is_current {
+            .fg(if self.node.has_error() {
+                Red::BRIGHT
+            } else if self.is_current {
                 Theme::CURRENT_NODE_BORDER
             } else {
                 Color::Gray
             })
-            .add_modifier(if self.is_current {
+            .add_modifier(if self.is_current || self.node.has_error() {
                 Modifier::BOLD
             } else {
                 Modifier::empty()
@@ -258,6 +291,7 @@ impl StatefulWidget for StateNode<'_> {
         let mut rows: Vec<AlignedRow> = Vec::new();
         rows.extend(self.build_hyp_rows());
         rows.extend(self.build_goal_rows());
+        rows.extend(self.build_error_rows());
 
         let table = AlignedTable::new(rows);
         Widget::render(table, inner, buf);

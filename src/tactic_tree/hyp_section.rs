@@ -10,7 +10,7 @@ use ratatui::{
     },
 };
 
-use crate::shared::aligned_table::MarkedAlignedTable;
+use crate::shared::aligned_table::AlignedTable;
 
 use super::hyp_layer::{HypLayer, HypLayerRenderContext};
 use crate::{
@@ -129,7 +129,7 @@ impl StatefulWidget for HypSection {
             depends_on: &state.depends_on,
         };
         let rows = state.layer.render(&render_ctx, &mut state.click_regions);
-        let table = MarkedAlignedTable::new(rows);
+        let table = AlignedTable::new(rows);
         Widget::render(table, inner, buf);
 
         if total_hyps > viewport_height && inner.width > 1 {

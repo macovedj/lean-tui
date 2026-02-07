@@ -5,8 +5,8 @@ use serde::de::DeserializeOwned;
 use crate::{
     graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
     protocol::{
-        AnnotatedTextTree, DisplayStyle, GenericDag, GraphNode, LineCharacterPosition,
-        PreresolvedNavigationTargets,
+        AnnotatedTextTree, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag,
+        GraphNode, LineCharacterPosition, PreresolvedNavigationTargets,
     },
     shared::LayoutSize,
 };
@@ -100,6 +100,8 @@ pub struct ProofDagTacticNode {
     pub hypothesis_dependencies: Vec<String>,
     #[serde(default)]
     pub referenced_theorems: Vec<String>,
+    #[serde(default)]
+    pub diagnostics: Vec<DiagnosticInfo>,
 }
 
 impl ProofDagTacticNode {
@@ -111,6 +113,21 @@ impl ProofDagTacticNode {
     /// No children in tree.
     pub fn is_leaf(&self) -> bool {
         self.children.is_empty()
+    }
+
+    /// Check if this node has any error diagnostics.
+    pub fn has_error(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Error)
+    }
+
+    /// Get the first error message, if any.
+    pub fn first_error_message(&self) -> Option<&str> {
+        self.diagnostics
+            .iter()
+            .find(|d| d.severity == DiagnosticSeverity::Error)
+            .map(|d| d.message.as_str())
     }
 }
 
@@ -309,6 +326,14 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
     if let Some(ps) = node.metadata.get("proof_state_after") {
         tracing::debug!("Node {}: proof_state_after = {}", node.id, ps);
     }
+    if !node.diagnostics.is_empty() {
+        tracing::info!(
+            "Node {}: has {} diagnostics: {:?}",
+            node.id,
+            node.diagnostics.len(),
+            node.diagnostics
+        );
+    }
 
     let proof_state_before: TacticProofState =
         parse_metadata_field(&node.metadata, node.id, "proof_state_before")?.unwrap_or_default();
@@ -355,6 +380,7 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         new_hypothesis_indices,
         hypothesis_dependencies,
         referenced_theorems,
+        diagnostics: node.diagnostics.clone(),
     })
 }
 
@@ -442,6 +468,14 @@ impl NodeTextContent for ProofDagTacticNode {
                     None => format!("⊢ {goal_type}"),
                 };
                 lines.push(line);
+            }
+        }
+
+        // Include error diagnostics in height calculation
+        for d in &self.diagnostics {
+            if d.severity == DiagnosticSeverity::Error {
+                let msg = d.message.lines().next().unwrap_or(&d.message);
+                lines.push(format!("✗ {msg}"));
             }
         }
 
