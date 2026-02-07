@@ -118,7 +118,7 @@ impl StatefulWidget for LegendWidget<'_> {
 
         let block = Block::bordered()
             .title(" Legend ")
-            .border_style(Style::new().fg(Color::DarkGray));
+            .border_style(Style::new().fg(Color::Reset));
 
         Paragraph::new(lines).block(block).render(popup_area, buf);
     }

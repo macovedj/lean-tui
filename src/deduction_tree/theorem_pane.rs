@@ -1,12 +1,15 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use crate::shared::{theme::Theme, Region, Selection};
+use crate::shared::{
+    theme::{Orange, Theme},
+    Region, Selection,
+};
 
 /// State for the theorem pane.
 #[derive(Default)]
@@ -40,10 +43,10 @@ impl StatefulWidget for TheoremPane<'_> {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(Color::Magenta))
+            .border_style(Style::new().fg(Orange::MUTED))
             .title(Span::styled(
-                " THEOREM ",
-                Style::new().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+                " Theorem ",
+                Style::new().fg(Orange::MUTED).add_modifier(Modifier::BOLD),
             ));
 
         let inner = block.inner(area);

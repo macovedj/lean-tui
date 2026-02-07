@@ -1,12 +1,12 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Paragraph, StatefulWidget, Widget},
 };
 
-use crate::shared::{FilterToggle, HypothesisFilters, InteractiveStatefulWidget};
+use crate::shared::{theme::Theme, FilterToggle, HypothesisFilters, InteractiveStatefulWidget};
 
 /// Input for updating status bar state.
 pub struct StatusBarInput {
@@ -39,13 +39,15 @@ impl StatefulWidget for StatusBarWidget {
 
         let separator = Span::raw(" │ ");
 
+        let key_style = Style::new().fg(Theme::KEYBINDING);
+
         let global_spans = GLOBAL_KEYBINDINGS
             .iter()
             .enumerate()
             .flat_map(|(i, (key, desc))| {
                 let prefix = (i > 0).then(|| separator.clone());
                 prefix.into_iter().chain([
-                    Span::styled(*key, Style::new().fg(Color::Cyan)),
+                    Span::styled(*key, key_style),
                     Span::raw(format!(": {desc}")),
                 ])
             });
@@ -53,23 +55,23 @@ impl StatefulWidget for StatusBarWidget {
         let mode_spans = state.keybindings.iter().flat_map(|(key, desc)| {
             [
                 separator.clone(),
-                Span::styled(*key, Style::new().fg(Color::Yellow)),
+                Span::styled(*key, key_style),
                 Span::raw(format!(": {desc}")),
             ]
         });
 
         let nav_spans = [
             separator.clone(),
-            Span::styled("g", Style::new().fg(Color::Magenta)),
+            Span::styled("g", key_style),
             Span::raw(": goto"),
             Span::raw(" "),
-            Span::styled("y", Style::new().fg(Color::Magenta)),
+            Span::styled("y", key_style),
             Span::raw(": copy"),
         ];
 
         let filter_status = build_filter_status(state.filters, state.supported_filters);
         let filter_span = (!filter_status.is_empty())
-            .then(|| Span::styled(format!(" [{filter_status}]"), Style::new().fg(Color::Green)));
+            .then(|| Span::styled(format!(" [{filter_status}]"), Style::new().fg(Theme::ADDED)));
 
         let spans: Vec<Span> = global_spans
             .chain(mode_spans)

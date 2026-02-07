@@ -10,8 +10,10 @@ use crate::{
     deduction_tree::{ProofContextHypothesis, ProofObligation, TacticProofState},
     protocol::NodeId,
     shared::{
-        diff_text::AnnotatedTextTreeExt, hypothesis_indices, theme::Theme, HypothesisFilters,
-        Region, Selection,
+        diff_text::AnnotatedTextTreeExt,
+        hypothesis_indices,
+        theme::{Blue, Orange, Theme},
+        HypothesisFilters, Region, Selection,
     },
 };
 
@@ -72,6 +74,14 @@ impl<'a> GoalsColumn<'a> {
         }
         true
     }
+
+    fn is_hyp_focused(&self) -> bool {
+        self.is_current && matches!(self.selection, Some(Selection::Hyp { .. }))
+    }
+
+    fn is_goal_focused(&self) -> bool {
+        self.is_current && matches!(self.selection, Some(Selection::Goal { .. }))
+    }
 }
 
 impl StatefulWidget for GoalsColumn<'_> {
@@ -80,59 +90,96 @@ impl StatefulWidget for GoalsColumn<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
-        let block = create_border_block(self.title, self.is_current);
-        let inner = block.inner(area);
-        block.render(area, buf);
+        // Render column title
+        let title_style = if self.is_current {
+            Style::new()
+                .fg(Theme::CURRENT_NODE_BORDER)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Theme::DIM
+        };
+        let title_line = Line::from(Span::styled(format!(" {} ", self.title), title_style));
+        let title_area = Rect::new(area.x, area.y, area.width, 1);
+        Paragraph::new(title_line)
+            .alignment(ratatui::layout::Alignment::Center)
+            .render(title_area, buf);
+
+        let content_area = Rect::new(area.x, area.y + 1, area.width, area.height.saturating_sub(1));
 
         if self.state.goals.is_empty() && self.state.hypotheses.is_empty() {
-            render_empty_message(inner, buf, self.is_current);
+            render_empty_message(content_area, buf, self.is_current);
             return;
         }
 
-        let [hyp_area, div_area, goal_area] = self.compute_layout(inner);
-        let node_id = self.is_current.then_some(self.node_id).flatten();
-        let selection = self.is_current.then_some(self.selection).flatten();
-
-        self.render_hypotheses(hyp_area, buf, state, selection, node_id);
-        render_divider(div_area, buf);
-        self.render_goals(goal_area, buf, state, selection, node_id);
-    }
-}
-
-impl GoalsColumn<'_> {
-    fn compute_layout(&self, inner: Rect) -> [Rect; 3] {
         let visible_hyp_count =
             hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
                 .filter(|&i| self.should_show_hypothesis(i))
                 .count();
 
-        let hyp_height = visible_hyp_count.min(inner.height.saturating_sub(3) as usize / 2);
-        let constraints = vec![
-            Constraint::Length(hyp_height as u16),
-            Constraint::Length(1),
+        // Calculate pane heights - assumptions get up to half, goals get the rest
+        let hyp_pane_height =
+            (visible_hyp_count + 2).min(content_area.height.saturating_sub(4) as usize / 2);
+        let [hyp_pane_area, goal_pane_area] = Layout::vertical([
+            Constraint::Length(hyp_pane_height as u16),
             Constraint::Fill(1),
-        ];
-        Layout::vertical(constraints).areas(inner)
-    }
+        ])
+        .areas(content_area);
 
-    fn render_hypotheses(
+        let node_id = self.is_current.then_some(self.node_id).flatten();
+        let selection = self.is_current.then_some(self.selection).flatten();
+
+        self.render_assumptions_pane(hyp_pane_area, buf, state, selection, node_id);
+        self.render_goals_pane(goal_pane_area, buf, state, selection, node_id);
+    }
+}
+
+impl GoalsColumn<'_> {
+    fn render_assumptions_pane(
         &self,
-        hyp_area: Rect,
+        area: Rect,
         buf: &mut Buffer,
         state: &mut GoalsColumnState,
         selection: Option<Selection>,
         node_id: Option<NodeId>,
     ) {
+        let is_focused = self.is_hyp_focused();
+        let border_color = if is_focused {
+            Blue::BRIGHT
+        } else {
+            Blue::MUTED
+        };
+        let title = if is_focused {
+            "▶ Assumptions "
+        } else {
+            " Assumptions "
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(border_color))
+            .title(title)
+            .title_style(Style::new().fg(Theme::TITLE_ASSUMPTION));
+
+        let inner = block.inner(area);
+        block.render(area, buf);
+
+        if self.state.hypotheses.is_empty() {
+            Paragraph::new("(none)")
+                .style(Theme::DIM.add_modifier(Modifier::ITALIC))
+                .render(inner, buf);
+            return;
+        }
+
         let visible_hyps =
             hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
                 .filter(|&i| self.should_show_hypothesis(i))
-                .take(hyp_area.height as usize);
+                .take(inner.height as usize);
 
         for (row, hyp_idx) in visible_hyps.enumerate() {
             let h = &self.state.hypotheses[hyp_idx];
             let is_selected =
                 matches!(selection, Some(Selection::Hyp { hyp_idx: sel, .. }) if sel == hyp_idx);
-            let line_area = Rect::new(hyp_area.x, hyp_area.y + row as u16, hyp_area.width, 1);
+            let line_area = Rect::new(inner.x, inner.y + row as u16, inner.width, 1);
 
             let line = render_hypothesis_line(h, is_selected);
             Paragraph::new(line).render(line_area, buf);
@@ -149,20 +196,48 @@ impl GoalsColumn<'_> {
         }
     }
 
-    fn render_goals(
+    fn render_goals_pane(
         &self,
-        goal_area: Rect,
+        area: Rect,
         buf: &mut Buffer,
         state: &mut GoalsColumnState,
         selection: Option<Selection>,
         node_id: Option<NodeId>,
     ) {
+        let is_focused = self.is_goal_focused();
+        let border_color = if is_focused {
+            Orange::BRIGHT
+        } else {
+            Orange::MUTED
+        };
+        let title = if is_focused { "▶ Goals " } else { " Goals " };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(border_color))
+            .title(title)
+            .title_style(Style::new().fg(Theme::TITLE_GOAL));
+
+        let inner = block.inner(area);
+        block.render(area, buf);
+
+        if self.state.goals.is_empty() {
+            Paragraph::new("✓ Complete")
+                .style(
+                    Style::new()
+                        .fg(Theme::COMPLETED_GOAL_FG)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .render(inner, buf);
+            return;
+        }
+
         let visible_goals = self
             .state
             .goals
             .iter()
             .enumerate()
-            .take(goal_area.height as usize);
+            .take(inner.height as usize);
 
         for (goal_idx, g) in visible_goals {
             let is_selected =
@@ -170,12 +245,7 @@ impl GoalsColumn<'_> {
             let is_active = self
                 .active_goal_name
                 .is_some_and(|name| g.username_str() == Some(name));
-            let line_area = Rect::new(
-                goal_area.x,
-                goal_area.y + goal_idx as u16,
-                goal_area.width,
-                1,
-            );
+            let line_area = Rect::new(inner.x, inner.y + goal_idx as u16, inner.width, 1);
 
             let line = render_goal_line(g, is_selected, is_active);
             Paragraph::new(line).render(line_area, buf);
@@ -220,7 +290,7 @@ fn render_goal_line(g: &ProofObligation, is_selected: bool, is_active: bool) -> 
             .fg(Theme::CURRENT_NODE_BORDER)
             .add_modifier(Modifier::BOLD)
     } else {
-        style.fg(Theme::GOAL_TYPE)
+        style.fg(Theme::GOAL_FG)
     };
 
     let prefix = g
@@ -230,34 +300,6 @@ fn render_goal_line(g: &ProofObligation, is_selected: bool, is_active: bool) -> 
     let mut spans = vec![Span::styled(prefix, style)];
     spans.extend(g.type_.to_spans(target_style));
     Line::from(spans)
-}
-
-fn render_divider(div_area: Rect, buf: &mut Buffer) {
-    let divider = "─".repeat(div_area.width as usize);
-    Paragraph::new(divider)
-        .style(Theme::DIM)
-        .render(div_area, buf);
-}
-
-fn create_border_block(title: &str, is_current: bool) -> Block<'static> {
-    let border_color = if is_current {
-        Theme::CURRENT_NODE_BORDER
-    } else {
-        Theme::BORDER
-    };
-    let title_style = if is_current {
-        Style::new()
-            .fg(Theme::CURRENT_NODE_BORDER)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Theme::DIM
-    };
-
-    Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(border_color))
-        .title(format!(" {title} "))
-        .title_style(title_style)
 }
 
 fn render_empty_message(area: Rect, buf: &mut Buffer, is_current: bool) {

@@ -14,7 +14,10 @@ use super::hyp_layer::{HypLayer, HypLayerRenderContext};
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
-    shared::{theme::Theme, HypothesisFilters, Region, Selection},
+    shared::{
+        theme::{Blue, Theme},
+        HypothesisFilters, Region, Selection,
+    },
 };
 
 /// State for the hypothesis section widget.
@@ -78,10 +81,10 @@ impl StatefulWidget for HypSection {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
-        let border_style = if state.is_focused {
-            Style::new().fg(Theme::BORDER_FOCUSED)
+        let border_color = if state.is_focused {
+            Blue::BRIGHT
         } else {
-            Theme::DIM
+            Blue::MUTED
         };
         let title = if state.is_focused {
             "▶ Hypotheses "
@@ -90,8 +93,8 @@ impl StatefulWidget for HypSection {
         };
 
         let block = Block::default()
-            .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-            .border_style(border_style)
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(border_color))
             .title(title)
             .title_style(Style::new().fg(Theme::TITLE_HYPOTHESIS));
 

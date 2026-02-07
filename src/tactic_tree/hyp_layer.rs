@@ -11,6 +11,7 @@ use crate::{
     protocol::NodeId,
     shared::{
         diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
+        theme::Theme,
         Region, Selection,
     },
 };
@@ -123,15 +124,21 @@ fn render_hyp_line(
     };
 
     let name_style = if is_dependency {
-        diff.style.add_modifier(Modifier::BOLD)
+        Style::new()
+            .fg(Theme::HYP_NAME)
+            .add_modifier(Modifier::BOLD)
+    } else if is_selected {
+        Style::new()
+            .fg(Theme::HYP_NAME)
+            .bg(Theme::SELECTION_BG)
     } else {
-        diff.style
+        Style::new().fg(Theme::HYP_NAME)
     };
 
     let mut spans = vec![
         marker,
         Span::raw(" "),
-        Span::styled(format!("{} : ", hyp.name), name_style),
+        Span::styled(format!("{}: ", hyp.name), name_style),
     ];
     spans.extend(hyp.type_.to_spans(diff.style));
     Line::from(spans)

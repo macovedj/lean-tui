@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Clear, Paragraph, StatefulWidget, Widget},
 };
 
-use crate::shared::{InteractiveStatefulWidget, KeyEvent};
+use crate::shared::{theme::Theme, InteractiveStatefulWidget, KeyEvent};
 
 const KEYBINDINGS: &[(&str, &str)] = &[
     ("[/]", "cycle display mode"),
@@ -44,7 +44,7 @@ impl StatefulWidget for HelpMenuWidget {
             return;
         }
 
-        let key_style = Style::new().fg(Color::Cyan);
+        let key_style = Style::new().fg(Theme::KEYBINDING);
 
         let lines: Vec<Line> = KEYBINDINGS
             .iter()
@@ -66,7 +66,7 @@ impl StatefulWidget for HelpMenuWidget {
 
         let block = Block::bordered()
             .title(" Help ")
-            .border_style(Style::new().fg(Color::Cyan));
+            .border_style(Style::new().fg(Color::Reset));
 
         Paragraph::new(lines).block(block).render(popup_area, buf);
     }

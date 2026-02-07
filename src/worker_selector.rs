@@ -138,7 +138,7 @@ impl StatefulWidget for WorkerSelectorWidget {
         let block = Block::bordered()
             .title(" Select File ")
             .title_alignment(Alignment::Center)
-            .border_style(Style::new().fg(Color::Cyan));
+            .border_style(Style::new().fg(Color::Reset));
 
         let inner = block.inner(popup_area);
         block.render(popup_area, buf);
@@ -183,14 +183,15 @@ impl StatefulWidget for WorkerSelectorWidget {
             StatefulWidget::render(list, list_area, buf, &mut state.list_state);
         }
 
+        let key_style = Style::new().fg(Theme::KEYBINDING);
         let help_text = Line::from(vec![
-            Span::styled("↑/↓", Style::new().fg(Color::Cyan)),
+            Span::styled("↑/↓", key_style),
             Span::raw(" select  "),
-            Span::styled("Enter", Style::new().fg(Color::Cyan)),
+            Span::styled("Enter", key_style),
             Span::raw(" connect  "),
-            Span::styled("r", Style::new().fg(Color::Cyan)),
+            Span::styled("r", key_style),
             Span::raw(" rescan  "),
-            Span::styled("Esc", Style::new().fg(Color::Cyan)),
+            Span::styled("Esc", key_style),
             Span::raw(" cancel"),
         ]);
         Paragraph::new(help_text)

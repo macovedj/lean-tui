@@ -24,6 +24,7 @@ use crate::{
     },
     shared::{
         legend::{Legend, LegendWidget},
+        theme::Theme,
         InteractiveStatefulWidget, KeyMouseEvent, Selection,
     },
     status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
@@ -435,7 +436,7 @@ impl App {
             .title(title)
             .title_top(Line::from(mode_name).right_aligned())
             .title_bottom(Line::from(position_info).right_aligned())
-            .border_style(Style::new().fg(Color::Cyan));
+            .border_style(Style::new().fg(Theme::FRAME_BORDER));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);

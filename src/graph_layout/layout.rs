@@ -9,10 +9,8 @@ const VERTICAL_GAP: i32 = 2;
 const HORIZONTAL_GAP: i32 = 2;
 
 // Node size calculation constants
-const BORDER_WIDTH: usize = 2;
+const BORDER_PADDING: usize = 6;
 const BORDER_HEIGHT: u16 = 2;
-const ICON_PADDING: usize = 4;
-const MAX_WIDTH: usize = 80;
 
 /// Trait for nodes that can describe their text content for layout sizing.
 pub trait NodeTextContent {
@@ -24,14 +22,15 @@ pub trait NodeTextContent {
 }
 
 /// Calculate layout size for any node with text content.
+/// Width is based on the widest line (title or content), height on line count.
 pub fn calculate_node_size<T: NodeTextContent>(node: &T) -> (u16, u16) {
-    let title_width = node.title().len();
+    let title_width = node.title().chars().count();
     let lines = node.content_lines();
 
-    let max_line_width = lines.iter().map(String::len).max().unwrap_or(0);
+    let max_line_width = lines.iter().map(|s| s.chars().count()).max().unwrap_or(0);
     let max_content_width = title_width.max(max_line_width);
 
-    let width = (max_content_width + BORDER_WIDTH + ICON_PADDING).min(MAX_WIDTH) as u16;
+    let width = (max_content_width + BORDER_PADDING) as u16;
     let height = BORDER_HEIGHT + lines.len().max(1) as u16;
 
     (width, height)
