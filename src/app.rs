@@ -523,6 +523,10 @@ impl App {
                 // Only check for error selection on actual clicks
                 if is_click {
                     self.update_error_overlay_from_selection();
+                    // Also check for clicked errors from TacticTree mode
+                    if let Some(error_msg) = self.display_mode.take_clicked_error() {
+                        self.error_overlay = Some(error_msg);
+                    }
                 }
             }
             _ => {}

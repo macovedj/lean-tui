@@ -126,8 +126,8 @@ impl Theme {
     pub const DATA_HYP_FG: Color = Color::Rgb(130, 170, 220); // Blue fg for data
 
     // === Dependency Styling ===
-    pub const DEPENDENCY_FG: Color = Yellow::MUTED;
-    pub const DEPENDENCY: Style = Style::new().fg(Yellow::MUTED).add_modifier(Modifier::DIM);
+    pub const DEPENDENCY_FG: Color = Blue::MUTED;
+    pub const DEPENDENCY: Style = Style::new().fg(Blue::MUTED).add_modifier(Modifier::DIM);
 
     // === Effect Flow Colors ===
     pub const EFFECT_BIND: Color = Color::Cyan;

@@ -75,6 +75,7 @@ impl AlignedRow {
         }
     }
 
+
     pub fn name_width(&self) -> usize {
         self.name.chars().count()
     }

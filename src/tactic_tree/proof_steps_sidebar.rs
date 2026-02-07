@@ -292,7 +292,7 @@ fn step_line(node: &ProofDagTacticNode, prefix: &str, is_current: bool) -> Line<
             .fg(Theme::CURRENT_NODE_BORDER)
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::new().fg(Color::White)
+        Style::new().fg(Color::Gray).add_modifier(Modifier::DIM)
     };
 
     let marker = if is_current { "▶ " } else { "  " };
