@@ -57,7 +57,6 @@ impl StatefulWidget for ProofPane<'_> {
         let graph = self.dag.to_graph();
         let config = LayoutConfig {
             top_down: self.top_down,
-            ..Default::default()
         };
 
         let layout_changed = state.update_layout_if_needed(self.dag.len(), || {

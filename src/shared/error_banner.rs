@@ -41,7 +41,7 @@ impl<'a> ErrorBanner<'a> {
                 if char_count == 0 {
                     1 // Empty lines still take one row
                 } else {
-                    (char_count + content_width - 1) / content_width
+                    char_count.div_ceil(content_width)
                 }
             })
             .sum();

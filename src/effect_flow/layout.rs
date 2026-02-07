@@ -33,7 +33,7 @@ use super::{
 use crate::{
     data_flow::given_pane::{BindingGivenPane, BindingGivenPaneState},
     graph_layout::LayoutConfig,
-    protocol::NodeId,
+    protocol::{AnnotatedTextTree, NodeId},
     shared::{find_region_at, theme::Theme, Region, Selection},
 };
 
@@ -130,10 +130,7 @@ impl StatefulWidget for EffectTableauLayout<'_> {
 
         render_graph_pane(
             self.dag,
-            LayoutConfig {
-                top_down: true,
-                ..Default::default()
-            },
+            LayoutConfig { top_down: true },
             self.selection,
             areas.graph,
             buf,
@@ -175,7 +172,7 @@ fn render_result_pane(
     let type_text = dag
         .block_output
         .as_ref()
-        .map_or_else(|| "...".to_string(), |t| t.to_plain_text());
+        .map_or_else(|| "...".to_string(), AnnotatedTextTree::to_plain_text);
 
     let style = Style::new()
         .fg(Theme::GOAL_FG)

@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use crossterm::event::{MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -71,6 +73,7 @@ impl EffectFlowModeInputBuilder {
     }
 }
 
+#[derive(Default)]
 pub struct EffectFlowMode {
     definition: Option<DefinitionInfo>,
     error: Option<String>,
@@ -78,19 +81,6 @@ pub struct EffectFlowMode {
     filters: HypothesisFilters,
     selected_idx: Option<usize>,
     effect_tableau_state: EffectTableauState,
-}
-
-impl Default for EffectFlowMode {
-    fn default() -> Self {
-        Self {
-            definition: None,
-            error: None,
-            effect_dag: None,
-            filters: HypothesisFilters::default(),
-            selected_idx: None,
-            effect_tableau_state: EffectTableauState::default(),
-        }
-    }
 }
 
 impl EffectFlowMode {
@@ -121,7 +111,7 @@ impl EffectFlowMode {
 
         initial_hyps
             .chain(node_selections)
-            .chain(std::iter::once(Selection::Theorem))
+            .chain(once(Selection::Theorem))
             .collect()
     }
 

@@ -137,19 +137,19 @@ impl DisplayMode {
     /// Switch to a mode compatible with the given DAG state.
     /// Only switches if current mode is incompatible.
     pub fn switch_to_compatible_mode(&mut self, dag: &DagState) {
-        let is_compatible = match (&self.mode, dag) {
-            (ModeVariant::DataFlow(_), DagState::Dataflow(_)) => true,
-            (ModeVariant::EffectFlow(_), DagState::Effectflow(_)) => true,
-            (
-                ModeVariant::PlainGoal(_)
-                | ModeVariant::BeforeAfter(_)
-                | ModeVariant::TacticTree(_)
-                | ModeVariant::DeductionTree(_),
-                DagState::Proof(_),
-            ) => true,
-            (_, DagState::None) => true,
-            _ => false,
-        };
+        let is_compatible = matches!(
+            (&self.mode, dag),
+            (ModeVariant::DataFlow(_), DagState::Dataflow(_))
+                | (ModeVariant::EffectFlow(_), DagState::Effectflow(_))
+                | (
+                    ModeVariant::PlainGoal(_)
+                        | ModeVariant::BeforeAfter(_)
+                        | ModeVariant::TacticTree(_)
+                        | ModeVariant::DeductionTree(_),
+                    DagState::Proof(_)
+                )
+                | (_, DagState::None)
+        );
 
         if !is_compatible {
             self.mode = match dag {

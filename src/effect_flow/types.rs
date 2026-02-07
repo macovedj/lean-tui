@@ -1,9 +1,13 @@
-use std::{error::Error, fmt};
+use std::{collections::HashMap, error::Error, fmt, num::NonZero};
 
-use ratatui::style::Color;
+use petgraph::graph::NodeIndex;
+use ratatui::style::{Color, Style};
 
 use crate::{
-    graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
+    graph_layout::{
+        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode,
+        NodeTextContent,
+    },
     protocol::{
         self, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphEdge, GraphNode,
         NodeId,
@@ -227,17 +231,8 @@ impl NodeTextContent for EffectFlowNode {
             lines.push(format!("← {bwd}"));
         }
 
-        // Include error diagnostics in content for layout size calculation
-        for d in &self.diagnostics {
-            if d.severity == DiagnosticSeverity::Error {
-                for (i, line) in d.message.lines().enumerate() {
-                    let prefix = if i == 0 { "✗ " } else { "  " };
-                    lines.push(format!("{prefix}{line}"));
-                }
-            }
-        }
+        lines.extend(format_error_diagnostics(&self.diagnostics));
 
-        // Add placeholder for checkmark only if leaf node without errors
         if lines.is_empty() && self.is_leaf() && !self.has_error() {
             lines.push("✓".to_string());
         }
@@ -259,6 +254,19 @@ impl GraphEdge {
             .as_deref()
             .map_or(EdgeKind::Unknown, EdgeKind::from_str)
     }
+}
+
+fn format_error_diagnostics(diagnostics: &[DiagnosticInfo]) -> Vec<String> {
+    diagnostics
+        .iter()
+        .filter(|d| d.severity == DiagnosticSeverity::Error)
+        .flat_map(|d| {
+            d.message.lines().enumerate().map(|(i, line)| {
+                let prefix = if i == 0 { "✗ " } else { "  " };
+                format!("{prefix}{line}")
+            })
+        })
+        .collect()
 }
 
 #[derive(Debug)]
@@ -332,97 +340,91 @@ impl EffectFlowDag {
         }
     }
 
-    /// Convert to petgraph-based DagGraph for rendering.
-    pub fn to_graph(&self) -> crate::graph_layout::DagGraph<EffectFlowNode> {
-        use ratatui::style::Style;
-
-        use crate::graph_layout::{DagGraph, EdgeData};
-
+    /// Convert to petgraph-based `DagGraph` for rendering.
+    pub fn to_graph(&self) -> DagGraph<EffectFlowNode> {
         let mut graph = DagGraph::new();
 
-        // Add all nodes
         for node in &self.nodes {
             graph.add_node(node.id, node.clone());
         }
 
-        // Add edges with style data
         for node in &self.nodes {
-            let Some(from_idx) = graph.index_of(node.id) else {
-                continue;
-            };
-            for edge in &node.edges {
-                let Some(to_idx) = graph.index_of(edge.target) else {
-                    continue;
-                };
-                let edge_kind = edge.effect_edge_kind();
-                graph.add_edge(
-                    from_idx,
-                    to_idx,
-                    EdgeData {
-                        style: Some(Style::new().fg(edge_kind.color())),
-                        label: edge.label.clone(),
-                    },
-                );
-            }
+            add_effect_edges(node, &mut graph);
         }
 
-        // Set root and current
-        if let Some(root_id) = self.root_node_id {
-            if let Some(idx) = graph.index_of(root_id) {
-                graph.root = Some(idx);
-            }
-        }
-        if let Some(current_id) = self.current_node_id {
-            graph.current = graph.index_of(current_id);
-        }
-
-        // Add orphans
-        for &orphan_id in &self.orphans {
-            if let Some(idx) = graph.index_of(orphan_id) {
-                graph.orphans.push(idx);
-            }
-        }
+        graph.root = self.root_node_id.and_then(|id| graph.index_of(id));
+        graph.current = self.current_node_id.and_then(|id| graph.index_of(id));
+        graph.orphans = self
+            .orphans
+            .iter()
+            .filter_map(|&id| graph.index_of(id))
+            .collect();
 
         graph
     }
 
     /// Convert to layout graph for force-directed layout computation.
-    pub fn to_layout_graph(&self) -> crate::graph_layout::LayoutGraph {
-        use crate::{graph_layout::LayoutGraph, shared::LayoutSize};
-
+    pub fn to_layout_graph(&self) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
-        let mut id_to_index = std::collections::HashMap::new();
+        let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
             let (width, height) = node.layout_size();
-            let index = petgraph::graph::NodeIndex::new(layout.nodes.len());
+            let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
             layout.add_node(index, node.id, width, height);
         }
 
         for node in &self.nodes {
-            let Some(&from_idx) = id_to_index.get(&node.id) else {
-                continue;
-            };
-            for edge in &node.edges {
-                let Some(&to_idx) = id_to_index.get(&edge.target) else {
-                    continue;
-                };
-                let strength = edge.strength.map_or(1, std::num::NonZero::get);
-                layout.add_edge(from_idx, to_idx, strength);
-            }
+            add_effect_layout_edges(node, &id_to_index, &mut layout);
         }
 
-        if let Some(root_id) = self.root_node_id {
-            layout.root = id_to_index.get(&root_id).copied();
-        }
-        for &orphan_id in &self.orphans {
-            if let Some(&idx) = id_to_index.get(&orphan_id) {
-                layout.orphans.push(idx);
-            }
-        }
+        layout.root = self
+            .root_node_id
+            .and_then(|id| id_to_index.get(&id).copied());
+        layout.orphans = self
+            .orphans
+            .iter()
+            .filter_map(|id| id_to_index.get(id).copied())
+            .collect();
 
         layout
+    }
+}
+
+fn add_effect_edges(node: &EffectFlowNode, graph: &mut DagGraph<EffectFlowNode>) {
+    let Some(from_idx) = graph.index_of(node.id) else {
+        return;
+    };
+    for edge in &node.edges {
+        let Some(to_idx) = graph.index_of(edge.target) else {
+            continue;
+        };
+        let edge_kind = edge.effect_edge_kind();
+        graph.add_edge(
+            from_idx,
+            to_idx,
+            EdgeData {
+                style: Some(Style::new().fg(edge_kind.color())),
+                label: edge.label.clone(),
+            },
+        );
+    }
+}
+
+fn add_effect_layout_edges(
+    node: &EffectFlowNode,
+    id_to_index: &HashMap<NodeId, NodeIndex>,
+    layout: &mut LayoutGraph,
+) {
+    let Some(&from_idx) = id_to_index.get(&node.id) else {
+        return;
+    };
+    for edge in &node.edges {
+        let Some(&to_idx) = id_to_index.get(&edge.target) else {
+            continue;
+        };
+        layout.add_edge(from_idx, to_idx, edge.strength.map_or(1, NonZero::get));
     }
 }
 

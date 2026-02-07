@@ -118,6 +118,30 @@ pub fn render_scrollbars(
     }
 }
 
+fn parent_y(pos: &super::NodePosition, top_down: bool) -> i32 {
+    if top_down {
+        pos.y + i32::from(pos.height)
+    } else {
+        pos.y
+    }
+}
+
+fn child_y(pos: &super::NodePosition, top_down: bool) -> i32 {
+    if top_down {
+        pos.y
+    } else {
+        pos.y + i32::from(pos.height)
+    }
+}
+
+fn ordered_x_pair(a: i32, b: i32) -> (i32, i32) {
+    if a <= b {
+        (a, b)
+    } else {
+        (b, a)
+    }
+}
+
 struct EdgeRenderer {
     scroll_x: i32,
     scroll_y: i32,
@@ -129,46 +153,7 @@ impl EdgeRenderer {
         let routes: Vec<EdgeRoute<'_>> = layout
             .nodes
             .iter()
-            .flat_map(|pos| {
-                let parent_x = pos.x + i32::from(pos.width) / 2;
-                let parent_y = if self.top_down {
-                    pos.y + i32::from(pos.height)
-                } else {
-                    pos.y
-                };
-
-                dag.edges_from(pos.index)
-                    .filter_map(move |(child_idx, edge_data)| {
-                        let child_pos = layout.find(child_idx)?;
-                        let child_x = child_pos.x + i32::from(child_pos.width) / 2;
-                        let child_y = if self.top_down {
-                            child_pos.y
-                        } else {
-                            child_pos.y + i32::from(child_pos.height)
-                        };
-
-                        let mid_y = i32::midpoint(parent_y, child_y);
-                        let (x_left, x_right) = if parent_x <= child_x {
-                            (parent_x, child_x)
-                        } else {
-                            (child_x, parent_x)
-                        };
-
-                        Some(EdgeRoute {
-                            from_x: parent_x,
-                            from_y: parent_y,
-                            to_x: child_x,
-                            to_y: child_y,
-                            segment: HorizontalSegment {
-                                mid_y,
-                                x_left,
-                                x_right,
-                            },
-                            style: edge_data.style.unwrap_or_default(),
-                            label: edge_data.label.as_deref(),
-                        })
-                    })
-            })
+            .flat_map(|pos| self.routes_from_node(pos, dag, layout))
             .collect();
 
         let y_offsets = compute_y_offsets(&routes);
@@ -176,6 +161,40 @@ impl EdgeRenderer {
         for (route, &y_offset) in routes.iter().zip(y_offsets.iter()) {
             self.draw_edge(route, y_offset, viewport, buf);
         }
+    }
+
+    fn routes_from_node<'a, N>(
+        &self,
+        pos: &super::NodePosition,
+        dag: &'a DagGraph<N>,
+        layout: &'a DagLayout,
+    ) -> impl Iterator<Item = EdgeRoute<'a>> + 'a {
+        let parent_x = pos.x + i32::from(pos.width) / 2;
+        let parent_y_val = parent_y(pos, self.top_down);
+        let top_down = self.top_down;
+
+        dag.edges_from(pos.index)
+            .filter_map(move |(child_idx, edge_data)| {
+                let child_pos = layout.find(child_idx)?;
+                let child_x = child_pos.x + i32::from(child_pos.width) / 2;
+                let child_y_val = child_y(child_pos, top_down);
+                let mid_y = i32::midpoint(parent_y_val, child_y_val);
+                let (x_left, x_right) = ordered_x_pair(parent_x, child_x);
+
+                Some(EdgeRoute {
+                    from_x: parent_x,
+                    from_y: parent_y_val,
+                    to_x: child_x,
+                    to_y: child_y_val,
+                    segment: HorizontalSegment {
+                        mid_y,
+                        x_left,
+                        x_right,
+                    },
+                    style: edge_data.style.unwrap_or_default(),
+                    label: edge_data.label.as_deref(),
+                })
+            })
     }
 
     fn draw_edge(&self, route: &EdgeRoute<'_>, y_offset: i32, viewport: Rect, buf: &mut Buffer) {
@@ -277,6 +296,7 @@ impl EdgeRenderer {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_vertical_line(
         &self,
         x: i32,
@@ -293,6 +313,7 @@ impl EdgeRenderer {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_horizontal_line(
         &self,
         x1: i32,

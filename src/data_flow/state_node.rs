@@ -133,7 +133,7 @@ impl<'a> FunctionalStateNode<'a> {
                 Style::default(),
                 "⊢",
                 Style::new().fg(Color::DarkGray),
-                ty.to_string(),
+                ty,
                 Style::new().fg(Theme::GOAL_FG).add_modifier(underline),
             ),
             (None, true) => AlignedRow::new(
@@ -175,7 +175,6 @@ impl<'a> FunctionalStateNode<'a> {
         let bindings = self.node.bindings_after();
         let num_bindings = bindings.len() as u16;
 
-        // Calculate y positions based on layout direction
         let (type_y, bindings_start_y) = if self.top_down {
             (inner.y + num_bindings, inner.y)
         } else {
@@ -279,16 +278,20 @@ impl StatefulWidget for FunctionalStateNode<'_> {
         let rows: Vec<AlignedRow> = if self.top_down {
             bindings_rows.into_iter().chain(once(type_row)).collect()
         } else {
-            once(type_row).chain(bindings_rows.into_iter()).collect()
+            once(type_row).chain(bindings_rows).collect()
         };
 
         let table_height = rows.len() as u16;
-        let table_area = Rect::new(inner.x, inner.y, inner.width, table_height.min(inner.height));
+        let table_area = Rect::new(
+            inner.x,
+            inner.y,
+            inner.width,
+            table_height.min(inner.height),
+        );
 
         let table = AlignedTable::new(rows);
         Widget::render(table, table_area, buf);
 
-        // Render errors below the table
         let error_lines = self.build_error_lines();
         let error_count = error_lines.len();
         let error_style = Style::new().fg(Red::BRIGHT);

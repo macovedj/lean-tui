@@ -54,18 +54,6 @@ impl AnnotatedTextTree {
             Self::Append { children } => children.iter().map(Self::to_plain_text).collect(),
         }
     }
-
-    /// Check if any sub expression has a diff status set.
-    pub fn has_any_diff(&self) -> bool {
-        match self {
-            Self::Text { .. } => false,
-            Self::Tag {
-                subexpression_info,
-                tagged_content,
-            } => subexpression_info.diff_status.is_some() || tagged_content.has_any_diff(),
-            Self::Append { children } => children.iter().any(Self::has_any_diff),
-        }
-    }
 }
 
 impl GenericDag {

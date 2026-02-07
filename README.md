@@ -1,12 +1,12 @@
 # Lean-TUI
 
-**Standalone interactive view that shows a graph view of proofs that are written in [Lean](https://lean-lang.org/).**
+Standalone interactive view for detailed visualization of programs and proofs that are written in [Lean](https://lean-lang.org/).
 
-Shows proof structure, hypotheses, and goals (comparable to the VS Code Web-based info view but in your terminal). However, this info view can also show the **complete graph structure** of the complete proof, not only the current open goals. It also tracks your edits in editor and reversely you can use the info view to jump to locations in the editor.
-
-Type errors are shown as close as possible to the relevant location.
+(See the end of this page for a walkthrough.)
 
 ## Installation
+
+For those that just want to get started quickly
 
 ### 1. Install `lean-tui` from Crates.io
 
@@ -16,7 +16,13 @@ Install Rust (through [`rustup`](https://rustup.rs/)) if you haven't compiled Ru
 cargo install lean-tui
 ```
 
-If `~/.cargo/bin` is in your path, you can now run this program with `lean-tui`.
+Or if you want the latest unstable version,
+
+```bash
+cargo install https://codeberg.org/wvhulle/lean-tui
+```
+
+Now, make sure that `~/.cargo/bin` is in your path to be able to run `lean-tui` (without the `~/.cargo/bin/lean-tui` prefix).
 
 ### 2. Add `LeanPrism` Dependency
 
@@ -71,22 +77,41 @@ You can choose between:
 - Using multiple terminals (emulator windows) side-by-side (a terminal app is typically provided on Windows/Linux/Mac)
 - Using a single terminal window with a terminal multiplexer (you'll need to install `zellij` or `tmux` with your system package manager)
 
-Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one).
+### 2. Open your editor
 
-Split terminal. Launch the TUI in same directory in the second terminal with `lean-tui`.
+Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one). Lean will start up an LSP client hooked up to the default Lean LSP server, which might take a while. Normally, any diagnostics should appear in your editor as the LSP client finishes startup.
 
-### 2. Start Writing Proofs
+If you encounter problems, it is usually because of stale build artifacts or incorrect `lakefile.toml`.
 
-Switch back to your editor:
+### 3. Open `lean-tui`
+
+Make sure you have followed the installation steps and added `~/.cargo/bin` to your path. Focus the other terminal (in any directory) and run this TUI (stands for terminal user interface):
+
+```bash
+lean-tui
+```
+
+This will launch the TUI in the second terminal, listening on a TCP port. Now you can switch back to your editor:
 
 1. Move your cursor somewhere in a proof or function
 2. Type in a proof or hover over tactics (`space,k` in Helix)
 
 You might need to wait a bit the first time, because Lean needs to analyze the proof. Subsequent updates should be faster. I am open for improvements to make this faster.
 
-Coloring is according to role. Assumptions are blue and goals are orange. Errors are red. Completed nodes are purple.
+### Key Bindings and Color Legend
 
-Switch to the TUI. Key bindings:
+Coloring is according to role.
+
+- The cursor location is highlighted with bright foreground (white on black background).
+- Inactive proof states are dimmed gray.
+- Assumptions, parameters, and theorem hypotheses are blue
+- The expected output type, theorem statements and all intermediate proof goals are orange.
+- Completed nodes and proof states with no remaining open goals are purple.
+- Errors are red.
+
+If you don't like the colors or you are confused, please open a pull request or issue with the colors that you want.
+
+Key bindings:
 
 | Key   | Action                          |
 | ----- | ------------------------------- |
@@ -101,7 +126,7 @@ Switch to the TUI. Key bindings:
 | `F`   | Toggle follow mode              |
 | `L`   | Color legend                    |
 
-The TUI follows your cursor in the editor automatically. It will automatically open the right display style. You can disable this behaviour with `F` or you can manually select an open analyzed file with the file picker menu `f`. See below for a longer overview of each style.
+The TUI follows your cursor in the editor automatically. It will automatically open the right display style. You can disable this behavior with `F` or you can manually select an open analyzed file with the file picker menu `f`. See below for a longer overview of each style.
 
 ## Graphs of Proof
 
@@ -129,25 +154,25 @@ theorem commutativityOfIntersections
   exact h2
 ```
 
-I use the above code fragment in the screenshots below. Notice that there is a deliberate type error. This is to show how errors are displayed. As errors are an important part of proof development, they are attached to every display style.
+I use the above code fragment in the screenshots below. Notice that there is a deliberate type error. See how the rewrite is not sufficient to solve the proof goal and fails.
 
-### Plain view
+The deliberate error is there to show how errors are displayed by this program. As errors are an important part of proof development, they are attached to every display style.
+
+### Plain View
 
 Just shows the proof as a list of hypotheses and goals. When an error is active around the cursor position, it also shown. Select a hypotheses or goal and press `g` to move your cursor in your editor to the location where it was introduced. Press `y` to copy it to you clipboard for pasting elsewhere.
 
 Hypotheses are blue. Goals are orange. Errors are red.
 
-https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/plain_view.png
-
 ![(Screenshot at Codeberg)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/plain_view.png)
 
-For the **VS Code users**: Yes, the official info view endorsed by the Lean organisation is written for VS Code, However, I don't like VS Code and vendor lock-in. We should all try to move away from any Microsoft-owned product as soon as possible. Why? Have a look at for example ["Embrace, extend, and extinguish"](https://en.wikipedia.org/wiki/Embrace,_extend,_and_extinguish) but also the recent news.
+For the **VS Code users**: Yes, the official info view endorsed by the Lean organization is written for VS Code, However, I don't like VS Code and vendor lock-in. We should all try to move away from any Microsoft-owned product as soon as possible. Why? Take a look at for example ["Embrace, extend, and extinguish"](https://en.wikipedia.org/wiki/Embrace,_extend,_and_extinguish) but also the recent news.
 
 For the **Neovim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ...) since the Lean plugin relies on Neovim specific features. It is not a generic one.
 
-### Semantic tableau view
+### Semantic Tableau View
 
-Visualizes your active proof as a semantic tableau. This is based on how logicians traditionaly render their deductions. Errors are often too long and would not fit in a node alone, so you can click on it to expand it in a popup at the top of the screen. Press `escape` to close the popup or select another node.
+Visualizes your active proof as a semantic tableau. This is based on how logicians traditionally render their deductions. Errors are often too long and would not fit in a node alone, so you can click on it to expand it in a popup at the top of the screen. Press `escape` to close the popup or select another node.
 
 Again, press `g` to jump to the selected hypothesis or goal. Use the arrow keys or `hjkl` to jump with keyboard only.
 
@@ -155,17 +180,19 @@ Again, press `g` to jump to the selected hypothesis or goal. Use the arrow keys 
 
 For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this view. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
 
-### Before/after view
+### Before/After View
 
-Shows active goal state and on the left also the previous state. Assumptions or hypotheses that are added are highlighed in green. Removed ones are highlighed in red. Errors from cursor position are also shown if present.
+Shows active goal state and on the left also the previous state. You can hide the previous state pane with `p` and also show the next pane with `n` (disabled by default).
+
+In addition to the default colors, assumptions, or hypotheses that are added are highlighted in green. Removed ones are highlighted in red. Errors from cursor position are also shown if present.
 
 ![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/before_after.png)
 
-### Tactic tree view
+### Tactic Tree View
 
-Shows a rendering of the proof displayed as compact unicode tree on the left. On the right, you can see, active hypotheses and goals. The tree will update its location by focusing the active proof state at the cursor position.
+Shows a rendering of the proof displayed as compact Unicode tree on the left. On the right, you can see, active hypotheses and goals. The tree will update its location by focusing the active proof state at the cursor position.
 
-The same keybindings and colors apply as other views.
+The same key bindings and colors apply as other views.
 
 ![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/tactic_tree.png)
 
@@ -173,24 +200,26 @@ The same keybindings and colors apply as other views.
 
 There are display modes focused on everything that is not a tactic proof. These modes should be useful for functional or monadic programming. You can test them out with some test files in [`./Samples`](./Samples)
 
-### Data Flow (experimental)
+### Data Flow (Experimental)
 
 Use this for term-style proofs (without `by` or tactics). You can also use it for normal pure functional programs. It shows a graph of the local bindings and expected types throughout the program
 
-The decomposition is based on a few built-in rules. However, not all Lean control flow has an accompanying rule. Please be patient as I add more rules or contribute them to [`lean-prism`](https://codeberg.org/wvhulle/lean-prism).
+The decomposition is based on a few built-in rules. However, not all Lean control flow has an accompanying rule. Please be patient as I add more rules or contribute yourself them to [`lean-prism`](https://codeberg.org/wvhulle/lean-prism). Rules can also be provided in user code and are picked up by `LeanPrism` (not tested yet).
 
 Open the legend with `L` to see what all symbols and colors mean.
 
 ![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/data_flow.png)
 
-### Effect flow (experimental)
+### Effect Flow (Experimental)
 
 When working doing programming in a monad, you are doing some kind of effectful computations. Every monadic assignment in `Lean` written as `let <- COMPUTATION` can be composed in two parts:
 
-- What the computation produces
-- What state changes are given back components (the effect)
+- What the computation produces, shown with a forward arrow
+- What state changes are given back components (the effect), shown with a backward arrow
 
-The purple edges in the diagram are definition expansions (will be hideable in future) and the blue ones are the monadic binds. Displaying errors is not implemented yet.
+This decomposition is not implemented yet for all monads. Please contribute if you have time. You just need to specify how to compute the forward and backward expressions and have to label edges. You can also provide rules in user code (not tested yet).
+
+The purple edges in the diagram are definition expansions (will be hide-able in future) and the blue ones are the monadic binds. Displaying errors is not implemented yet.
 
 Open the legend with `L` to see what all symbols mean.
 
@@ -198,6 +227,6 @@ Open the legend with `L` to see what all symbols mean.
 
 ## Development
 
-Let me know if you tried it out and encountered any issues! PRs are also welcome.
+Let me know if you tried it out and encountered any issues! PRs are also welcome. For those, who don't know Rust (understandable), there is a large portion of Lean code in the backend that also needs to be worked on. Take a look there if you want to contribute as a Lean user.
 
 See [`./CONTRIBUTING.md`](/CONTRIBUTING.md) for more.

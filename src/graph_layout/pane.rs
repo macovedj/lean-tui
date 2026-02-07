@@ -1,5 +1,5 @@
 use petgraph::graph::NodeIndex;
-use ratatui::layout::Rect;
+use ratatui::{buffer::Buffer, layout::Rect};
 
 use super::{
     center_on, clip_to_viewport, render_edges, render_scrollbars, scroll_target, DagGraph,
@@ -39,12 +39,12 @@ impl GraphViewport {
     where
         F: FnOnce() -> DagLayout,
     {
-        if self.layout_node_count != node_count {
+        if self.layout_node_count == node_count {
+            false
+        } else {
             self.layout = compute_layout();
             self.layout_node_count = node_count;
             true
-        } else {
-            false
         }
     }
 
@@ -58,16 +58,14 @@ impl GraphViewport {
         let (scroll_x, scroll_y) = if self.manual_scroll {
             (self.scroll_x, self.scroll_y)
         } else {
-            scroll_target(&self.layout, selected_idx, current, root)
-                .map(|t| {
-                    center_on(
-                        t,
-                        self.layout.content_width,
-                        self.layout.content_height,
-                        viewport,
-                    )
-                })
-                .unwrap_or((0, 0))
+            scroll_target(&self.layout, selected_idx, current, root).map_or((0, 0), |t| {
+                center_on(
+                    t,
+                    self.layout.content_width,
+                    self.layout.content_height,
+                    viewport,
+                )
+            })
         };
         self.scroll_x = scroll_x;
         self.scroll_y = scroll_y;
@@ -79,7 +77,7 @@ impl GraphViewport {
         graph: &DagGraph<N>,
         config: LayoutConfig,
         viewport: Rect,
-        buf: &mut ratatui::buffer::Buffer,
+        buf: &mut Buffer,
     ) {
         render_edges(
             graph,
@@ -92,7 +90,7 @@ impl GraphViewport {
         );
     }
 
-    pub fn render_scrollbars(&self, viewport: Rect, buf: &mut ratatui::buffer::Buffer) {
+    pub fn render_scrollbars(&self, viewport: Rect, buf: &mut Buffer) {
         render_scrollbars(
             buf,
             viewport,

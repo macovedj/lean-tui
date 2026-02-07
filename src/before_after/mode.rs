@@ -284,12 +284,12 @@ impl InteractiveComponent for BeforeAfterMode {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         self.selection.clear_regions();
 
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        // Count total lines in error messages
         let error_lines: usize = self
             .current_node_errors
             .iter()
@@ -302,11 +302,9 @@ impl InteractiveComponent for BeforeAfterMode {
             let max_error_height = (content_area.height / 3).max(3);
             let error_height = ((error_lines as u16) + 2).min(max_error_height);
 
-            let [main, errors] = Layout::vertical([
-                Constraint::Fill(1),
-                Constraint::Length(error_height),
-            ])
-            .areas(content_area);
+            let [main, errors] =
+                Layout::vertical([Constraint::Fill(1), Constraint::Length(error_height)])
+                    .areas(content_area);
             (main, Some(errors))
         } else {
             (content_area, None)
