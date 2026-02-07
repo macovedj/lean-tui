@@ -1,8 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    style::{Modifier, Style},
-    text::{Line, Span},
+    style::{Color, Modifier, Style},
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
     Frame,
 };
@@ -11,6 +10,7 @@ use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{
+        aligned_table::{AlignedRow, AlignedTable},
         diff_text::AnnotatedTextTreeExt,
         hypothesis_indices,
         theme::{Blue, Orange, Theme},
@@ -146,48 +146,53 @@ impl OpenGoalList<'_> {
             return;
         }
 
-        let mut y = inner.y;
-        for hyp_idx in hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order) {
-            if !self.should_show_hypothesis(hyp_idx) {
-                continue;
+        let visible_hyps: Vec<_> =
+            hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
+                .filter(|&i| self.should_show_hypothesis(i))
+                .take(inner.height as usize)
+                .collect();
+
+        let rows: Vec<AlignedRow> = visible_hyps
+            .iter()
+            .map(|&hyp_idx| {
+                let h = &self.state.hypotheses[hyp_idx];
+                let is_selected = matches!(
+                    self.selection,
+                    Some(Selection::Hyp { hyp_idx: sel_idx, .. }) if sel_idx == hyp_idx
+                );
+
+                let style = if is_selected {
+                    Style::new().bg(Theme::SELECTION_BG)
+                } else {
+                    Style::default()
+                };
+
+                AlignedRow::with_styled_type(
+                    h.name.clone(),
+                    style.fg(Theme::HYP_NAME),
+                    ":",
+                    Style::new().fg(Color::DarkGray),
+                    h.type_.to_spans(style.fg(Theme::HYP_TYPE)),
+                )
+            })
+            .collect();
+
+        let table = AlignedTable::new(rows);
+        Widget::render(table, inner, buf);
+
+        if let Some(nid) = self.node_id {
+            for (row, &hyp_idx) in visible_hyps.iter().enumerate() {
+                let row_y = inner.y + row as u16;
+                if row_y < inner.bottom() {
+                    state.click_regions.push(Region::from_rect(
+                        Rect::new(inner.x, row_y, inner.width, 1),
+                        Selection::Hyp {
+                            node_id: nid,
+                            hyp_idx,
+                        },
+                    ));
+                }
             }
-            if y >= inner.bottom() {
-                break;
-            }
-
-            let h = &self.state.hypotheses[hyp_idx];
-            let is_selected = matches!(
-                self.selection,
-                Some(Selection::Hyp { hyp_idx: sel_idx, .. }) if sel_idx == hyp_idx
-            );
-
-            let style = if is_selected {
-                Style::new().bg(Theme::SELECTION_BG)
-            } else {
-                Style::default()
-            };
-
-            let mut spans = vec![
-                Span::styled(&h.name, style.fg(Theme::HYP_NAME)),
-                Span::styled(" : ", style),
-            ];
-            spans.extend(h.type_.to_spans(style.fg(Theme::HYP_TYPE)));
-            let line = Line::from(spans);
-
-            let line_area = Rect::new(inner.x, y, inner.width, 1);
-            Paragraph::new(line).render(line_area, buf);
-
-            if let Some(nid) = self.node_id {
-                state.click_regions.push(Region::from_rect(
-                    line_area,
-                    Selection::Hyp {
-                        node_id: nid,
-                        hyp_idx,
-                    },
-                ));
-            }
-
-            y += 1;
         }
     }
 
@@ -220,55 +225,67 @@ impl OpenGoalList<'_> {
             return;
         }
 
-        let mut y = inner.y;
-        for (goal_idx, g) in self.state.goals.iter().enumerate() {
-            if y >= inner.bottom() {
-                break;
+        let visible_goals: Vec<_> = self
+            .state
+            .goals
+            .iter()
+            .enumerate()
+            .take(inner.height as usize)
+            .collect();
+
+        let rows: Vec<AlignedRow> = visible_goals
+            .iter()
+            .map(|&(goal_idx, g)| {
+                let is_selected = matches!(
+                    self.selection,
+                    Some(Selection::Goal { goal_idx: sel_idx, .. }) if sel_idx == goal_idx
+                );
+                let is_active = self
+                    .active_goal_name
+                    .is_some_and(|name| g.username_str() == Some(name));
+
+                let style = if is_selected {
+                    Style::new().bg(Theme::SELECTION_BG)
+                } else {
+                    Style::default()
+                };
+
+                let target_style = if is_active {
+                    style
+                        .fg(Theme::CURRENT_NODE_BORDER)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    style.fg(Theme::GOAL_TYPE)
+                };
+
+                let name_text = g.username_str().unwrap_or_default().to_string();
+
+                AlignedRow::with_styled_type(
+                    name_text,
+                    style,
+                    "⊢",
+                    Style::new().fg(Color::DarkGray),
+                    g.type_.to_spans(target_style),
+                )
+            })
+            .collect();
+
+        let table = AlignedTable::new(rows);
+        Widget::render(table, inner, buf);
+
+        if let Some(nid) = self.node_id {
+            for (row, &(goal_idx, _)) in visible_goals.iter().enumerate() {
+                let row_y = inner.y + row as u16;
+                if row_y < inner.bottom() {
+                    state.click_regions.push(Region::from_rect(
+                        Rect::new(inner.x, row_y, inner.width, 1),
+                        Selection::Goal {
+                            node_id: nid,
+                            goal_idx,
+                        },
+                    ));
+                }
             }
-
-            let is_selected = matches!(
-                self.selection,
-                Some(Selection::Goal { goal_idx: sel_idx, .. }) if sel_idx == goal_idx
-            );
-            let is_active = self
-                .active_goal_name
-                .is_some_and(|name| g.username_str() == Some(name));
-
-            let style = if is_selected {
-                Style::new().bg(Theme::SELECTION_BG)
-            } else {
-                Style::default()
-            };
-
-            let target_style = if is_active {
-                style
-                    .fg(Theme::CURRENT_NODE_BORDER)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                style.fg(Theme::GOAL_TYPE)
-            };
-
-            let prefix = g
-                .username_str()
-                .map_or_else(|| "⊢ ".to_string(), |name| format!("case {name} ⊢ "));
-            let mut spans = vec![Span::styled(prefix, style)];
-            spans.extend(g.type_.to_spans(target_style));
-            let line = Line::from(spans);
-
-            let line_area = Rect::new(inner.x, y, inner.width, 1);
-            Paragraph::new(line).render(line_area, buf);
-
-            if let Some(nid) = self.node_id {
-                state.click_regions.push(Region::from_rect(
-                    line_area,
-                    Selection::Goal {
-                        node_id: nid,
-                        goal_idx,
-                    },
-                ));
-            }
-
-            y += 1;
         }
     }
 }

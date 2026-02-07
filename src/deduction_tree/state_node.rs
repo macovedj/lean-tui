@@ -1,15 +1,16 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Rect},
+    layout::Rect,
     style::{Color, Modifier, Style},
     text::Span,
-    widgets::{Block, Borders, Cell, Row, StatefulWidget, Table, Widget},
+    widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
 use super::{given_pane::hyp_style_colors, types::ProofDagTacticNode};
 use crate::{
     deduction_tree::TacticProofState,
     shared::{
+        aligned_table::{AlignedRow, AlignedTable},
         theme::Theme,
         Region, Selection,
     },
@@ -75,35 +76,7 @@ impl<'a> StateNode<'a> {
         }
     }
 
-    fn max_name_width(&self) -> u16 {
-        let hyp_max = self
-            .node
-            .new_hypothesis_indices
-            .iter()
-            .filter_map(|&idx| {
-                self.node
-                    .proof_state_after
-                    .hypotheses
-                    .get(idx as usize)
-                    .map(|h| h.name.chars().count())
-            })
-            .max()
-            .unwrap_or(0);
-
-        let goals = self
-            .override_state
-            .map_or(&self.node.proof_state_after.goals, |s| &s.goals);
-
-        let goal_max = goals
-            .iter()
-            .filter_map(|g| g.username_str().map(|s| s.chars().count()))
-            .max()
-            .unwrap_or(0);
-
-        hyp_max.max(goal_max) as u16
-    }
-
-    fn build_hyp_rows(&self) -> Vec<Row<'static>> {
+    fn build_hyp_rows(&self) -> Vec<AlignedRow> {
         self.node
             .new_hypothesis_indices
             .iter()
@@ -120,33 +93,33 @@ impl<'a> StateNode<'a> {
                     Modifier::empty()
                 };
 
-                let name_style = Style::new().fg(fg).add_modifier(underline);
-                let type_style = Style::new().fg(fg).add_modifier(underline);
+                let style = Style::new().fg(fg).add_modifier(underline);
 
-                Some(Row::new(vec![
-                    Cell::from(h.name.clone()).style(name_style),
-                    Cell::from(":").style(Style::new().fg(Color::DarkGray)),
-                    Cell::from(h.type_.to_plain_text()).style(type_style),
-                ]))
+                Some(AlignedRow::new(
+                    h.name.clone(),
+                    style,
+                    ":",
+                    Style::new().fg(Color::DarkGray),
+                    h.type_.to_plain_text(),
+                    style,
+                ))
             })
             .collect()
     }
 
-    fn build_goal_rows(&self) -> Vec<Row<'static>> {
+    fn build_goal_rows(&self) -> Vec<AlignedRow> {
         if self.is_effective_complete() {
-            return vec![Row::new(vec![
-                Cell::from(""),
-                Cell::from("✓").style(
-                    Style::new()
-                        .fg(Theme::COMPLETED_GOAL_FG)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Cell::from("Goal completed").style(
-                    Style::new()
-                        .fg(Theme::COMPLETED_GOAL_FG)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ])];
+            let completed_style = Style::new()
+                .fg(Theme::COMPLETED_GOAL_FG)
+                .add_modifier(Modifier::BOLD);
+            return vec![AlignedRow::new(
+                "",
+                Style::default(),
+                "✓",
+                completed_style,
+                "Goal completed",
+                completed_style,
+            )];
         }
 
         let goals = self
@@ -154,11 +127,14 @@ impl<'a> StateNode<'a> {
             .map_or(&self.node.proof_state_after.goals, |s| &s.goals);
 
         if goals.is_empty() {
-            return vec![Row::new(vec![
-                Cell::from(""),
-                Cell::from("⊢").style(Style::new().fg(Color::DarkGray)),
-                Cell::from("...").style(Style::new().fg(Theme::GOAL_FG)),
-            ])];
+            return vec![AlignedRow::new(
+                "",
+                Style::default(),
+                "⊢",
+                Style::new().fg(Color::DarkGray),
+                "...",
+                Style::new().fg(Theme::GOAL_FG),
+            )];
         }
 
         goals
@@ -185,11 +161,14 @@ impl<'a> StateNode<'a> {
 
                 let type_style = Style::new().fg(Theme::GOAL_FG).add_modifier(underline);
 
-                Row::new(vec![
-                    Cell::from(name_text).style(name_style),
-                    Cell::from("⊢").style(Style::new().fg(Color::DarkGray)),
-                    Cell::from(g.type_.to_plain_text()).style(type_style),
-                ])
+                AlignedRow::new(
+                    name_text,
+                    name_style,
+                    "⊢",
+                    Style::new().fg(Color::DarkGray),
+                    g.type_.to_plain_text(),
+                    type_style,
+                )
             })
             .collect()
     }
@@ -276,21 +255,11 @@ impl StatefulWidget for StateNode<'_> {
             return;
         }
 
-        let mut rows: Vec<Row> = Vec::new();
+        let mut rows: Vec<AlignedRow> = Vec::new();
         rows.extend(self.build_hyp_rows());
         rows.extend(self.build_goal_rows());
 
-        let name_width = self.max_name_width().max(1);
-
-        let table = Table::new(
-            rows,
-            [
-                Constraint::Length(name_width),
-                Constraint::Length(1),
-                Constraint::Fill(1),
-            ],
-        );
-
+        let table = AlignedTable::new(rows);
         Widget::render(table, inner, buf);
 
         state.click_regions = self.build_click_regions(inner);

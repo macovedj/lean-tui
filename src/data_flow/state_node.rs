@@ -4,14 +4,18 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
+    text::Span,
+    widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
 use super::types::{DataFlowKind, DataFlowNode, SimpleBinding};
 use crate::{
     protocol::BindingKind,
-    shared::{theme::Theme, Region, Selection},
+    shared::{
+        aligned_table::{AlignedRow, AlignedTable},
+        theme::Theme,
+        Region, Selection,
+    },
 };
 
 /// State for a single functional state node widget.
@@ -88,7 +92,7 @@ impl<'a> FunctionalStateNode<'a> {
         )
     }
 
-    fn bindings_lines(&self) -> Vec<Line<'static>> {
+    fn bindings_rows(&self) -> Vec<AlignedRow> {
         let bindings = self.node.bindings_after();
         bindings
             .iter()
@@ -97,13 +101,20 @@ impl<'a> FunctionalStateNode<'a> {
                 let is_new = self.node.is_new_binding(idx);
                 let is_selected = self.is_binding_selected(idx);
                 let style = binding_style(b, is_new, is_selected);
-                let text = format!("{}: {}", b.name, b.type_str);
-                Line::from(Span::styled(text, style))
+
+                AlignedRow::new(
+                    b.name.clone(),
+                    style,
+                    ":",
+                    Style::new().fg(Color::DarkGray),
+                    b.type_str.clone(),
+                    style,
+                )
             })
             .collect()
     }
 
-    fn type_line(&self) -> Line<'static> {
+    fn type_row(&self) -> AlignedRow {
         let underline = if self.is_goal_selected() {
             Modifier::UNDERLINED
         } else {
@@ -111,20 +122,34 @@ impl<'a> FunctionalStateNode<'a> {
         };
 
         match (self.node.expected_type(), self.node.is_complete()) {
-            (Some(ty), _) => Line::from(Span::styled(
-                format!("⊢ {ty}"),
+            (Some(ty), _) => AlignedRow::new(
+                "",
+                Style::default(),
+                "⊢",
+                Style::new().fg(Color::DarkGray),
+                ty.to_string(),
                 Style::new().fg(Theme::GOAL_FG).add_modifier(underline),
-            )),
-            (None, true) => Line::from(Span::styled(
-                "✓ Complete",
+            ),
+            (None, true) => AlignedRow::new(
+                "",
+                Style::default(),
+                "✓",
                 Style::new()
                     .fg(Theme::COMPLETED_GOAL_FG)
                     .add_modifier(Modifier::BOLD),
-            )),
-            (None, false) => Line::from(Span::styled(
-                "⊢ ...",
+                "Complete",
+                Style::new()
+                    .fg(Theme::COMPLETED_GOAL_FG)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            (None, false) => AlignedRow::new(
+                "",
+                Style::default(),
+                "⊢",
+                Style::new().fg(Color::DarkGray),
+                "...",
                 Style::new().fg(Theme::GOAL_FG).add_modifier(underline),
-            )),
+            ),
         }
     }
 
@@ -211,17 +236,17 @@ impl StatefulWidget for FunctionalStateNode<'_> {
             return;
         }
 
-        let bindings_lines = self.bindings_lines();
-        let type_line = self.type_line();
+        let bindings_rows = self.bindings_rows();
+        let type_row = self.type_row();
 
-        let lines: Vec<Line> = if self.top_down {
-            bindings_lines.into_iter().chain(once(type_line)).collect()
+        let rows: Vec<AlignedRow> = if self.top_down {
+            bindings_rows.into_iter().chain(once(type_row)).collect()
         } else {
-            once(type_line).chain(bindings_lines.into_iter()).collect()
+            once(type_row).chain(bindings_rows.into_iter()).collect()
         };
 
-        // Render without wrapping - content will be clipped if too wide
-        Paragraph::new(lines).render(inner, buf);
+        let table = AlignedTable::new(rows);
+        Widget::render(table, inner, buf);
 
         state.click_regions = self.click_regions(inner);
     }
