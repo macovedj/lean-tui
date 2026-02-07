@@ -192,7 +192,7 @@ fn goal_line(goal: &ProofObligation, is_selected: bool, is_active: bool) -> Line
 
     let case_label = goal
         .username_str()
-        .map_or(String::new(), |n| format!("{n}: "));
+        .map_or(String::new(), |n| format!("{n} "));
 
     let mut spans = vec![Span::styled(case_label, style), Span::styled("⊢ ", style)];
     spans.extend(goal.type_.to_spans(style));
