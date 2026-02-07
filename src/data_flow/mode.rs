@@ -84,6 +84,8 @@ pub struct DataFlowMode {
     tree_top_down: bool,
     /// State for the functional tableau widget.
     functional_tableau_state: FunctionalTableauState,
+    /// Clicked error message to display in banner.
+    clicked_error: Option<String>,
 }
 
 impl Default for DataFlowMode {
@@ -96,6 +98,7 @@ impl Default for DataFlowMode {
             selected_idx: None,
             tree_top_down: true,
             functional_tableau_state: FunctionalTableauState::default(),
+            clicked_error: None,
         }
     }
 }
@@ -103,6 +106,11 @@ impl Default for DataFlowMode {
 impl DataFlowMode {
     pub const fn filters(&self) -> HypothesisFilters {
         self.filters
+    }
+
+    /// Take the clicked error message (if any) and clear it.
+    pub fn take_clicked_error(&mut self) -> Option<String> {
+        self.clicked_error.take()
     }
 
     /// Build selectable items for data flow DAG.
@@ -271,6 +279,17 @@ impl InteractiveComponent for DataFlowMode {
                     .find_click_at(mouse.column, mouse.row);
 
                 if let Some(sel) = clicked {
+                    // Handle error clicks specially - show full error in banner
+                    if let Selection::Error { node_id, error_idx } = sel {
+                        if let Some(dag) = &self.dag {
+                            if let Some(node) = dag.get(node_id) {
+                                if let Some(error) = node.diagnostics.get(error_idx) {
+                                    self.clicked_error = Some(error.message.clone());
+                                    return true;
+                                }
+                            }
+                        }
+                    }
                     self.select_by_selection(sel);
                     return true;
                 }

@@ -13,7 +13,7 @@ def increment : StateM Counter Nat := do
   let newValue := s.value + 1
 
   set { value := newValue, operations := s.operations + 1 : Counter }
-  pure false
+  pure newValue
 
 def double : StateM Counter Nat := do
   let s ← get

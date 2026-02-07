@@ -107,8 +107,6 @@ pub struct TacticTree {
     focused_pane: FocusedPane,
     /// Last known sidebar viewport height (for scroll bounds).
     sidebar_viewport_height: usize,
-    /// Clicked error message to show in overlay.
-    clicked_error: Option<String>,
 }
 
 impl TacticTree {
@@ -298,14 +296,11 @@ impl TacticTree {
         }
 
         // Check for clicks on errors section
-        if let Some(error_idx) = self
+        if self
             .errors_section_state
-            .find_error_at(mouse.column, mouse.row)
+            .handle_click(mouse.column, mouse.row)
         {
-            if let Some(msg) = self.errors_section_state.get_error_message(error_idx) {
-                self.clicked_error = Some(msg.to_string());
-                return true;
-            }
+            return true;
         }
 
         let items = self.selectable_items();
@@ -314,7 +309,7 @@ impl TacticTree {
 
     /// Take the clicked error message (if any) and clear it.
     pub fn take_clicked_error(&mut self) -> Option<String> {
-        self.clicked_error.take()
+        self.errors_section_state.take_clicked_error()
     }
 }
 

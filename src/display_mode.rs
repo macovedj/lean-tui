@@ -301,6 +301,7 @@ impl DisplayMode {
             ModeVariant::PlainGoal(m) => m.take_clicked_error(),
             ModeVariant::BeforeAfter(m) => m.take_clicked_error(),
             ModeVariant::TacticTree(m) => m.take_clicked_error(),
+            ModeVariant::DataFlow(m) => m.take_clicked_error(),
             _ => None,
         }
     }

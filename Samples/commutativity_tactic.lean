@@ -11,5 +11,7 @@ theorem commutativityOfIntersections
 
   exact h1
   intro h2
-  rw [Set.mem_inter_iff, and_comm] at h2
+  -- Wrong
+  rw [ and_comm] at h2
+  -- Correct: rw [Set.mem_inter_iff, and_comm] at h2
   exact h2

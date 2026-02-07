@@ -4,7 +4,7 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::Span,
+    text::{Line, Span},
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
@@ -159,23 +159,19 @@ impl<'a> FunctionalStateNode<'a> {
         }
     }
 
-    fn build_error_rows(&self) -> Vec<AlignedRow> {
-        let error_style = Style::new().fg(Red::BRIGHT);
+    fn build_error_lines(&self) -> Vec<String> {
         self.node
             .diagnostics
             .iter()
             .filter(|d| d.severity == DiagnosticSeverity::Error)
-            .flat_map(|d| {
-                // Show multiple lines of the error message
-                d.message.lines().enumerate().map(move |(i, line)| {
-                    let prefix = if i == 0 { "✗" } else { " " };
-                    AlignedRow::new("", Style::default(), prefix, error_style, line, error_style)
-                })
+            .map(|d| {
+                // Truncate message to first line for compact display
+                d.message.lines().next().unwrap_or(&d.message).to_string()
             })
             .collect()
     }
 
-    fn click_regions(&self, inner: Rect) -> Vec<Region> {
+    fn click_regions(&self, inner: Rect, table_height: u16, error_count: usize) -> Vec<Region> {
         let bindings = self.node.bindings_after();
         let num_bindings = bindings.len() as u16;
 
@@ -215,7 +211,24 @@ impl<'a> FunctionalStateNode<'a> {
             })
             .collect();
 
-        once(goal_region).chain(binding_regions).collect()
+        // Error click regions (below the table)
+        let error_y = inner.y + table_height;
+        let error_regions: Vec<Region> = (0..error_count)
+            .map(|error_idx| {
+                Region::from_rect(
+                    Rect::new(inner.x, error_y + error_idx as u16, inner.width, 1),
+                    Selection::Error {
+                        node_id: self.node.id,
+                        error_idx,
+                    },
+                )
+            })
+            .collect();
+
+        once(goal_region)
+            .chain(binding_regions)
+            .chain(error_regions)
+            .collect()
     }
 }
 
@@ -262,25 +275,38 @@ impl StatefulWidget for FunctionalStateNode<'_> {
 
         let bindings_rows = self.bindings_rows();
         let type_row = self.type_row();
-        let error_rows = self.build_error_rows();
 
         let rows: Vec<AlignedRow> = if self.top_down {
-            bindings_rows
-                .into_iter()
-                .chain(once(type_row))
-                .chain(error_rows)
-                .collect()
+            bindings_rows.into_iter().chain(once(type_row)).collect()
         } else {
-            once(type_row)
-                .chain(bindings_rows.into_iter())
-                .chain(error_rows)
-                .collect()
+            once(type_row).chain(bindings_rows.into_iter()).collect()
         };
 
-        let table = AlignedTable::new(rows);
-        Widget::render(table, inner, buf);
+        let table_height = rows.len() as u16;
+        let table_area = Rect::new(inner.x, inner.y, inner.width, table_height.min(inner.height));
 
-        state.click_regions = self.click_regions(inner);
+        let table = AlignedTable::new(rows);
+        Widget::render(table, table_area, buf);
+
+        // Render errors below the table
+        let error_lines = self.build_error_lines();
+        let error_count = error_lines.len();
+        let error_style = Style::new().fg(Red::BRIGHT);
+        let error_y = inner.y + table_height;
+        for (i, msg) in error_lines.into_iter().enumerate() {
+            let row_y = error_y + i as u16;
+            if row_y >= inner.y + inner.height {
+                break;
+            }
+            buf.set_line(
+                inner.x,
+                row_y,
+                &Line::from(Span::styled(msg, error_style)),
+                inner.width,
+            );
+        }
+
+        state.click_regions = self.click_regions(inner, table_height, error_count);
     }
 }
 
@@ -298,23 +324,14 @@ fn binding_style(binding: &SimpleBinding, is_new: bool, is_selected: bool) -> St
     style
 }
 
-/// Get colors for a binding based on kind and whether it's newly introduced.
-fn binding_colors(kind: BindingKind, is_new: bool) -> (Color, Color) {
+/// Get colors for a binding based on whether it's newly introduced.
+/// Uses the same blue as proof node hypotheses for consistency.
+fn binding_colors(_kind: BindingKind, is_new: bool) -> (Color, Color) {
     if is_new {
-        // New bindings get brighter/highlighted colors
-        match kind {
-            BindingKind::LetBind => (Theme::PROOF_HYP_FG, Theme::PROOF_HYP_BG),
-            BindingKind::FunParam => (Theme::DATA_HYP_FG, Theme::DATA_HYP_BG),
-            BindingKind::MatchVar => (Color::Rgb(200, 170, 220), Color::Rgb(50, 45, 60)),
-            BindingKind::ForVar => (Color::Rgb(170, 200, 220), Color::Rgb(45, 50, 60)),
-        }
+        // New bindings: bright blue with background (same as proof hypotheses)
+        (Theme::DATA_HYP_FG, Theme::DATA_HYP_BG)
     } else {
-        // Existing bindings get dimmer colors
-        match kind {
-            BindingKind::LetBind => (Color::Rgb(100, 90, 80), Color::Reset),
-            BindingKind::FunParam => (Color::Rgb(80, 100, 90), Color::Reset),
-            BindingKind::MatchVar => (Color::Rgb(100, 90, 110), Color::Reset),
-            BindingKind::ForVar => (Color::Rgb(90, 100, 110), Color::Reset),
-        }
+        // Existing bindings: dimmer blue, no background
+        (Color::Rgb(100, 130, 170), Color::Reset)
     }
 }

@@ -4,61 +4,7 @@
 
 Shows proof structure, hypotheses, and goals (comparable to the VS Code Web-based info view but in your terminal). However, this info view can also show the **complete graph structure** of the complete proof, not only the current open goals. It also tracks your edits in editor and reversely you can use the info view to jump to locations in the editor.
 
-## Example
-
-Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof:
-
-```lean
-import Mathlib.Data.Set.Basic
-
-theorem commutativityOfIntersections
-    (s t : Set Nat) : s ∩ t = t ∩ s := by
-  ext x
-  apply Iff.intro
-
-  intro h1
-  rw [Set.mem_inter_iff, and_comm] at h1
-  exact h1
-
-  intro h2
-  rw [Set.mem_inter_iff, and_comm] at h2
-
-  -- exact h2
-```
-
-This program will visualize the (incomplete) proof state by querying the Lean run-time and displaying with one of the following styles.
-
-## Graphs of Proof
-
-| Linear                       | Graph                            |
-| ---------------------------- | -------------------------------- |
-| ![](./imgs/flat_list.png)    | ![](./imgs/tactic_tree.png)      |
-| ![](./imgs/before_after.png) | ![](./imgs/semantic_tableau.png) |
-
-Linear modes do not show much proof structure:
-
-- Plain list: simplest display mode with just a list of open goals
-- Before after: current active goal state and previous and next goal state
-
-If you are interested in your proof as it evolves (like a directed acyclic graph), use one of these:
-
-- Tactic tree: tree of the tactic structure next to active hypotheses and goals
-- Semantic tableau: proof shown as a semantic tableau
-
-## Graphs of Functional Programs
-
-There are display modes focused on functional programming:
-
-| Pure                       | Monadic                 |
-| -------------------------- | ----------------------- |
-| ![](./imgs/functional.png) | ![](./imgs/monadic.png) |
-
-I split them into:
-
-- Data flow: for normal functional programs. It shows a graph of the local bindings and expected types throughout the program (but not yet supporting all control flow)
-- Effect flow: decompose monadic computations into return (what an operation produces) and effect (what state changes are given back) components. Applies to `StateM`, `ExceptT`, and similar effect stacks. This is fairly new and a work-in-progress.
-
-Try it out by opening one of the samples in [`samples/`](./samples).
+Type errors are shown as close as possible to the relevant location.
 
 ## Installation
 
@@ -114,7 +60,9 @@ Add this to the top of your Lean file (or build target):
 import LeanPrism
 ```
 
-## Usage
+If you encounter issues, restart your LSP client using your editor's command. You should see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take a while at the beginning.
+
+## Quickstart
 
 ### 1. Split Your Terminal
 
@@ -134,7 +82,9 @@ Switch back to your editor:
 1. Move your cursor somewhere in a proof or function
 2. Type in a proof or hover over tactics (`space,k` in Helix)
 
-### 3. Play with Lean-TUI
+You might need to wait a bit the first time, because Lean needs to analyze the proof. Subsequent updates should be faster. I am open for improvements to make this faster.
+
+Coloring is according to role. Assumptions are blue and goals are orange. Errors are red. Completed nodes are purple.
 
 Switch to the TUI. Key bindings:
 
@@ -147,18 +97,105 @@ Switch to the TUI. Key bindings:
 | `?`   | Help menu                       |
 | `q`   | Quit                            |
 | `f`   | File selection                  |
+| `esc` | Close error banner              |
+| `F`   | Toggle follow mode              |
 | `L`   | Color legend                    |
 
-The TUI follows your cursor in the editor automatically.
+The TUI follows your cursor in the editor automatically. It will automatically open the right display style. You can disable this behaviour with `F` or you can manually select an open analyzed file with the file picker menu `f`. See below for a longer overview of each style.
 
-## Why?
+## Graphs of Proof
 
-For the **VS Code users**: I don't like VS Code and vendor lock-in, but I like the LSP protocol. The LSP protocol allows programmers to pick whichever editor they like. This means programmers (and mathematicians) will never be stuck with any big company.
+### Example Proof
 
-For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
+Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof:
+
+```lean
+import LeanPrism -- important
+import Mathlib.Data.Set.Basic
+
+theorem commutativityOfIntersections
+    (s t : Set Nat) : s ∩ t = t ∩ s := by
+  ext x
+  apply Iff.intro
+
+  intro h1
+  rw [Set.mem_inter_iff, and_comm] at h1
+
+  exact h1
+  intro h2
+  -- Wrong
+  rw [ and_comm] at h2
+  -- Correct: rw [Set.mem_inter_iff, and_comm] at h2
+  exact h2
+```
+
+I use the above code fragment in the screenshots below. Notice that there is a deliberate type error. This is to show how errors are displayed. As errors are an important part of proof development, they are attached to every display style.
+
+### Plain view
+
+Just shows the proof as a list of hypotheses and goals. When an error is active around the cursor position, it also shown. Select a hypotheses or goal and press `g` to move your cursor in your editor to the location where it was introduced. Press `y` to copy it to you clipboard for pasting elsewhere.
+
+Hypotheses are blue. Goals are orange. Errors are red.
+
+![(Screenshot at Codeberg)](./screenshots/plain_view.png)
+
+For the **VS Code users**: Yes, the official info view endorsed by the Lean organisation is written for VS Code, However, I don't like VS Code and vendor lock-in. We should all try to move away from any Microsoft-owned product as soon as possible. Why? Have a look at for example ["Embrace, extend, and extinguish"](https://en.wikipedia.org/wiki/Embrace,_extend,_and_extinguish) but also the recent news.
 
 For the **Neovim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ...) since the Lean plugin relies on Neovim specific features. It is not a generic one.
 
-The `lean-prism` LSP server and this front-end is my attempt at a more generic one, not bound to any editor in particular, and usable from any terminal window.
+### Semantic tableau view
+
+Visualizes your active proof as a semantic tableau. This is based on how logicians traditionaly render their deductions. Errors are often too long and would not fit in a node alone, so you can click on it to expand it in a popup at the top of the screen. Press `escape` to close the popup or select another node.
+
+Again, press `g` to jump to the selected hypothesis or goal. Use the arrow keys or `hjkl` to jump with keyboard only.
+
+![(Screenshot in repo)](./screenshots/semantic_tableau.png) |
+
+For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this view. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
+
+### Before/after view
+
+Shows active goal state and on the left also the previous state. Assumptions or hypotheses that are added are highlighed in green. Removed ones are highlighed in red. Errors from cursor position are also shown if present.
+
+![(Screenshot in repo)](./screenshots/before_after.png)
+
+### Tactic tree view
+
+Shows a rendering of the proof displayed as compact unicode tree on the left. On the right, you can see, active hypotheses and goals. The tree will update its location by focusing the active proof state at the cursor position.
+
+The same keybindings and colors apply as other views.
+
+![(Screenshot in repo)](./screenshots/tactic_tree.png)
+
+## Graphs of Functional Programs
+
+There are display modes focused on everything that is not a tactic proof. These modes should be useful for functional or monadic programming. You can test them out with some test files in [`./Samples`](./Samples)
+
+### Data Flow (experimental)
+
+Use this for term-style proofs (without `by` or tactics). You can also use it for normal pure functional programs. It shows a graph of the local bindings and expected types throughout the program
+
+The decomposition is based on a few built-in rules. However, not all Lean control flow has an accompanying rule. Please be patient as I add more rules or contribute them to [`lean-prism`](https://codeberg.org/wvhulle/lean-prism).
+
+Open the legend with `L` to see what all symbols and colors mean.
+
+![(Screenshot in repo)](./screenshots/data_flow.png)
+
+### Effect flow (experimental)
+
+When working doing programming in a monad, you are doing some kind of effectful computations. Every monadic assignment in `Lean` written as `let <- COMPUTATION` can be composed in two parts:
+
+- What the computation produces
+- What state changes are given back components (the effect)
+
+The purple edges in the diagram are definition expansions (will be hideable in future) and the blue ones are the monadic binds. Displaying errors is not implemented yet.
+
+Open the legend with `L` to see what all symbols mean.
+
+![(Screenshot in repo)](./screenshots/effect_flow.png)
+
+## Development
 
 Let me know if you tried it out and encountered any issues! PRs are also welcome.
+
+See [`./CONTRIBUTING.md`](/CONTRIBUTING.md) for more.
