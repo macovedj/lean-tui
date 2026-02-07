@@ -9,7 +9,7 @@ use crate::{
     deduction_tree::ProofContextHypothesis,
     protocol::NodeId,
     shared::{
-        aligned_table::MarkedAlignedRow,
+        aligned_table::AlignedRow,
         diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
         theme::Theme,
         Region, Selection,
@@ -63,7 +63,7 @@ impl HypLayer {
         &self,
         ctx: &HypLayerRenderContext<'_>,
         click_regions: &mut Vec<Region>,
-    ) -> Vec<MarkedAlignedRow> {
+    ) -> Vec<AlignedRow> {
         if let Some(node_id) = self.node_id {
             self.track_click_regions(click_regions, node_id, ctx);
         }
@@ -103,25 +103,16 @@ impl HypLayer {
     }
 }
 
-const DIM_GRAY: Style = Style::new().fg(Color::DarkGray);
-
 fn render_hyp_row(
     hyp: &ProofContextHypothesis,
     is_selected: bool,
     is_dependency: bool,
-) -> MarkedAlignedRow {
+) -> AlignedRow {
     let state = DiffState {
         is_inserted: false,
         is_removed: hyp.is_removed,
     };
     let diff = diff_style(&state, is_selected, Color::White);
-
-    let marker = match (is_dependency, hyp.is_removed, hyp.type_.has_any_diff()) {
-        (true, _, _) => "*",
-        (_, true, _) => "-",
-        (_, _, true) => "~",
-        _ => " ",
-    };
 
     let name_style = if is_dependency {
         Style::new()
@@ -133,13 +124,11 @@ fn render_hyp_row(
         Style::new().fg(Theme::HYP_NAME)
     };
 
-    MarkedAlignedRow::with_styled_type(
-        marker,
-        DIM_GRAY,
+    AlignedRow::with_styled_type(
         hyp.name.clone(),
         name_style,
         ":",
-        DIM_GRAY,
+        Style::new().fg(Color::DarkGray),
         hyp.type_.to_spans(diff.style),
     )
 }
