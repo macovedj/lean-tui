@@ -239,7 +239,7 @@ impl StatefulWidget for ProofStepsSidebar {
             .borders(Borders::ALL)
             .border_style(border_style)
             .title(title)
-            .title_style(Style::new().fg(Color::Yellow));
+            .title_style(Style::new().fg(Theme::TITLE_TACTIC));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -329,7 +329,7 @@ fn theorem_line(node: &ProofDagTacticNode, prefix: &str) -> Option<Line<'static>
         Span::styled(prefix.to_string(), Theme::DIM),
         Span::styled(
             format!("thms: {}", node.referenced_theorems.join(", ")),
-            Style::new().fg(Color::Blue).add_modifier(Modifier::DIM),
+            Style::new().fg(Theme::HYP_NAME).add_modifier(Modifier::DIM),
         ),
     ]))
 }

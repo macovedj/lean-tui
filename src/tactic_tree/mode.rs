@@ -27,7 +27,6 @@ use crate::{
         goal_section::{GoalSection, GoalSectionState},
         hyp_section::{HypSection, HypSectionState},
         proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
-        tactic_row::divider,
     },
 };
 
@@ -152,13 +151,12 @@ impl TacticTree {
     }
 
     fn layout_main(area: Rect) -> MainLayout {
-        let [hyps, div, goals] = Layout::vertical([
-            Constraint::Fill(1),   // Hypotheses expand
-            Constraint::Length(1), // Divider is always 1 line
-            Constraint::Fill(1),   // Goals expand equally
+        let [hyps, goals] = Layout::vertical([
+            Constraint::Fill(1), // Hypotheses expand
+            Constraint::Fill(1), // Goals expand equally
         ])
         .areas(area);
-        MainLayout { hyps, div, goals }
+        MainLayout { hyps, goals }
     }
 
     fn current_node(&self) -> Option<&ProofDagTacticNode> {
@@ -276,7 +274,6 @@ impl TacticTree {
 
 struct MainLayout {
     hyps: Rect,
-    div: Rect,
     goals: Rect,
 }
 
@@ -368,8 +365,6 @@ impl InteractiveComponent for TacticTree {
             );
         }
 
-        frame.render_widget(divider(), layout.div);
-
         self.goal_section_state.update(
             &self.state,
             self.current_selection(),
@@ -424,9 +419,9 @@ impl Mode for TacticTree {
             vec![
                 LegendItem::new("▶", Theme::CURRENT_NODE_BORDER, "current step"),
                 LegendItem::new("⊢", Theme::CURRENT_NODE_BORDER, "active goal"),
-                LegendItem::new("⊢", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
+                LegendItem::new("⊢", Theme::GOAL_FG, "open goal"),
                 LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
-                LegendItem::new("uses", Color::Yellow, "dependency"),
+                LegendItem::new("uses", Theme::DEPENDENCY_FG, "dependency"),
             ],
         )]
     }

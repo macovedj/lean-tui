@@ -13,7 +13,7 @@ impl Widget for WelcomeScreen {
         let block = Block::bordered()
             .title(" lean-tui ")
             .title_alignment(Alignment::Center)
-            .border_style(Style::new().fg(Color::Cyan));
+            .border_style(Style::new().fg(Color::Reset));
 
         let inner = block.inner(area);
         block.render(area, buf);

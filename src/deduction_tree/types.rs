@@ -426,15 +426,23 @@ impl NodeTextContent for ProofDagTacticNode {
     fn content_lines(&self) -> Vec<String> {
         let mut lines = Vec::new();
 
-        let goal_count = self.proof_state_after.goals.len();
-        lines.push(if goal_count == 0 {
-            "✓".to_string()
-        } else {
-            format!("{goal_count} goal(s)")
-        });
+        for &idx in &self.new_hypothesis_indices {
+            if let Some(h) = self.proof_state_after.hypotheses.get(idx as usize) {
+                lines.push(format!("{} : {}", h.name, h.type_.to_plain_text()));
+            }
+        }
 
-        if !self.new_hypothesis_indices.is_empty() {
-            lines.push(format!("+{} hyp(s)", self.new_hypothesis_indices.len()));
+        if self.proof_state_after.goals.is_empty() {
+            lines.push("✓ Goal completed".to_string());
+        } else {
+            for g in &self.proof_state_after.goals {
+                let goal_type = g.type_.to_plain_text();
+                let line = match g.username_str() {
+                    Some(name) => format!("{name} ⊢ {goal_type}"),
+                    None => format!("⊢ {goal_type}"),
+                };
+                lines.push(line);
+            }
         }
 
         lines

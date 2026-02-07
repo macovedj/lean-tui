@@ -380,9 +380,9 @@ impl Mode for BeforeAfterMode {
             vec![
                 LegendItem::new("■", Theme::CURRENT_NODE_BORDER, "current"),
                 LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
-                LegendItem::new("+", Color::Green, "added"),
-                LegendItem::new("~", Color::Yellow, "changed"),
-                LegendItem::new("-", Color::Red, "removed"),
+                LegendItem::new("+", Theme::ADDED, "added"),
+                LegendItem::new("~", Theme::CHANGED, "changed"),
+                LegendItem::new("-", Theme::REMOVED, "removed"),
             ],
         )]
     }

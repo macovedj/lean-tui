@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{
         Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
@@ -14,7 +14,11 @@ use ratatui::{
 use crate::{
     deduction_tree::{ProofObligation, TacticProofState},
     protocol::NodeId,
-    shared::{diff_text::AnnotatedTextTreeExt, theme::Theme, Region, Selection},
+    shared::{
+        diff_text::AnnotatedTextTreeExt,
+        theme::{Orange, Theme},
+        Region, Selection,
+    },
 };
 
 /// State for the goal section widget.
@@ -75,29 +79,29 @@ impl StatefulWidget for GoalSection {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
-        let border_style = if state.is_focused {
-            Style::new().fg(Theme::BORDER_FOCUSED)
+        let border_color = if state.is_focused {
+            Orange::BRIGHT
         } else {
-            Theme::DIM
+            Orange::MUTED
         };
         let title = if state.is_focused {
-            "▶ Goals "
+            "▼ Goals "
         } else {
-            " Goals "
+            "  Goals "
         };
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(border_style)
+            .border_style(Style::new().fg(border_color))
             .title(title)
-            .title_style(Style::new().fg(Color::Red));
+            .title_style(Style::new().fg(Theme::TITLE_GOAL));
 
         let inner = block.inner(area);
         block.render(area, buf);
 
         if state.goals.is_empty() {
             Paragraph::new("✓ All goals completed!")
-                .style(Style::new().fg(Color::Green).add_modifier(Modifier::BOLD))
+                .style(Style::new().fg(Theme::COMPLETED_GOAL_FG).add_modifier(Modifier::BOLD))
                 .render(inner, buf);
             return;
         }
@@ -176,9 +180,9 @@ fn track_goal_click_regions(
 
 fn goal_line(goal: &ProofObligation, is_selected: bool, is_active: bool) -> Line<'static> {
     let base_color = if is_active {
-        Theme::CURRENT_NODE_BORDER
+        Theme::CURRENT_NODE_BORDER // White for active goal
     } else {
-        Theme::INCOMPLETE_NODE_BORDER
+        Theme::GOAL_FG // Bright orange for goals
     };
     let style = if is_selected {
         Style::new().bg(Theme::SELECTION_BG).fg(base_color)

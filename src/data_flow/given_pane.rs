@@ -68,11 +68,11 @@ impl StatefulWidget for BindingGivenPane<'_> {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(Theme::DATA_HYP_FG))
+            .border_style(Style::new().fg(Theme::TITLE_ASSUMPTION))
             .title(Span::styled(
                 " Input ",
                 Style::new()
-                    .fg(Theme::DATA_HYP_FG)
+                    .fg(Theme::TITLE_ASSUMPTION)
                     .add_modifier(Modifier::BOLD),
             ));
 

@@ -3,18 +3,19 @@ use ratatui::{
     text::Span,
 };
 
+use super::theme::Theme;
 use crate::protocol::{AnnotatedTextTree, SubexpressionDiffTag};
 
 pub const fn diff_tag_style(tag: SubexpressionDiffTag, base_style: Style) -> Style {
     match tag {
         SubexpressionDiffTag::WasChanged | SubexpressionDiffTag::WillChange => {
-            base_style.fg(Color::Yellow)
+            base_style.fg(Theme::CHANGED)
         }
         SubexpressionDiffTag::WasInserted | SubexpressionDiffTag::WillInsert => {
-            base_style.fg(Color::Green)
+            base_style.fg(Theme::ADDED)
         }
         SubexpressionDiffTag::WasDeleted | SubexpressionDiffTag::WillDelete => {
-            base_style.fg(Color::Red).add_modifier(Modifier::DIM)
+            base_style.fg(Theme::REMOVED).add_modifier(Modifier::DIM)
         }
     }
 }
@@ -39,11 +40,11 @@ pub struct DiffStyle {
 pub const fn diff_style(state: &DiffState, is_selected: bool, base_color: Color) -> DiffStyle {
     if state.is_inserted {
         DiffStyle {
-            style: item_style(is_selected, Color::Green),
+            style: item_style(is_selected, Theme::ADDED),
         }
     } else if state.is_removed {
         DiffStyle {
-            style: item_style(is_selected, Color::Red).add_modifier(Modifier::CROSSED_OUT),
+            style: item_style(is_selected, Theme::REMOVED).add_modifier(Modifier::CROSSED_OUT),
         }
     } else {
         DiffStyle {

@@ -187,10 +187,9 @@ impl StatefulWidget for FunctionalStateNode<'_> {
                 Modifier::empty()
             });
 
-        let kind_color = self.node_kind().color();
         let title_style = Style::new()
             .fg(if self.is_current {
-                kind_color
+                Theme::CURRENT_NODE_BORDER // White for active node
             } else {
                 Color::Gray
             })
