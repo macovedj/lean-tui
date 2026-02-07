@@ -3,13 +3,13 @@ use std::collections::HashSet;
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::{Line, Span},
 };
 
 use crate::{
     deduction_tree::ProofContextHypothesis,
     protocol::NodeId,
     shared::{
+        aligned_table::MarkedAlignedRow,
         diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
         theme::Theme,
         Region, Selection,
@@ -63,7 +63,7 @@ impl HypLayer {
         &self,
         ctx: &HypLayerRenderContext<'_>,
         click_regions: &mut Vec<Region>,
-    ) -> Vec<Line<'static>> {
+    ) -> Vec<MarkedAlignedRow> {
         if let Some(node_id) = self.node_id {
             self.track_click_regions(click_regions, node_id, ctx);
         }
@@ -76,7 +76,7 @@ impl HypLayer {
                     Some(Selection::Hyp { hyp_idx: hi, .. }) if hi == *hyp_idx
                 );
                 let is_dependency = ctx.depends_on.contains(&hyp.name);
-                render_hyp_line(hyp, is_selected, is_dependency)
+                render_hyp_row(hyp, is_selected, is_dependency)
             })
             .collect()
     }
@@ -105,11 +105,11 @@ impl HypLayer {
 
 const DIM_GRAY: Style = Style::new().fg(Color::DarkGray);
 
-fn render_hyp_line(
+fn render_hyp_row(
     hyp: &ProofContextHypothesis,
     is_selected: bool,
     is_dependency: bool,
-) -> Line<'static> {
+) -> MarkedAlignedRow {
     let state = DiffState {
         is_inserted: false,
         is_removed: hyp.is_removed,
@@ -117,10 +117,10 @@ fn render_hyp_line(
     let diff = diff_style(&state, is_selected, Color::White);
 
     let marker = match (is_dependency, hyp.is_removed, hyp.type_.has_any_diff()) {
-        (true, _, _) => Span::styled("*", DIM_GRAY),
-        (_, true, _) => Span::styled("-", DIM_GRAY),
-        (_, _, true) => Span::styled("~", DIM_GRAY),
-        _ => Span::styled(" ", DIM_GRAY),
+        (true, _, _) => "*",
+        (_, true, _) => "-",
+        (_, _, true) => "~",
+        _ => " ",
     };
 
     let name_style = if is_dependency {
@@ -128,18 +128,18 @@ fn render_hyp_line(
             .fg(Theme::HYP_NAME)
             .add_modifier(Modifier::BOLD)
     } else if is_selected {
-        Style::new()
-            .fg(Theme::HYP_NAME)
-            .bg(Theme::SELECTION_BG)
+        Style::new().fg(Theme::HYP_NAME).bg(Theme::SELECTION_BG)
     } else {
         Style::new().fg(Theme::HYP_NAME)
     };
 
-    let mut spans = vec![
+    MarkedAlignedRow::with_styled_type(
         marker,
-        Span::raw(" "),
-        Span::styled(format!("{}: ", hyp.name), name_style),
-    ];
-    spans.extend(hyp.type_.to_spans(diff.style));
-    Line::from(spans)
+        DIM_GRAY,
+        hyp.name.clone(),
+        name_style,
+        ":",
+        DIM_GRAY,
+        hyp.type_.to_spans(diff.style),
+    )
 }

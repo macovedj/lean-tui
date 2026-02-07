@@ -3,8 +3,7 @@ use std::collections::HashSet;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
-    text::{Line, Span},
+    style::{Color, Modifier, Style},
     widgets::{
         Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
         Widget,
@@ -15,6 +14,7 @@ use crate::{
     deduction_tree::{ProofObligation, TacticProofState},
     protocol::NodeId,
     shared::{
+        aligned_table::{AlignedRow, AlignedTable},
         diff_text::AnnotatedTextTreeExt,
         theme::{Orange, Theme},
         Region, Selection,
@@ -126,11 +126,11 @@ impl StatefulWidget for GoalSection {
             track_goal_click_regions(&mut state.click_regions, node_id, &layout);
         }
 
-        let lines: Vec<Line<'static>> = state
+        let rows: Vec<AlignedRow> = state
             .goals
             .iter()
             .enumerate()
-            .map(|(goal_idx, goal)| {
+            .map(|(goal_idx, goal): (usize, &ProofObligation)| {
                 let is_selected = matches!(
                     state.selection,
                     Some(Selection::Goal { goal_idx: gi, .. }) if gi == goal_idx
@@ -138,11 +138,12 @@ impl StatefulWidget for GoalSection {
                 let is_active = goal
                     .username_str()
                     .is_some_and(|name| state.active_goal_name.as_deref() == Some(name));
-                goal_line(goal, is_selected, is_active)
+                goal_row(goal, is_selected, is_active)
             })
             .collect();
 
-        Paragraph::new(lines).render(inner, buf);
+        let table = AlignedTable::new(rows);
+        Widget::render(table, inner, buf);
 
         if total_goals > viewport_height && inner.width > 1 {
             let scrollbar_area = Rect {
@@ -178,11 +179,11 @@ fn track_goal_click_regions(
     );
 }
 
-fn goal_line(goal: &ProofObligation, is_selected: bool, is_active: bool) -> Line<'static> {
+fn goal_row(goal: &ProofObligation, is_selected: bool, is_active: bool) -> AlignedRow {
     let base_color = if is_active {
-        Theme::CURRENT_NODE_BORDER // White for active goal
+        Theme::CURRENT_NODE_BORDER
     } else {
-        Theme::GOAL_FG // Bright orange for goals
+        Theme::GOAL_FG
     };
     let style = if is_selected {
         Style::new().bg(Theme::SELECTION_BG).fg(base_color)
@@ -190,11 +191,13 @@ fn goal_line(goal: &ProofObligation, is_selected: bool, is_active: bool) -> Line
         Style::new().fg(base_color)
     };
 
-    let case_label = goal
-        .username_str()
-        .map_or(String::new(), |n| format!("{n} "));
+    let case_label = goal.username_str().unwrap_or_default().to_string();
 
-    let mut spans = vec![Span::styled(case_label, style), Span::styled("⊢ ", style)];
-    spans.extend(goal.type_.to_spans(style));
-    Line::from(spans)
+    AlignedRow::with_styled_type(
+        case_label,
+        style,
+        "⊢",
+        Style::new().fg(Color::DarkGray),
+        goal.type_.to_spans(style),
+    )
 }

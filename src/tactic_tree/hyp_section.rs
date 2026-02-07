@@ -10,6 +10,8 @@ use ratatui::{
     },
 };
 
+use crate::shared::aligned_table::MarkedAlignedTable;
+
 use super::hyp_layer::{HypLayer, HypLayerRenderContext};
 use crate::{
     deduction_tree::TacticProofState,
@@ -126,8 +128,9 @@ impl StatefulWidget for HypSection {
             area: inner,
             depends_on: &state.depends_on,
         };
-        let lines = state.layer.render(&render_ctx, &mut state.click_regions);
-        Paragraph::new(lines).render(inner, buf);
+        let rows = state.layer.render(&render_ctx, &mut state.click_regions);
+        let table = MarkedAlignedTable::new(rows);
+        Widget::render(table, inner, buf);
 
         if total_hyps > viewport_height && inner.width > 1 {
             let scrollbar_area = Rect {

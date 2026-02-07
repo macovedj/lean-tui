@@ -1,3 +1,4 @@
+pub mod aligned_table;
 pub mod diff_text;
 pub mod error_banner;
 pub mod interactive;
