@@ -137,7 +137,9 @@ Just shows the proof as a list of hypotheses and goals. When an error is active 
 
 Hypotheses are blue. Goals are orange. Errors are red.
 
-![(Screenshot at Codeberg)](./screenshots/plain_view.png)
+https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/plain_view.png
+
+![(Screenshot at Codeberg)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/plain_view.png)
 
 For the **VS Code users**: Yes, the official info view endorsed by the Lean organisation is written for VS Code, However, I don't like VS Code and vendor lock-in. We should all try to move away from any Microsoft-owned product as soon as possible. Why? Have a look at for example ["Embrace, extend, and extinguish"](https://en.wikipedia.org/wiki/Embrace,_extend,_and_extinguish) but also the recent news.
 
@@ -149,7 +151,7 @@ Visualizes your active proof as a semantic tableau. This is based on how logicia
 
 Again, press `g` to jump to the selected hypothesis or goal. Use the arrow keys or `hjkl` to jump with keyboard only.
 
-![(Screenshot in repo)](./screenshots/semantic_tableau.png) |
+![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png) |
 
 For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this view. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
 
@@ -157,7 +159,7 @@ For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproo
 
 Shows active goal state and on the left also the previous state. Assumptions or hypotheses that are added are highlighed in green. Removed ones are highlighed in red. Errors from cursor position are also shown if present.
 
-![(Screenshot in repo)](./screenshots/before_after.png)
+![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/before_after.png)
 
 ### Tactic tree view
 
@@ -165,7 +167,7 @@ Shows a rendering of the proof displayed as compact unicode tree on the left. On
 
 The same keybindings and colors apply as other views.
 
-![(Screenshot in repo)](./screenshots/tactic_tree.png)
+![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/tactic_tree.png)
 
 ## Graphs of Functional Programs
 
@@ -179,7 +181,7 @@ The decomposition is based on a few built-in rules. However, not all Lean contro
 
 Open the legend with `L` to see what all symbols and colors mean.
 
-![(Screenshot in repo)](./screenshots/data_flow.png)
+![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/data_flow.png)
 
 ### Effect flow (experimental)
 
@@ -192,7 +194,7 @@ The purple edges in the diagram are definition expansions (will be hideable in f
 
 Open the legend with `L` to see what all symbols mean.
 
-![(Screenshot in repo)](./screenshots/effect_flow.png)
+![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/effect_flow.png)
 
 ## Development
 
