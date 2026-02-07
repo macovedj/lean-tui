@@ -13,6 +13,7 @@ use crate::{protocol::DiagnosticInfo, shared::theme::Red};
 pub struct ErrorsSectionState {
     errors: Vec<DiagnosticInfo>,
     click_regions: Vec<(Rect, usize)>,
+    clicked_error: Option<String>,
 }
 
 impl ErrorsSectionState {
@@ -20,24 +21,28 @@ impl ErrorsSectionState {
         self.errors = errors;
     }
 
-    pub fn errors(&self) -> &[DiagnosticInfo] {
-        &self.errors
-    }
-
-    /// Find error index at click position.
-    pub fn find_error_at(&self, x: u16, y: u16) -> Option<usize> {
-        self.click_regions.iter().find_map(|(rect, idx)| {
+    /// Handle a click at (x, y). Returns true if an error was clicked.
+    pub fn handle_click(&mut self, x: u16, y: u16) -> bool {
+        let clicked_idx = self.click_regions.iter().find_map(|(rect, idx)| {
             if x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height {
                 Some(*idx)
             } else {
                 None
             }
-        })
+        });
+
+        if let Some(idx) = clicked_idx {
+            if let Some(error) = self.errors.get(idx) {
+                self.clicked_error = Some(error.message.clone());
+                return true;
+            }
+        }
+        false
     }
 
-    /// Get error message by index.
-    pub fn get_error_message(&self, idx: usize) -> Option<&str> {
-        self.errors.get(idx).map(|e| e.message.as_str())
+    /// Take the clicked error message (if any) and clear it.
+    pub fn take_clicked_error(&mut self) -> Option<String> {
+        self.clicked_error.take()
     }
 }
 

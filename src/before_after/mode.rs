@@ -133,8 +133,6 @@ pub struct BeforeAfterMode {
     /// Errors from the current node.
     current_node_errors: Vec<DiagnosticInfo>,
     errors_section_state: ErrorsSectionState,
-    /// Clicked error message to show in overlay.
-    clicked_error: Option<String>,
 }
 
 impl Default for BeforeAfterMode {
@@ -156,7 +154,6 @@ impl Default for BeforeAfterMode {
             next_column_state: GoalsColumnState::default(),
             current_node_errors: Vec::new(),
             errors_section_state: ErrorsSectionState::default(),
-            clicked_error: None,
         }
     }
 }
@@ -201,7 +198,7 @@ impl BeforeAfterMode {
 
     /// Take the clicked error message (if any) and clear it.
     pub fn take_clicked_error(&mut self) -> Option<String> {
-        self.clicked_error.take()
+        self.errors_section_state.take_clicked_error()
     }
 }
 
@@ -275,14 +272,11 @@ impl InteractiveComponent for BeforeAfterMode {
                 }
 
                 // Check for clicks on errors section
-                if let Some(error_idx) = self
+                if self
                     .errors_section_state
-                    .find_error_at(mouse.column, mouse.row)
+                    .handle_click(mouse.column, mouse.row)
                 {
-                    if let Some(msg) = self.errors_section_state.get_error_message(error_idx) {
-                        self.clicked_error = Some(msg.to_string());
-                        return true;
-                    }
+                    return true;
                 }
 
                 self.selection.handle_click(mouse.column, mouse.row, &items)

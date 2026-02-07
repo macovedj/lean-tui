@@ -249,13 +249,12 @@ impl NodeTextContent for DataFlowNode {
                 .unwrap_or_else(|| "✓".to_string()),
         );
 
-        // Include error diagnostics in content for layout size calculation
+        // Include first line of error diagnostics for layout size calculation
+        // (matches compact display in state_node.rs - full error shown on click)
         for d in &self.diagnostics {
             if d.severity == DiagnosticSeverity::Error {
-                for (i, line) in d.message.lines().enumerate() {
-                    let prefix = if i == 0 { "✗ " } else { "  " };
-                    lines.push(format!("{prefix}{line}"));
-                }
+                let msg = d.message.lines().next().unwrap_or(&d.message);
+                lines.push(format!("✗ {msg}"));
             }
         }
 
