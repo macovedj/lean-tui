@@ -2,7 +2,7 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::Span,
+    text::{Line, Span},
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
@@ -188,7 +188,7 @@ impl<'a> StateNode<'a> {
             .collect()
     }
 
-    fn build_error_rows(&self) -> Vec<AlignedRow> {
+    fn build_error_rows(&self) -> Vec<(String, Style)> {
         use crate::protocol::DiagnosticSeverity;
 
         self.node
@@ -199,7 +199,7 @@ impl<'a> StateNode<'a> {
                 let error_style = Style::new().fg(Red::BRIGHT);
                 // Truncate message to first line for compact display
                 let msg = d.message.lines().next().unwrap_or(&d.message);
-                AlignedRow::new("", Style::default(), "✗", error_style, msg, error_style)
+                (msg.to_string(), error_style)
             })
             .collect()
     }
@@ -317,10 +317,23 @@ impl StatefulWidget for StateNode<'_> {
         let mut rows: Vec<AlignedRow> = Vec::new();
         rows.extend(self.build_hyp_rows());
         rows.extend(self.build_goal_rows());
-        rows.extend(self.build_error_rows());
+
+        let table_height = rows.len() as u16;
+        let table_area = Rect::new(inner.x, inner.y, inner.width, table_height.min(inner.height));
 
         let table = AlignedTable::new(rows);
-        Widget::render(table, inner, buf);
+        Widget::render(table, table_area, buf);
+
+        // Render errors below the table
+        let error_rows = self.build_error_rows();
+        let error_y = inner.y + table_height;
+        for (i, (msg, style)) in error_rows.into_iter().enumerate() {
+            let row_y = error_y + i as u16;
+            if row_y >= inner.y + inner.height {
+                break;
+            }
+            buf.set_line(inner.x, row_y, &Line::from(Span::styled(msg, style)), inner.width);
+        }
 
         state.click_regions = self.build_click_regions(inner);
     }

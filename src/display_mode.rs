@@ -295,6 +295,16 @@ impl DisplayMode {
         }
     }
 
+    /// Take clicked error from modes that support it (if any).
+    pub fn take_clicked_error(&mut self) -> Option<String> {
+        match &mut self.mode {
+            ModeVariant::PlainGoal(m) => m.take_clicked_error(),
+            ModeVariant::BeforeAfter(m) => m.take_clicked_error(),
+            ModeVariant::TacticTree(m) => m.take_clicked_error(),
+            _ => None,
+        }
+    }
+
     /// Update active mode. Each mode builds its own input from the DAG.
     #[allow(clippy::too_many_lines)]
     pub fn update(&mut self, definition: Option<DefinitionInfo>, error: Option<String>) {

@@ -90,6 +90,8 @@ pub struct PlainList {
     /// Errors from the current node.
     current_node_errors: Vec<DiagnosticInfo>,
     errors_section_state: ErrorsSectionState,
+    /// Clicked error message to show in overlay.
+    clicked_error: Option<String>,
 }
 
 impl PlainList {
@@ -125,6 +127,11 @@ impl PlainList {
             return false;
         }
         true
+    }
+
+    /// Take the clicked error message (if any) and clear it.
+    pub fn take_clicked_error(&mut self) -> Option<String> {
+        self.clicked_error.take()
     }
 }
 
@@ -186,8 +193,22 @@ impl InteractiveComponent for PlainList {
                 _ => false,
             },
             KeyMouseEvent::Mouse(mouse) => {
-                mouse.kind == MouseEventKind::Down(MouseButton::Left)
-                    && self.selection.handle_click(mouse.column, mouse.row, &items)
+                if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+                    return false;
+                }
+
+                // Check for clicks on errors section
+                if let Some(error_idx) = self
+                    .errors_section_state
+                    .find_error_at(mouse.column, mouse.row)
+                {
+                    if let Some(msg) = self.errors_section_state.get_error_message(error_idx) {
+                        self.clicked_error = Some(msg.to_string());
+                        return true;
+                    }
+                }
+
+                self.selection.handle_click(mouse.column, mouse.row, &items)
             }
         }
     }
@@ -197,11 +218,22 @@ impl InteractiveComponent for PlainList {
 
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        let has_errors = !self.current_node_errors.is_empty();
-        let (main_area, errors_area) = if has_errors {
+        // Count total lines in error messages
+        let error_lines: usize = self
+            .current_node_errors
+            .iter()
+            .map(|e| e.message.lines().count())
+            .sum();
+
+        let (main_area, errors_area) = if error_lines > 0 {
+            // Calculate error section height: content lines + 2 for borders
+            // Cap at 1/3 of available space to leave room for content
+            let max_error_height = (content_area.height / 3).max(3);
+            let error_height = ((error_lines as u16) + 2).min(max_error_height);
+
             let [main, errors] = Layout::vertical([
                 Constraint::Fill(1),
-                Constraint::Length(5),
+                Constraint::Length(error_height),
             ])
             .areas(content_area);
             (main, Some(errors))

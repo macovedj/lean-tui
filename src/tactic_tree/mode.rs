@@ -107,6 +107,8 @@ pub struct TacticTree {
     focused_pane: FocusedPane,
     /// Last known sidebar viewport height (for scroll bounds).
     sidebar_viewport_height: usize,
+    /// Clicked error message to show in overlay.
+    clicked_error: Option<String>,
 }
 
 impl TacticTree {
@@ -152,11 +154,16 @@ impl TacticTree {
         }
     }
 
-    fn layout_main(area: Rect, has_errors: bool) -> MainLayout {
-        if has_errors {
+    fn layout_main(area: Rect, error_lines: usize) -> MainLayout {
+        if error_lines > 0 {
+            // Calculate error section height: content lines + 2 for borders
+            // Cap at 1/3 of available space to leave room for hyps and goals
+            let max_error_height = (area.height / 3).max(3);
+            let error_height = ((error_lines as u16) + 2).min(max_error_height);
+
             let [hyps, errors, goals] = Layout::vertical([
                 Constraint::Fill(1), // Hypotheses expand
-                Constraint::Length(5), // Errors section - fixed height
+                Constraint::Length(error_height),
                 Constraint::Fill(1), // Goals expand equally
             ])
             .areas(area);
@@ -286,9 +293,28 @@ impl TacticTree {
     }
 
     fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return false;
+        }
+
+        // Check for clicks on errors section
+        if let Some(error_idx) = self
+            .errors_section_state
+            .find_error_at(mouse.column, mouse.row)
+        {
+            if let Some(msg) = self.errors_section_state.get_error_message(error_idx) {
+                self.clicked_error = Some(msg.to_string());
+                return true;
+            }
+        }
+
         let items = self.selectable_items();
-        mouse.kind == MouseEventKind::Down(MouseButton::Left)
-            && self.selection.handle_click(mouse.column, mouse.row, &items)
+        self.selection.handle_click(mouse.column, mouse.row, &items)
+    }
+
+    /// Take the clicked error message (if any) and clear it.
+    pub fn take_clicked_error(&mut self) -> Option<String> {
+        self.clicked_error.take()
     }
 }
 
@@ -344,9 +370,8 @@ impl InteractiveComponent for TacticTree {
         }
 
         // Extract all data from current_node before any mutable self operations
-        let (has_errors, current_node_errors, depends_on, spawned_goal_ids, active_goal_name) = {
+        let (current_node_errors, depends_on, spawned_goal_ids, active_goal_name) = {
             let current_node = self.current_node();
-            let has_errors = current_node.is_some_and(|node| node.has_error());
             let errors = current_node
                 .map(|node| node.diagnostics.clone())
                 .unwrap_or_default();
@@ -365,9 +390,15 @@ impl InteractiveComponent for TacticTree {
             let active_goal_name = current_node
                 .and_then(|node| node.proof_state_before.goals.first())
                 .and_then(|g| g.username_str().map(String::from));
-            (has_errors, errors, depends_on, spawned_goal_ids, active_goal_name)
+            (errors, depends_on, spawned_goal_ids, active_goal_name)
         };
-        let layout = Self::layout_main(main, has_errors);
+
+        // Count total lines in error messages
+        let error_lines: usize = current_node_errors
+            .iter()
+            .map(|e| e.message.lines().count())
+            .sum();
+        let layout = Self::layout_main(main, error_lines);
 
         self.hyp_section_state.update(
             &self.state,

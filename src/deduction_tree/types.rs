@@ -492,7 +492,7 @@ impl NodeTextContent for ProofDagTacticNode {
         for d in &self.diagnostics {
             if d.severity == DiagnosticSeverity::Error {
                 let msg = d.message.lines().next().unwrap_or(&d.message);
-                lines.push(format!("✗ {msg}"));
+                lines.push(msg.to_string());
             }
         }
 
