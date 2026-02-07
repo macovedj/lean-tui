@@ -178,6 +178,23 @@ impl CompleteProofDag {
         &self.initial_proof_state
     }
 
+    /// Collect all error diagnostics from all nodes.
+    pub fn collect_errors(&self) -> Vec<&DiagnosticInfo> {
+        self.nodes
+            .iter()
+            .flat_map(|node| {
+                node.diagnostics
+                    .iter()
+                    .filter(|d| d.severity == DiagnosticSeverity::Error)
+            })
+            .collect()
+    }
+
+    /// Check if any node has errors.
+    pub fn has_errors(&self) -> bool {
+        self.nodes.iter().any(ProofDagTacticNode::has_error)
+    }
+
     /// Convert to petgraph-based DagGraph for rendering.
     pub fn to_graph(&self) -> crate::graph_layout::DagGraph<ProofDagTacticNode> {
         use ratatui::style::Style;
@@ -468,14 +485,6 @@ impl NodeTextContent for ProofDagTacticNode {
                     None => format!("⊢ {goal_type}"),
                 };
                 lines.push(line);
-            }
-        }
-
-        // Include error diagnostics in height calculation
-        for d in &self.diagnostics {
-            if d.severity == DiagnosticSeverity::Error {
-                let msg = d.message.lines().next().unwrap_or(&d.message);
-                lines.push(format!("✗ {msg}"));
             }
         }
 
