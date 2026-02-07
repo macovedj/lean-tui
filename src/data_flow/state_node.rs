@@ -10,10 +10,10 @@ use ratatui::{
 
 use super::types::{DataFlowKind, DataFlowNode, SimpleBinding};
 use crate::{
-    protocol::BindingKind,
+    protocol::{BindingKind, DiagnosticSeverity},
     shared::{
         aligned_table::{AlignedRow, AlignedTable},
-        theme::Theme,
+        theme::{Red, Theme},
         Region, Selection,
     },
 };
@@ -48,6 +48,11 @@ impl<'a> FunctionalStateNode<'a> {
     }
 
     fn border_color(&self) -> Color {
+        // Error nodes get red border regardless of other state
+        if self.node.has_error() {
+            return Red::BRIGHT;
+        }
+
         match (
             self.is_current,
             self.node.is_leaf(),
@@ -67,14 +72,15 @@ impl<'a> FunctionalStateNode<'a> {
     fn title(&self) -> String {
         let kind = self.node_kind();
         let icon = kind.icon();
+        let error_prefix = if self.node.has_error() { "⚠ " } else { "" };
         // Use branch label if available, otherwise use expression content
         let expr_text = self
             .node
             .branch_label()
             .unwrap_or_else(|| self.node.content.to_plain_text());
         match self.node.edges.len() {
-            n if n > 1 => format!(" {icon} {expr_text} [{n}→] "),
-            _ => format!(" {icon} {expr_text} "),
+            n if n > 1 => format!(" {error_prefix}{icon} {expr_text} [{n}→] "),
+            _ => format!(" {error_prefix}{icon} {expr_text} "),
         }
     }
 
@@ -153,6 +159,22 @@ impl<'a> FunctionalStateNode<'a> {
         }
     }
 
+    fn build_error_rows(&self) -> Vec<AlignedRow> {
+        let error_style = Style::new().fg(Red::BRIGHT);
+        self.node
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .flat_map(|d| {
+                // Show multiple lines of the error message
+                d.message.lines().enumerate().map(move |(i, line)| {
+                    let prefix = if i == 0 { "✗" } else { " " };
+                    AlignedRow::new("", Style::default(), prefix, error_style, line, error_style)
+                })
+            })
+            .collect()
+    }
+
     fn click_regions(&self, inner: Rect) -> Vec<Region> {
         let bindings = self.node.bindings_after();
         let num_bindings = bindings.len() as u16;
@@ -204,21 +226,23 @@ impl StatefulWidget for FunctionalStateNode<'_> {
         state.click_regions.clear();
 
         let border_color = self.border_color();
-        let border_style = Style::new()
-            .fg(border_color)
-            .add_modifier(if self.is_current {
+        let border_style = Style::new().fg(border_color).add_modifier(
+            if self.is_current || self.node.has_error() {
                 Modifier::BOLD
             } else {
                 Modifier::empty()
-            });
+            },
+        );
 
         let title_style = Style::new()
-            .fg(if self.is_current {
+            .fg(if self.node.has_error() {
+                Red::BRIGHT
+            } else if self.is_current {
                 Theme::CURRENT_NODE_BORDER // White for active node
             } else {
                 Color::Gray
             })
-            .add_modifier(if self.is_current {
+            .add_modifier(if self.is_current || self.node.has_error() {
                 Modifier::BOLD
             } else {
                 Modifier::empty()
@@ -238,11 +262,19 @@ impl StatefulWidget for FunctionalStateNode<'_> {
 
         let bindings_rows = self.bindings_rows();
         let type_row = self.type_row();
+        let error_rows = self.build_error_rows();
 
         let rows: Vec<AlignedRow> = if self.top_down {
-            bindings_rows.into_iter().chain(once(type_row)).collect()
+            bindings_rows
+                .into_iter()
+                .chain(once(type_row))
+                .chain(error_rows)
+                .collect()
         } else {
-            once(type_row).chain(bindings_rows.into_iter()).collect()
+            once(type_row)
+                .chain(bindings_rows.into_iter())
+                .chain(error_rows)
+                .collect()
         };
 
         let table = AlignedTable::new(rows);

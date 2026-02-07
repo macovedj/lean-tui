@@ -105,7 +105,12 @@ impl StatefulWidget for GoalsColumn<'_> {
             .alignment(ratatui::layout::Alignment::Center)
             .render(title_area, buf);
 
-        let content_area = Rect::new(area.x, area.y + 1, area.width, area.height.saturating_sub(1));
+        let content_area = Rect::new(
+            area.x,
+            area.y + 1,
+            area.width,
+            area.height.saturating_sub(1),
+        );
 
         if self.state.goals.is_empty() && self.state.hypotheses.is_empty() {
             render_empty_message(content_area, buf, self.is_current);

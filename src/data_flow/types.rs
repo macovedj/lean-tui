@@ -5,8 +5,8 @@ use ratatui::style::Color;
 use crate::{
     graph_layout::{calculate_node_size, Dag, DagNode, NavNode, NodeTextContent},
     protocol::{
-        AnnotatedTextTree, BindingKind, DisplayStyle, GenericDag, GraphNode, LocalBinding, NodeId,
-        PreresolvedNavigationTargets,
+        AnnotatedTextTree, BindingKind, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
+        GenericDag, GraphNode, LocalBinding, NodeId, PreresolvedNavigationTargets,
     },
     shared::{LayoutSize, Theme},
 };
@@ -115,11 +115,13 @@ impl SimpleBinding {
 #[derive(Debug, Clone)]
 pub struct DataFlowNode {
     pub inner: GraphNode,
+    pub diagnostics: Vec<DiagnosticInfo>,
 }
 
 impl DataFlowNode {
-    pub const fn new(inner: GraphNode) -> Self {
-        Self { inner }
+    pub fn new(inner: GraphNode) -> Self {
+        let diagnostics = inner.diagnostics.clone();
+        Self { inner, diagnostics }
     }
 
     pub fn data_flow_kind(&self) -> DataFlowKind {
@@ -185,6 +187,13 @@ impl DataFlowNode {
             .filter(|s| !s.is_empty())
             .map(String::from)
     }
+
+    /// Check if this node has any error diagnostics.
+    pub fn has_error(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Error)
+    }
 }
 
 impl Deref for DataFlowNode {
@@ -239,6 +248,16 @@ impl NodeTextContent for DataFlowNode {
                 .map(|t| format!("⊢ {t}"))
                 .unwrap_or_else(|| "✓".to_string()),
         );
+
+        // Include error diagnostics in content for layout size calculation
+        for d in &self.diagnostics {
+            if d.severity == DiagnosticSeverity::Error {
+                for (i, line) in d.message.lines().enumerate() {
+                    let prefix = if i == 0 { "✗ " } else { "  " };
+                    lines.push(format!("{prefix}{line}"));
+                }
+            }
+        }
 
         lines
     }

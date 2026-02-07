@@ -101,7 +101,11 @@ impl StatefulWidget for GoalSection {
 
         if state.goals.is_empty() {
             Paragraph::new("✓ All goals completed!")
-                .style(Style::new().fg(Theme::COMPLETED_GOAL_FG).add_modifier(Modifier::BOLD))
+                .style(
+                    Style::new()
+                        .fg(Theme::COMPLETED_GOAL_FG)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .render(inner, buf);
             return;
         }

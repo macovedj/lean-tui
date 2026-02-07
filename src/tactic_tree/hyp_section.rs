@@ -10,13 +10,12 @@ use ratatui::{
     },
 };
 
-use crate::shared::aligned_table::AlignedTable;
-
 use super::hyp_layer::{HypLayer, HypLayerRenderContext};
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{
+        aligned_table::AlignedTable,
         theme::{Blue, Theme},
         HypothesisFilters, Region, Selection,
     },
