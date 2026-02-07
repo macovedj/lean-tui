@@ -100,10 +100,7 @@ impl<'a> StateNode<'a> {
             .max()
             .unwrap_or(0);
 
-        let is_leaf = self.node.is_leaf();
-        let leaf_prefix = if is_leaf { 1 } else { 0 };
-
-        (hyp_max.max(goal_max) + leaf_prefix) as u16
+        hyp_max.max(goal_max) as u16
     }
 
     fn build_hyp_rows(&self) -> Vec<Row<'static>> {
@@ -164,8 +161,6 @@ impl<'a> StateNode<'a> {
             ])];
         }
 
-        let is_leaf = self.node.is_leaf();
-
         goals
             .iter()
             .enumerate()
@@ -180,27 +175,10 @@ impl<'a> StateNode<'a> {
                     Modifier::empty()
                 };
 
-                let name_text = match g.username_str() {
-                    Some(name) => {
-                        if is_leaf && goal_idx == 0 {
-                            format!("⋯{name}")
-                        } else {
-                            name.to_string()
-                        }
-                    }
-                    None => {
-                        if is_leaf && goal_idx == 0 {
-                            "⋯".to_string()
-                        } else {
-                            String::new()
-                        }
-                    }
-                };
+                let name_text = g.username_str().unwrap_or_default().to_string();
 
                 let name_style = if g.username_str().is_some() {
-                    Style::new().fg(Color::Cyan).add_modifier(underline)
-                } else if is_leaf && goal_idx == 0 {
-                    Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::new().fg(Theme::GOAL_FG).add_modifier(underline)
                 } else {
                     Style::new()
                 };
