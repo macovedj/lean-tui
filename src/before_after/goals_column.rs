@@ -13,7 +13,7 @@ use crate::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::AnnotatedTextTreeExt,
         hypothesis_indices,
-        theme::{Blue, Orange, Theme},
+        theme::{Blue, Gray, Orange, Theme},
         HypothesisFilters, Region, Selection,
     },
 };
@@ -151,20 +151,27 @@ impl GoalsColumn<'_> {
         let is_focused = self.is_hyp_focused();
         let border_color = if is_focused {
             Blue::BRIGHT
-        } else {
+        } else if self.is_current {
             Blue::MUTED
+        } else {
+            Gray::DIM
         };
         let title = if is_focused {
             "▶ Assumptions "
         } else {
             " Assumptions "
         };
+        let title_color = if self.is_current {
+            Theme::TITLE_ASSUMPTION
+        } else {
+            Gray::DIM
+        };
 
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::new().fg(border_color))
             .title(title)
-            .title_style(Style::new().fg(Theme::TITLE_ASSUMPTION));
+            .title_style(Style::new().fg(title_color));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -195,12 +202,18 @@ impl GoalsColumn<'_> {
                     Style::default()
                 };
 
+                let (name_color, type_color) = if self.is_current {
+                    (Theme::HYP_NAME, Theme::HYP_TYPE)
+                } else {
+                    (Gray::DIM, Gray::DIM)
+                };
+
                 AlignedRow::with_styled_type(
                     h.name.clone(),
-                    style.fg(Theme::HYP_NAME),
+                    style.fg(name_color),
                     ":",
                     Style::new().fg(Color::DarkGray),
-                    h.type_.to_spans(style.fg(Theme::HYP_TYPE)),
+                    h.type_.to_spans(style.fg(type_color)),
                 )
             })
             .collect();
@@ -235,27 +248,35 @@ impl GoalsColumn<'_> {
         let is_focused = self.is_goal_focused();
         let border_color = if is_focused {
             Orange::BRIGHT
-        } else {
+        } else if self.is_current {
             Orange::MUTED
+        } else {
+            Gray::DIM
         };
         let title = if is_focused { "▶ Goals " } else { " Goals " };
+        let title_color = if self.is_current {
+            Theme::TITLE_GOAL
+        } else {
+            Gray::DIM
+        };
 
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::new().fg(border_color))
             .title(title)
-            .title_style(Style::new().fg(Theme::TITLE_GOAL));
+            .title_style(Style::new().fg(title_color));
 
         let inner = block.inner(area);
         block.render(area, buf);
 
         if self.state.goals.is_empty() {
+            let complete_color = if self.is_current {
+                Theme::COMPLETED_GOAL_FG
+            } else {
+                Gray::DIM
+            };
             Paragraph::new("✓ Complete")
-                .style(
-                    Style::new()
-                        .fg(Theme::COMPLETED_GOAL_FG)
-                        .add_modifier(Modifier::BOLD),
-                )
+                .style(Style::new().fg(complete_color).add_modifier(Modifier::BOLD))
                 .render(inner, buf);
             return;
         }
@@ -283,7 +304,9 @@ impl GoalsColumn<'_> {
                     Style::default()
                 };
 
-                let target_style = if is_active {
+                let target_style = if !self.is_current {
+                    style.fg(Gray::DIM)
+                } else if is_active {
                     style
                         .fg(Theme::CURRENT_NODE_BORDER)
                         .add_modifier(Modifier::BOLD)

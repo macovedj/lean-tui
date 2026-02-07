@@ -1,13 +1,17 @@
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
-use ratatui::{layout::Rect, Frame};
+use ratatui::{
+    layout::{Constraint, Layout, Rect},
+    Frame,
+};
 
 use crate::{
     app::DefinitionInfo,
     deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
     plain_goal::widget::OpenGoalList,
-    protocol::NodeId,
+    protocol::{DiagnosticInfo, NodeId},
     shared::{
+        errors_section::{ErrorsSection, ErrorsSectionState},
         hypothesis_indices, render_helpers::render_error, FilterToggle, HypothesisFilters,
         InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
     },
@@ -83,6 +87,9 @@ pub struct PlainList {
     error: Option<String>,
     filters: HypothesisFilters,
     selection: ListSelection,
+    /// Errors from the current node.
+    current_node_errors: Vec<DiagnosticInfo>,
+    errors_section_state: ErrorsSectionState,
 }
 
 impl PlainList {
@@ -136,6 +143,9 @@ impl InteractiveComponent for PlainList {
         self.active_goal_name = current_node
             .and_then(|node| node.proof_state_before.goals.first())
             .and_then(|g| g.username_str().map(String::from));
+        self.current_node_errors = current_node
+            .map(|node| node.diagnostics.clone())
+            .unwrap_or_default();
         self.state = input.state;
         self.definition = input.definition;
         self.error = input.error;
@@ -187,6 +197,18 @@ impl InteractiveComponent for PlainList {
 
         let content_area = render_error(frame, area, self.error.as_deref());
 
+        let has_errors = !self.current_node_errors.is_empty();
+        let (main_area, errors_area) = if has_errors {
+            let [main, errors] = Layout::vertical([
+                Constraint::Fill(1),
+                Constraint::Length(5),
+            ])
+            .areas(content_area);
+            (main, Some(errors))
+        } else {
+            (content_area, None)
+        };
+
         let goal_list = OpenGoalList::new(
             &self.state,
             self.current_selection(),
@@ -194,9 +216,9 @@ impl InteractiveComponent for PlainList {
             self.current_node_id,
             self.active_goal_name.as_deref(),
         );
-        let click_regions = goal_list.render_to_frame(frame, content_area);
+        let click_regions = goal_list.render_to_frame(frame, main_area);
 
-        let y_offset = i32::from(content_area.y.saturating_sub(area.y));
+        let y_offset = i32::from(main_area.y.saturating_sub(area.y));
         for region in click_regions {
             self.selection.add_region(
                 Rect::new(
@@ -206,6 +228,16 @@ impl InteractiveComponent for PlainList {
                     region.height,
                 ),
                 region.selection,
+            );
+        }
+
+        if let Some(errors_area) = errors_area {
+            self.errors_section_state
+                .update(self.current_node_errors.clone());
+            frame.render_stateful_widget(
+                ErrorsSection,
+                errors_area,
+                &mut self.errors_section_state,
             );
         }
     }

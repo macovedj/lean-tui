@@ -205,12 +205,22 @@ impl<'a> StateNode<'a> {
     }
 
     fn build_click_regions(&self, inner: Rect) -> Vec<Region> {
+        use crate::protocol::DiagnosticSeverity;
+
         let mut regions = Vec::new();
         let hyp_count = self.node.new_hypothesis_indices.len();
 
         let goal_count = self
             .override_state
             .map_or(self.node.proof_state_after.goals.len(), |s| s.goals.len());
+
+        // Count error diagnostics
+        let error_count = self
+            .node
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .count();
 
         let mut current_y = inner.y;
 
@@ -237,6 +247,22 @@ impl<'a> StateNode<'a> {
                     Selection::Goal {
                         node_id: self.node.id,
                         goal_idx,
+                    },
+                ));
+            }
+        }
+
+        current_y += goal_count as u16;
+
+        // Add click regions for error rows
+        for error_idx in 0..error_count {
+            let row_y = current_y + error_idx as u16;
+            if row_y < inner.y + inner.height {
+                regions.push(Region::from_rect(
+                    Rect::new(inner.x, row_y, inner.width, 1),
+                    Selection::Error {
+                        node_id: self.node.id,
+                        error_idx,
                     },
                 ));
             }

@@ -488,6 +488,14 @@ impl NodeTextContent for ProofDagTacticNode {
             }
         }
 
+        // Include error diagnostics in node sizing
+        for d in &self.diagnostics {
+            if d.severity == DiagnosticSeverity::Error {
+                let msg = d.message.lines().next().unwrap_or(&d.message);
+                lines.push(format!("✗ {msg}"));
+            }
+        }
+
         lines
     }
 }

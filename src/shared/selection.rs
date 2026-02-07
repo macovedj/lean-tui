@@ -16,6 +16,8 @@ pub enum Selection {
     Goal { node_id: NodeId, goal_idx: usize },
     /// The theorem conclusion.
     Theorem,
+    /// Error diagnostic at a proof step.
+    Error { node_id: NodeId, error_idx: usize },
 }
 
 /// A region mapped to a selection. Uses i32 coordinates to support

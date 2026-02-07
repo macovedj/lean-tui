@@ -6,17 +6,12 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use crate::{
-    protocol::DiagnosticInfo,
-    shared::theme::Red,
-};
+use crate::{protocol::DiagnosticInfo, shared::theme::Red};
 
 /// State for the errors section widget.
 #[derive(Default)]
 pub struct ErrorsSectionState {
     errors: Vec<DiagnosticInfo>,
-    /// Whether this pane is currently focused.
-    is_focused: bool,
 }
 
 impl ErrorsSectionState {
@@ -27,10 +22,6 @@ impl ErrorsSectionState {
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
-
-    pub const fn set_focused(&mut self, focused: bool) {
-        self.is_focused = focused;
-    }
 }
 
 /// Widget for rendering the errors section.
@@ -40,23 +31,9 @@ impl StatefulWidget for ErrorsSection {
     type State = ErrorsSectionState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let border_color = if state.is_focused {
-            Red::BRIGHT
-        } else {
-            Red::MUTED
-        };
-
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(
-                Style::new()
-                    .fg(border_color)
-                    .add_modifier(if state.is_focused {
-                        Modifier::BOLD
-                    } else {
-                        Modifier::empty()
-                    }),
-            )
+            .border_style(Style::new().fg(Red::MUTED))
             .title(Span::styled(
                 " Errors ",
                 Style::new().fg(Red::BRIGHT).add_modifier(Modifier::BOLD),

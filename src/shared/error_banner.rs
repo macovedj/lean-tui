@@ -32,12 +32,19 @@ impl<'a> ErrorBanner<'a> {
             return 3; // Minimum height with borders
         }
 
-        let line_count = self
+        // Count lines, accounting for both explicit newlines and wrapping
+        let line_count: usize = self
             .message
-            .chars()
-            .collect::<Vec<_>>()
-            .chunks(content_width)
-            .count();
+            .lines()
+            .map(|line| {
+                let char_count = line.chars().count();
+                if char_count == 0 {
+                    1 // Empty lines still take one row
+                } else {
+                    (char_count + content_width - 1) / content_width
+                }
+            })
+            .sum();
 
         // Add 2 for top and bottom border
         (line_count as u16).max(1) + 2
@@ -65,9 +72,15 @@ impl Widget for ErrorBanner<'_> {
                 .right_aligned(),
             );
 
-        let text = Line::from(Span::styled(self.message, Style::new().fg(Color::Red)));
+        // Create multiple Lines to preserve newlines in the message
+        let error_style = Style::new().fg(Color::Red);
+        let lines: Vec<Line> = self
+            .message
+            .lines()
+            .map(|line| Line::from(Span::styled(line.to_string(), error_style)))
+            .collect();
 
-        Paragraph::new(text)
+        Paragraph::new(lines)
             .block(block)
             .wrap(Wrap { trim: false })
             .render(area, buf);
