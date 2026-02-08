@@ -16,16 +16,9 @@ use crate::{
     },
 };
 
+#[derive(Default)]
 pub struct GoalsPaneState {
     click_regions: Vec<Region>,
-}
-
-impl Default for GoalsPaneState {
-    fn default() -> Self {
-        Self {
-            click_regions: Vec::new(),
-        }
-    }
 }
 
 impl GoalsPaneState {

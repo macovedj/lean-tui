@@ -10,8 +10,10 @@ use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{
-        hypothesis_indices, theme::Gray, theme::Theme, AssumptionPane, AssumptionPaneState,
-        GoalsPane, GoalsPaneState, HypothesisFilters, Region, Selection,
+        has_filter, hypothesis_indices,
+        theme::{Gray, Theme},
+        AssumptionPane, AssumptionPaneState, FilterToggle, GoalsPane, GoalsPaneState, Region,
+        Selection,
     },
 };
 
@@ -60,18 +62,14 @@ impl DiffPaneKind {
     }
 }
 
-fn should_show_hypothesis(
-    state: &TacticProofState,
-    filters: HypothesisFilters,
-    idx: usize,
-) -> bool {
+fn should_show_hypothesis(state: &TacticProofState, filters: &[FilterToggle], idx: usize) -> bool {
     let Some(h) = state.hypotheses.get(idx) else {
         return false;
     };
-    if filters.hide_instances && h.is_typeclass_instance {
+    if has_filter(filters, FilterToggle::Instances) && h.is_typeclass_instance {
         return false;
     }
-    if filters.hide_inaccessible && h.is_proof_term {
+    if has_filter(filters, FilterToggle::Inaccessible) && h.is_proof_term {
         return false;
     }
     true
@@ -80,17 +78,17 @@ fn should_show_hypothesis(
 pub struct DiffPane<'a> {
     kind: DiffPaneKind,
     state: &'a TacticProofState,
-    filters: HypothesisFilters,
+    filters: &'a [FilterToggle],
     selection: Option<Selection>,
     node_id: Option<NodeId>,
     active_goal_name: Option<&'a str>,
 }
 
 impl<'a> DiffPane<'a> {
-    pub const fn new(
+    pub fn new(
         kind: DiffPaneKind,
         state: &'a TacticProofState,
-        filters: HypothesisFilters,
+        filters: &'a [FilterToggle],
         selection: Option<Selection>,
         node_id: Option<NodeId>,
         active_goal_name: Option<&'a str>,
@@ -131,10 +129,9 @@ impl StatefulWidget for DiffPane<'_> {
             area.height.saturating_sub(1),
         );
 
-        let visible_hyp_count =
-            hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
-                .filter(|&i| should_show_hypothesis(self.state, self.filters, i))
-                .count();
+        let visible_hyp_count = hypothesis_indices(self.state.hypotheses.len(), self.filters)
+            .filter(|&i| should_show_hypothesis(self.state, self.filters, i))
+            .count();
 
         let hyp_pane_height =
             (visible_hyp_count + 2).min(content_area.height.saturating_sub(4) as usize / 2);
