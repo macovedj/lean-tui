@@ -3,8 +3,7 @@ import LeanPrism
 
 def insert (x : Nat) : List Nat → List Nat
   | [] => [x]
-  | y :: ys => if x ≤ y then x :: y :: ys else false
-      -- y :: insert x ys
+  | y :: ys => if x ≤ y then x :: y :: ys else  y :: insert x ys
 
 
 def insertionSort : List Nat → List Nat

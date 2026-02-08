@@ -167,16 +167,6 @@ impl DataFlowNode {
             .unwrap_or(self.inner.edges.is_empty())
     }
 
-    /// Get the branch label (for branch nodes like then/else/match arm).
-    pub fn branch_label(&self) -> Option<String> {
-        self.inner
-            .metadata
-            .get("branch_label")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .map(String::from)
-    }
-
     /// Check if this node has any error diagnostics.
     pub fn has_error(&self) -> bool {
         self.diagnostics
@@ -221,8 +211,7 @@ impl NavNode for DataFlowNode {
 
 impl NodeTextContent for DataFlowNode {
     fn title(&self) -> String {
-        self.branch_label()
-            .unwrap_or_else(|| self.inner.content.to_plain_text())
+        self.inner.content.to_plain_text()
     }
 
     fn content_lines(&self) -> Vec<String> {
