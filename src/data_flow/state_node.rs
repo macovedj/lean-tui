@@ -61,7 +61,7 @@ impl<'a> FunctionalStateNode<'a> {
             (true, _, _) => Theme::CURRENT_NODE_BORDER,
             (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
             (_, true, true) => Theme::COMPLETED_NODE_BORDER,
-            _ => Theme::TACTIC_BORDER,
+            _ => Theme::INACTIVE_NODE_BORDER,
         }
     }
 
@@ -134,7 +134,7 @@ impl<'a> FunctionalStateNode<'a> {
                 "⊢",
                 Style::new().fg(Color::DarkGray),
                 ty,
-                Style::new().fg(Theme::GOAL_FG).add_modifier(underline),
+                Style::new().fg(Theme::GOAL).add_modifier(underline),
             ),
             (None, true) => AlignedRow::new(
                 "",
@@ -154,7 +154,7 @@ impl<'a> FunctionalStateNode<'a> {
                 "⊢",
                 Style::new().fg(Color::DarkGray),
                 "...",
-                Style::new().fg(Theme::GOAL_FG).add_modifier(underline),
+                Style::new().fg(Theme::GOAL).add_modifier(underline),
             ),
         }
     }
@@ -189,7 +189,6 @@ impl<'a> FunctionalStateNode<'a> {
             },
         );
 
-        // Each binding is on its own line
         let binding_regions: Vec<Region> = bindings
             .iter()
             .enumerate()
@@ -313,8 +312,6 @@ impl StatefulWidget for FunctionalStateNode<'_> {
     }
 }
 
-/// Get style for a binding based on its kind, whether it's new, and whether
-/// it's selected.
 fn binding_style(binding: &SimpleBinding, is_new: bool, is_selected: bool) -> Style {
     let (fg, bg) = binding_colors(binding.kind(), is_new);
     let mut style = Style::new().fg(fg).bg(bg);
@@ -327,8 +324,6 @@ fn binding_style(binding: &SimpleBinding, is_new: bool, is_selected: bool) -> St
     style
 }
 
-/// Get colors for a binding based on whether it's newly introduced.
-/// Uses the same blue as proof node hypotheses for consistency.
 fn binding_colors(_kind: BindingKind, is_new: bool) -> (Color, Color) {
     if is_new {
         // New bindings: bright blue with background (same as proof hypotheses)

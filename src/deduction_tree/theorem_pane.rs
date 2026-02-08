@@ -52,13 +52,11 @@ impl StatefulWidget for TheoremPane<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let style = Style::new()
-            .fg(Theme::GOAL_FG)
-            .add_modifier(if is_selected {
-                Modifier::UNDERLINED
-            } else {
-                Modifier::empty()
-            });
+        let style = Style::new().fg(Theme::GOAL).add_modifier(if is_selected {
+            Modifier::UNDERLINED
+        } else {
+            Modifier::empty()
+        });
 
         Paragraph::new(Line::from(vec![Span::styled(
             format!("⊢ {}", self.goal),

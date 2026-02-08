@@ -1,4 +1,3 @@
-mod given_pane;
 pub mod layout;
 mod mode;
 mod proof_pane;

@@ -31,13 +31,11 @@ pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent>
 
     fn current_selection(&self) -> Option<Selection>;
 
-    /// Get legend sections for this mode.
     fn legend_sections(&self) -> Vec<LegendSection> {
         Vec::new()
     }
 }
 
-/// DAG state - either proof mode, dataflow mode, or effectflow mode.
 #[derive(Clone, Default)]
 pub enum DagState {
     #[default]
@@ -116,11 +114,8 @@ impl Default for ModeVariant {
     }
 }
 
-/// Display mode with embedded state and shared DAG.
 pub struct DisplayMode {
-    /// The active mode variant.
     mode: ModeVariant,
-    /// Shared DAG state (proof, dataflow, or effectflow).
     pub dag: DagState,
 }
 
@@ -134,8 +129,6 @@ impl Default for DisplayMode {
 }
 
 impl DisplayMode {
-    /// Switch to a mode compatible with the given DAG state.
-    /// Only switches if current mode is incompatible.
     pub fn switch_to_compatible_mode(&mut self, dag: &DagState) {
         let is_compatible = matches!(
             (&self.mode, dag),

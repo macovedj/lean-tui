@@ -10,7 +10,7 @@ use crate::{
     protocol::NodeId,
     shared::{
         aligned_table::AlignedRow,
-        diff_text::{diff_style, AnnotatedTextTreeExt, DiffState},
+        diff_text::{diff_style, DiffState, RichTextExt},
         theme::Theme,
         Region, Selection,
     },

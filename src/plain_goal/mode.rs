@@ -1,6 +1,7 @@
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
+    style::Color,
     Frame,
 };
 
@@ -13,9 +14,10 @@ use crate::{
     shared::{
         errors_section::{ErrorsSection, ErrorsSectionState},
         hypothesis_indices,
+        legend::{LegendItem, LegendSection},
         render_helpers::render_error,
         FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, ListSelection,
-        Selection,
+        Selection, Theme,
     },
 };
 
@@ -64,7 +66,7 @@ impl PlainListInputBuilder {
             .as_ref()
             .and_then(|d| d.current_node_id)
             .and_then(|id| self.dag.as_ref()?.get(id))
-            .map(|node| node.proof_state_after.clone())
+            .map(|node| node.proof_state.clone())
             .unwrap_or_default();
 
         PlainListInput {
@@ -148,7 +150,7 @@ impl InteractiveComponent for PlainList {
 
         self.current_node_id = current_node_id;
         self.active_goal_name = current_node
-            .and_then(|node| node.proof_state_before.goals.first())
+            .and_then(|node| node.proof_state.goals.iter().find(|g| g.is_removed))
             .and_then(|g| g.username_str().map(String::from));
         self.current_node_errors = current_node
             .map(|node| node.diagnostics.clone())
@@ -274,14 +276,20 @@ impl Mode for PlainList {
     type Model = PlainListInput;
 
     const NAME: &'static str = "Plain list";
-    const KEYBINDINGS: &'static [(&'static str, &'static str)] =
-        &[("i", "inst"), ("a", "access"), ("l", "let"), ("r", "rev")];
-    const SUPPORTED_FILTERS: &'static [FilterToggle] = &[
-        FilterToggle::Instances,
-        FilterToggle::Inaccessible,
-        FilterToggle::LetValues,
-        FilterToggle::ReverseOrder,
-    ];
+    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[];
+    const SUPPORTED_FILTERS: &'static [FilterToggle] = &[];
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![LegendSection::new(
+            "Changes",
+            Color::White,
+            vec![
+                LegendItem::new("+", Theme::ADDED, "added"),
+                LegendItem::new("-", Theme::REMOVED, "will be removed"),
+                LegendItem::new("~", Theme::CHANGED, "changed"),
+            ],
+        )]
+    }
 
     fn current_selection(&self) -> Option<Selection> {
         self.selection

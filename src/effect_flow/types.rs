@@ -9,8 +9,8 @@ use crate::{
         NodeTextContent,
     },
     protocol::{
-        self, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphEdge, GraphNode,
-        NodeId,
+        DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphEdge, GraphNode,
+        LocalBinding, NodeId, RichText,
     },
     shared::{LayoutSize, Theme},
 };
@@ -127,19 +127,11 @@ impl EdgeKind {
 #[derive(Debug, Clone)]
 pub struct EffectFlowNode {
     pub id: NodeId,
-    pub content: protocol::AnnotatedTextTree,
+    pub content: RichText,
     pub edges: Vec<GraphEdge>,
     pub effect_kind: EffectKind,
     pub forward: Option<String>,
     pub backward: Option<String>,
-    #[allow(dead_code)]
-    pub state_effect: Option<String>,
-    #[allow(dead_code)]
-    pub forward_output: Option<String>,
-    #[allow(dead_code)]
-    pub given_back: Option<String>,
-    #[allow(dead_code)]
-    pub from_unfolding: bool,
     pub diagnostics: Vec<DiagnosticInfo>,
 }
 
@@ -155,14 +147,6 @@ impl EffectFlowNode {
                 .map(String::from)
         };
 
-        let state_effect = extract_str("stateEffect").filter(|s| s != "none");
-
-        let from_unfolding = node
-            .metadata
-            .get("fromUnfolding")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
-
         let diagnostics = node.diagnostics.clone();
 
         Some(Self {
@@ -172,10 +156,6 @@ impl EffectFlowNode {
             effect_kind,
             forward: extract_str("forward"),
             backward: extract_str("backward"),
-            state_effect,
-            forward_output: extract_str("forwardOutput"),
-            given_back: extract_str("givenBack"),
-            from_unfolding,
             diagnostics,
         })
     }
@@ -271,13 +251,13 @@ fn format_error_diagnostics(diagnostics: &[DiagnosticInfo]) -> Vec<String> {
 
 #[derive(Debug)]
 pub enum EffectFlowConversionError {
-    /// Wrong display style.
     WrongDisplayStyle {
         expected: DisplayStyle,
         actual: DisplayStyle,
     },
-    /// Node missing required effect kind metadata.
-    MissingEffectKind { node_id: u64 },
+    MissingEffectKind {
+        node_id: u64,
+    },
 }
 
 impl fmt::Display for EffectFlowConversionError {
@@ -305,8 +285,8 @@ pub struct EffectFlowDag {
     pub current_node_id: Option<NodeId>,
     pub orphans: Vec<NodeId>,
     pub metadata: serde_json::Map<String, serde_json::Value>,
-    pub block_input: Vec<protocol::LocalBinding>,
-    pub block_output: Option<protocol::AnnotatedTextTree>,
+    pub block_input: Vec<LocalBinding>,
+    pub block_output: Option<RichText>,
 }
 
 impl EffectFlowDag {
@@ -363,7 +343,6 @@ impl EffectFlowDag {
         graph
     }
 
-    /// Convert to layout graph for force-directed layout computation.
     pub fn to_layout_graph(&self) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();

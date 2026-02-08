@@ -1,8 +1,3 @@
-//! Protocol types generated from lean-prism JSON schema.
-//!
-//! Types are generated at build time from `protocol-schema.json`.
-//! This module re-exports them and adds helper methods.
-
 // Include generated types (suppress lints for generated code)
 #[allow(
     clippy::absolute_paths,
@@ -37,7 +32,7 @@ impl ServerToClientMessage {
     }
 }
 
-impl Default for AnnotatedTextTree {
+impl Default for RichText {
     fn default() -> Self {
         Self::Text {
             text: String::new(),
@@ -45,12 +40,13 @@ impl Default for AnnotatedTextTree {
     }
 }
 
-impl AnnotatedTextTree {
-    /// Extract plain text from the tagged structure (flattens all tags).
+impl RichText {
+    /// Extract plain text from the tagged structure (flattens all diff
+    /// markers).
     pub fn to_plain_text(&self) -> String {
         match self {
             Self::Text { text } => text.clone(),
-            Self::Tag { tagged_content, .. } => tagged_content.to_plain_text(),
+            Self::Diff { content, .. } => content.to_plain_text(),
             Self::Append { children } => children.iter().map(Self::to_plain_text).collect(),
         }
     }

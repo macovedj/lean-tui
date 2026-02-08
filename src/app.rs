@@ -20,7 +20,8 @@ use crate::{
     display_mode::{DagState, DisplayMode},
     help_menu::{HelpMenu, HelpMenuWidget},
     protocol::{
-        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ServerToClientMessage,
+        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, RichText,
+        ServerToClientMessage,
     },
     shared::{
         legend::{Legend, LegendWidget},
@@ -303,14 +304,14 @@ impl App {
         let nav_location: Option<(String, LineCharacterPosition)> = match &self.display_mode.dag {
             DagState::Proof(dag) => selection.and_then(|sel| match sel {
                 Selection::InitialHyp { hyp_idx } => dag
-                    .initial_proof_state
-                    .hypotheses
+                    .block_input
                     .get(hyp_idx)
-                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
-                    .map(|loc| (loc.uri, loc.position)),
+                    .and_then(|b| b.navigation_locations.as_ref())
+                    .and_then(|nav| nav.definition.as_ref())
+                    .map(|loc| (loc.uri.clone(), loc.position)),
                 Selection::Hyp { node_id, hyp_idx } => dag
                     .get(node_id)
-                    .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
+                    .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
                     .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
                     .map(|loc| (loc.uri, loc.position)),
                 Selection::Goal { node_id, .. } => dag
@@ -355,23 +356,24 @@ impl App {
 
         match selection? {
             Selection::InitialHyp { hyp_idx } => dag
-                .initial_proof_state()
-                .hypotheses
+                .block_input
                 .get(hyp_idx)
-                .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
+                .map(|b| format!("{} : {}", b.name, b.type_.to_plain_text())),
             Selection::Hyp { node_id, hyp_idx } => dag
                 .get(node_id)
-                .and_then(|node| node.proof_state_after.hypotheses.get(hyp_idx))
+                .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
                 .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
             Selection::Goal { node_id, goal_idx } => dag
                 .get(node_id)
-                .and_then(|node| node.proof_state_after.goals.get(goal_idx))
+                .and_then(|node| {
+                    node.proof_state
+                        .goals
+                        .iter()
+                        .filter(|g| !g.is_removed)
+                        .nth(goal_idx)
+                })
                 .map(|g| g.type_.to_plain_text()),
-            Selection::Theorem => dag
-                .initial_proof_state()
-                .goals
-                .first()
-                .map(|g| g.type_.to_plain_text()),
+            Selection::Theorem => dag.block_output.as_ref().map(RichText::to_plain_text),
             Selection::Error { node_id, error_idx } => {
                 use crate::protocol::DiagnosticSeverity;
                 dag.get(node_id).and_then(|node| {

@@ -72,7 +72,7 @@ impl DeductionTreeModeInputBuilder {
             .as_ref()
             .and_then(|d| d.current_node_id)
             .and_then(|id| self.dag.as_ref()?.get(id))
-            .map(|node| node.proof_state_after.clone())
+            .map(|node| node.proof_state.clone())
             .unwrap_or_default();
 
         DeductionTreeModeInput {
@@ -119,7 +119,6 @@ impl SemanticTableau {
         self.filters
     }
 
-    /// Build list of all selectable items in the proof tree.
     fn tree_selectable_items(&self) -> Vec<Selection> {
         let Some(dag) = &self.proof_dag else {
             return Vec::new();
@@ -129,11 +128,10 @@ impl SemanticTableau {
         }
 
         let initial_hyps = dag
-            .initial_proof_state()
-            .hypotheses
+            .block_input
             .iter()
             .enumerate()
-            .filter(|(_, h)| !h.is_proof_term)
+            .filter(|(_, b)| !b.is_implicit && !b.is_instance)
             .map(|(idx, _)| Selection::InitialHyp { hyp_idx: idx });
 
         let node_selections = dag.dfs_iter().flat_map(|node| {
@@ -145,8 +143,14 @@ impl SemanticTableau {
                         node_id,
                         hyp_idx: hyp_idx as usize,
                     });
-            let goal_selections = (0..node.proof_state_after.goals.len())
-                .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
+            let active_goal_count = node
+                .proof_state
+                .goals
+                .iter()
+                .filter(|g| !g.is_removed)
+                .count();
+            let goal_selections =
+                (0..active_goal_count).map(move |goal_idx| Selection::Goal { node_id, goal_idx });
             let error_count = node
                 .diagnostics
                 .iter()
@@ -316,7 +320,10 @@ impl Mode for SemanticTableau {
     type Model = DeductionTreeModeInput;
 
     const NAME: &'static str = "Semantic tableau";
-    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[("hjkl", "nav")];
+    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[
+        ("hjkl", "nav"),
+        // TODO flip upside down with `m` (mirror), currently with t but broken
+    ];
     const SUPPORTED_FILTERS: &'static [FilterToggle] = &[];
 
     fn current_selection(&self) -> Option<Selection> {
@@ -324,16 +331,26 @@ impl Mode for SemanticTableau {
     }
 
     fn legend_sections(&self) -> Vec<LegendSection> {
-        vec![LegendSection::new(
-            "Node States",
-            Color::White,
-            vec![
-                LegendItem::new("■", Theme::CURRENT_NODE_BORDER, "current"),
-                LegendItem::new("■", Theme::HYP_NAME, "hypothesis"),
-                LegendItem::new("■", Theme::GOAL_FG, "goal"),
-                LegendItem::new("■", Theme::COMPLETED_GOAL_FG, "completed"),
-                LegendItem::new("■", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
-            ],
-        )]
+        vec![
+            LegendSection::new(
+                "Hypotheses and goals",
+                Color::White,
+                vec![
+                    LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
+                    LegendItem::new("P", Theme::GOAL, "goal and theorem statement"),
+                ],
+            ),
+            LegendSection::new(
+                "Proof steps",
+                Color::White,
+                vec![
+                    LegendItem::new("-", Theme::CURRENT_NODE_BORDER, "cursor"),
+                    LegendItem::new("-", Theme::INACTIVE_NODE_BORDER, "inactive"),
+                    LegendItem::new("-", Theme::COMPLETED_GOAL_FG, "completed"),
+                    LegendItem::new("-", Theme::INCOMPLETE_NODE_BORDER, "incomplete"),
+                    LegendItem::new("-", Theme::EDGE_ERROR_PROPAGATION, "type error"),
+                ],
+            ),
+        ]
     }
 }

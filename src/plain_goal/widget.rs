@@ -11,7 +11,7 @@ use crate::{
     protocol::NodeId,
     shared::{
         aligned_table::{AlignedRow, AlignedTable},
-        diff_text::AnnotatedTextTreeExt,
+        diff_text::RichTextExt,
         hypothesis_indices,
         theme::{Blue, Orange, Theme},
         HypothesisFilters, Region, Selection,
@@ -92,13 +92,6 @@ impl StatefulWidget for OpenGoalList<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
-        if self.state.goals.is_empty() && self.state.hypotheses.is_empty() {
-            Paragraph::new("No goals")
-                .style(Theme::DIM)
-                .render(area, buf);
-            return;
-        }
-
         let visible_hyp_count =
             hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
                 .filter(|&i| self.should_show_hypothesis(i))
@@ -134,17 +127,10 @@ impl OpenGoalList<'_> {
             .borders(Borders::ALL)
             .border_style(Style::new().fg(border_color))
             .title(title)
-            .title_style(Style::new().fg(Theme::TITLE_HYPOTHESIS));
+            .title_style(Style::new().fg(Theme::TITLE_ASSUMPTION));
 
         let inner = block.inner(area);
         block.render(area, buf);
-
-        if self.state.hypotheses.is_empty() {
-            Paragraph::new("(no assumptions)")
-                .style(Theme::DIM.add_modifier(Modifier::ITALIC))
-                .render(inner, buf);
-            return;
-        }
 
         let visible_hyps: Vec<_> =
             hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
@@ -172,7 +158,7 @@ impl OpenGoalList<'_> {
                     style.fg(Theme::HYP_NAME),
                     ":",
                     Style::new().fg(Color::DarkGray),
-                    h.type_.to_spans(style.fg(Theme::HYP_TYPE)),
+                    h.type_.to_spans(style),
                 )
             })
             .collect();
@@ -244,7 +230,7 @@ impl OpenGoalList<'_> {
                         .fg(Theme::CURRENT_NODE_BORDER)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    style.fg(Theme::GOAL_TYPE)
+                    style.fg(Theme::GOAL)
                 };
 
                 let name_text = g.username_str().unwrap_or_default().to_string();

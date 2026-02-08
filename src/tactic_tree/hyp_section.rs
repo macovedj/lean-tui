@@ -3,10 +3,9 @@ use std::collections::HashSet;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
+    style::Style,
     widgets::{
-        Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
-        Widget,
+        Block, Borders, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
     },
 };
 
@@ -97,17 +96,10 @@ impl StatefulWidget for HypSection {
             .borders(Borders::ALL)
             .border_style(Style::new().fg(border_color))
             .title(title)
-            .title_style(Style::new().fg(Theme::TITLE_HYPOTHESIS));
+            .title_style(Style::new().fg(Theme::TITLE_ASSUMPTION));
 
         let inner = block.inner(area);
         block.render(area, buf);
-
-        if state.layer.len() == 0 {
-            Paragraph::new("(no hypotheses)")
-                .style(Theme::DIM.add_modifier(Modifier::ITALIC))
-                .render(inner, buf);
-            return;
-        }
 
         if let Some(Selection::Hyp { hyp_idx, .. }) = state.selection {
             state.vertical_scroll = hyp_idx;

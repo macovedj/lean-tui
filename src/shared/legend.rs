@@ -71,13 +71,8 @@ impl<'a> LegendWidget<'a> {
 
     fn build_lines(&self) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
-        let dim = Style::new().fg(Color::DarkGray);
 
-        for (i, section) in self.sections.iter().enumerate() {
-            if i > 0 {
-                lines.push(Line::from(Span::styled("────────────────────", dim)));
-            }
-
+        for section in self.sections {
             lines.push(Line::from(Span::styled(
                 section.title.clone(),
                 Style::new()
@@ -96,6 +91,21 @@ impl<'a> LegendWidget<'a> {
 
         lines
     }
+
+    pub fn width(&self) -> u16 {
+        let lines = self.build_lines();
+        lines
+            .iter()
+            .map(ratatui::prelude::Line::width)
+            .max()
+            .unwrap_or_default() as u16
+            + 2
+    }
+
+    pub fn height(&self) -> u16 {
+        let lines = self.build_lines();
+        (lines.len() as u16) + 2
+    }
 }
 
 impl StatefulWidget for LegendWidget<'_> {
@@ -107,12 +117,12 @@ impl StatefulWidget for LegendWidget<'_> {
         }
 
         let lines = self.build_lines();
-        let width = 22u16;
-        let height = (lines.len() as u16) + 2;
+        let width = self.width();
+        let height = self.height();
 
         let x = 1;
         let y = area.height.saturating_sub(height + 1);
-        let popup_area = Rect::new(x, y, width.min(area.width.saturating_sub(2)), height);
+        let popup_area = Rect::new(x, y, width, height);
 
         Clear.render(popup_area, buf);
 

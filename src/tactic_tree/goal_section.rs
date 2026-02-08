@@ -15,7 +15,7 @@ use crate::{
     protocol::NodeId,
     shared::{
         aligned_table::{AlignedRow, AlignedTable},
-        diff_text::AnnotatedTextTreeExt,
+        diff_text::RichTextExt,
         theme::{Orange, Theme},
         Region, Selection,
     },
@@ -187,7 +187,7 @@ fn goal_row(goal: &ProofObligation, is_selected: bool, is_active: bool) -> Align
     let base_color = if is_active {
         Theme::CURRENT_NODE_BORDER
     } else {
-        Theme::GOAL_FG
+        Theme::GOAL
     };
     let style = if is_selected {
         Style::new().bg(Theme::SELECTION_BG).fg(base_color)

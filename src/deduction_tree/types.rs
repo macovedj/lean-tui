@@ -10,8 +10,8 @@ use crate::{
         NodeTextContent,
     },
     protocol::{
-        AnnotatedTextTree, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, PreresolvedNavigationTargets,
+        DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
+        LineCharacterPosition, PreresolvedNavigationTargets, RichText,
     },
     shared::{LayoutSize, Theme},
 };
@@ -22,9 +22,9 @@ use crate::{
 pub struct ProofContextHypothesis {
     pub name: String,
     #[serde(rename = "type")]
-    pub type_: AnnotatedTextTree,
+    pub type_: RichText,
     #[serde(default)]
-    pub value: Option<AnnotatedTextTree>,
+    pub value: Option<RichText>,
     pub id: String,
     #[serde(default)]
     pub is_proof_term: bool,
@@ -52,7 +52,7 @@ impl ProofContextHypothesis {
 #[serde(rename_all = "camelCase")]
 pub struct ProofObligation {
     #[serde(rename = "type")]
-    pub type_: AnnotatedTextTree,
+    pub type_: RichText,
     #[serde(default)]
     pub username: Option<String>,
     pub id: String,
@@ -94,8 +94,7 @@ pub struct ProofDagTacticNode {
     pub id: NodeId,
     pub tactic: TacticText,
     pub position: LineCharacterPosition,
-    pub proof_state_before: TacticProofState,
-    pub proof_state_after: TacticProofState,
+    pub proof_state: TacticProofState,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
     pub depth: u64,
@@ -110,9 +109,9 @@ pub struct ProofDagTacticNode {
 }
 
 impl ProofDagTacticNode {
-    /// All sub-goals solved (`goals_after` empty).
+    /// All sub-goals solved (no non-removed goals remaining).
     pub fn is_complete(&self) -> bool {
-        self.proof_state_after.goals.is_empty()
+        self.proof_state.goals.iter().all(|g| g.is_removed)
     }
 
     /// No children in tree.
@@ -136,9 +135,9 @@ pub struct CompleteProofDag {
     pub current_node_id: Option<NodeId>,
     #[serde(default)]
     pub orphans: Vec<NodeId>,
+    pub block_output: Option<RichText>,
     #[serde(default)]
-    pub initial_proof_state: TacticProofState,
-    pub block_output: Option<AnnotatedTextTree>,
+    pub block_input: Vec<crate::protocol::LocalBinding>,
 }
 
 impl CompleteProofDag {
@@ -170,11 +169,6 @@ impl CompleteProofDag {
         self.current_node_id == Some(node_id)
     }
 
-    /// Get initial proof state.
-    pub fn initial_proof_state(&self) -> &TacticProofState {
-        &self.initial_proof_state
-    }
-
     /// Convert to petgraph-based `DagGraph` for rendering.
     pub fn to_graph(&self) -> DagGraph<ProofDagTacticNode> {
         let mut graph = DagGraph::new();
@@ -198,7 +192,7 @@ impl CompleteProofDag {
         graph
     }
 
-    /// Convert to layout graph for force-directed layout computation.
+    /// Convert to lay out graph for force-directed layout computation.
     pub fn to_layout_graph(&self) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();
@@ -239,7 +233,7 @@ fn add_proof_edges(node: &ProofDagTacticNode, graph: &mut DagGraph<ProofDagTacti
             from_idx,
             to_idx,
             EdgeData {
-                style: Some(Style::new().fg(Theme::BORDER)),
+                style: Some(Style::new().fg(Theme::PANE_BORDER_FOCUSED)),
                 label: None,
             },
         );
@@ -317,8 +311,8 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         node.id,
         node.metadata.keys().collect::<Vec<_>>()
     );
-    if let Some(ps) = node.metadata.get("proof_state_after") {
-        tracing::debug!("Node {}: proof_state_after = {}", node.id, ps);
+    if let Some(ps) = node.metadata.get("proof_state") {
+        tracing::debug!("Node {}: proof_state = {}", node.id, ps);
     }
     if !node.diagnostics.is_empty() {
         tracing::info!(
@@ -329,16 +323,14 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         );
     }
 
-    let proof_state_before: TacticProofState =
-        parse_metadata_field(&node.metadata, node.id, "proof_state_before")?.unwrap_or_default();
-    let proof_state_after: TacticProofState =
-        parse_metadata_field(&node.metadata, node.id, "proof_state_after")?.unwrap_or_default();
+    let proof_state: TacticProofState =
+        parse_metadata_field(&node.metadata, node.id, "proof_state")?.unwrap_or_default();
 
     tracing::debug!(
         "Node {}: parsed {} goals, {} hypotheses",
         node.id,
-        proof_state_after.goals.len(),
-        proof_state_after.hypotheses.len()
+        proof_state.goals.len(),
+        proof_state.hypotheses.len()
     );
 
     let new_hypothesis_indices: Vec<u64> = node
@@ -366,8 +358,7 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
             position: node.position,
         },
         position: node.position,
-        proof_state_before,
-        proof_state_after,
+        proof_state,
         children,
         parent: node.parent,
         depth: node.depth,
@@ -393,18 +384,13 @@ impl TryFrom<GenericDag> for CompleteProofDag {
             dag.nodes.iter().map(parse_graph_node).collect();
         let nodes = nodes?;
 
-        let initial_proof_state = nodes
-            .first()
-            .map(|n| n.proof_state_before.clone())
-            .unwrap_or_default();
-
         Ok(Self {
             nodes,
             root_node_id: dag.root_node_id,
             current_node_id: dag.current_node_id,
             orphans: dag.orphans,
-            initial_proof_state,
             block_output: dag.block_output,
+            block_input: dag.block_input,
         })
     }
 }
@@ -447,15 +433,21 @@ impl NodeTextContent for ProofDagTacticNode {
         let mut lines = Vec::new();
 
         for &idx in &self.new_hypothesis_indices {
-            if let Some(h) = self.proof_state_after.hypotheses.get(idx as usize) {
+            if let Some(h) = self.proof_state.hypotheses.get(idx as usize) {
                 lines.push(format!("{} : {}", h.name, h.type_.to_plain_text()));
             }
         }
 
-        if self.proof_state_after.goals.is_empty() {
+        let active_goals: Vec<_> = self
+            .proof_state
+            .goals
+            .iter()
+            .filter(|g| !g.is_removed)
+            .collect();
+        if active_goals.is_empty() {
             lines.push("✓ Goal completed".to_string());
         } else {
-            for g in &self.proof_state_after.goals {
+            for g in active_goals {
                 let goal_type = g.type_.to_plain_text();
                 lines.push(g.username_str().map_or_else(
                     || format!("⊢ {goal_type}"),
@@ -464,7 +456,6 @@ impl NodeTextContent for ProofDagTacticNode {
             }
         }
 
-        // Include error diagnostics in node sizing
         for d in &self.diagnostics {
             if d.severity == DiagnosticSeverity::Error {
                 let msg = d.message.lines().next().unwrap_or(&d.message);
@@ -496,10 +487,14 @@ impl NavNode for ProofDagTacticNode {
     }
 
     fn goal_count(&self) -> usize {
-        self.proof_state_after.goals.len()
+        self.proof_state
+            .goals
+            .iter()
+            .filter(|g| !g.is_removed)
+            .count()
     }
 
     fn has_selectable_goals(&self) -> bool {
-        !self.proof_state_after.goals.is_empty()
+        self.proof_state.goals.iter().any(|g| !g.is_removed)
     }
 }
