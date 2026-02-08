@@ -152,7 +152,6 @@ impl ProofStepsSidebarState {
     }
 }
 
-/// Update the `active_levels` vector for the current node.
 fn update_active_levels(active_levels: &mut Vec<bool>, depth: usize, is_last_child: bool) {
     active_levels.truncate(depth);
     if depth > 0 {
@@ -163,7 +162,6 @@ fn update_active_levels(active_levels: &mut Vec<bool>, depth: usize, is_last_chi
     }
 }
 
-/// Build the tree prefix for a node's main line.
 fn build_tree_prefix(active_levels: &[bool], depth: usize, is_last_child: bool) -> String {
     if depth == 0 {
         return String::new();
@@ -227,7 +225,7 @@ impl StatefulWidget for ProofStepsSidebar {
         let border_style = if state.is_focused {
             Style::new().fg(Theme::BORDER_FOCUSED)
         } else {
-            Theme::DIM
+            Theme::FRAME_BORDER.into()
         };
         let title = if state.is_focused {
             "▶ Proof Steps "
@@ -299,7 +297,7 @@ fn step_line(node: &ProofDagTacticNode, prefix: &str, is_current: bool) -> Line<
 
     Line::from(vec![
         Span::styled(marker, Style::new().fg(Theme::CURRENT_NODE_BORDER)),
-        Span::styled(prefix.to_string(), Theme::DIM),
+        Span::styled(prefix.to_string(), Theme::INACTIVE_NODE_BORDER),
         Span::styled(node.tactic.text.clone(), style),
     ])
 }
@@ -311,7 +309,7 @@ fn dependency_line(node: &ProofDagTacticNode, prefix: &str) -> Option<Line<'stat
 
     Some(Line::from(vec![
         Span::raw("  "), // Match marker width
-        Span::styled(prefix.to_string(), Theme::DIM),
+        Span::styled(prefix.to_string(), Theme::INACTIVE_NODE_BORDER),
         Span::styled(
             format!("uses: {}", node.hypothesis_dependencies.join(", ")),
             Theme::DEPENDENCY,
@@ -326,7 +324,7 @@ fn theorem_line(node: &ProofDagTacticNode, prefix: &str) -> Option<Line<'static>
 
     Some(Line::from(vec![
         Span::raw("  "), // Match marker width
-        Span::styled(prefix.to_string(), Theme::DIM),
+        Span::styled(prefix.to_string(), Theme::INACTIVE_NODE_BORDER),
         Span::styled(
             format!("thms: {}", node.referenced_theorems.join(", ")),
             Style::new().fg(Theme::HYP_NAME).add_modifier(Modifier::DIM),

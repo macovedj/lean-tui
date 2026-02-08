@@ -4,19 +4,13 @@ use ratatui::{
 };
 
 use super::theme::Theme;
-use crate::protocol::{AnnotatedTextTree, SubexpressionDiffTag};
+use crate::protocol::{DiffStatus, RichText};
 
-pub const fn diff_tag_style(tag: SubexpressionDiffTag, base_style: Style) -> Style {
-    match tag {
-        SubexpressionDiffTag::WasChanged | SubexpressionDiffTag::WillChange => {
-            base_style.fg(Theme::CHANGED)
-        }
-        SubexpressionDiffTag::WasInserted | SubexpressionDiffTag::WillInsert => {
-            base_style.fg(Theme::ADDED)
-        }
-        SubexpressionDiffTag::WasDeleted | SubexpressionDiffTag::WillDelete => {
-            base_style.fg(Theme::REMOVED).add_modifier(Modifier::DIM)
-        }
+pub const fn diff_status_style(status: DiffStatus, base_style: Style) -> Style {
+    match status {
+        DiffStatus::Changed => base_style.fg(Theme::CHANGED),
+        DiffStatus::Added => base_style.fg(Theme::ADDED),
+        DiffStatus::Removed => base_style.fg(Theme::REMOVED).add_modifier(Modifier::DIM),
     }
 }
 
@@ -53,22 +47,17 @@ pub const fn diff_style(state: &DiffState, is_selected: bool, base_color: Color)
     }
 }
 
-pub trait AnnotatedTextTreeExt {
+pub trait RichTextExt {
     fn to_spans(&self, base_style: Style) -> Vec<Span<'static>>;
 }
 
-impl AnnotatedTextTreeExt for AnnotatedTextTree {
+impl RichTextExt for RichText {
     fn to_spans(&self, base_style: Style) -> Vec<Span<'static>> {
         match self {
             Self::Text { text } => vec![Span::styled(text.clone(), base_style)],
-            Self::Tag {
-                subexpression_info,
-                tagged_content,
-            } => {
-                let style = subexpression_info
-                    .diff_status
-                    .map_or(base_style, |tag| diff_tag_style(tag, base_style));
-                tagged_content.to_spans(style)
+            Self::Diff { diff, content } => {
+                let style = diff_status_style(*diff, base_style);
+                content.to_spans(style)
             }
             Self::Append { children } => children
                 .iter()

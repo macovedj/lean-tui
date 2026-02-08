@@ -7,12 +7,12 @@ use ratatui::{
 };
 
 use super::{
-    given_pane::{GivenPane, GivenPaneState},
     proof_pane::{ProofPane, ProofPaneState},
     theorem_pane::{TheoremPane, TheoremPaneState},
     types::CompleteProofDag,
 };
 use crate::{
+    data_flow::given_pane::{BindingGivenPane, BindingGivenPaneState},
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{find_region_at, Region, Selection},
@@ -21,7 +21,7 @@ use crate::{
 /// Combined state for the semantic tableau layout.
 #[derive(Default)]
 pub struct SemanticTableauState {
-    pub given: GivenPaneState,
+    pub given: BindingGivenPaneState,
     pub proof: ProofPaneState,
     pub theorem: TheoremPaneState,
 }
@@ -82,8 +82,7 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let (given_area, proof_area, theorem_area) = compute_layout(area, self.top_down);
 
-        let initial = self.dag.initial_proof_state();
-        GivenPane::new(&initial.hypotheses, self.selection).render(
+        BindingGivenPane::new(&self.dag.block_input, self.selection).render(
             given_area,
             buf,
             &mut state.given,
@@ -95,10 +94,11 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
             &mut state.proof,
         );
 
-        let theorem_goal = initial
-            .goals
-            .first()
-            .map(|g| g.type_.to_plain_text())
+        let theorem_goal = self
+            .dag
+            .block_output
+            .as_ref()
+            .map(|t| t.to_plain_text())
             .unwrap_or_default();
         TheoremPane::new(&theorem_goal, self.selection).render(
             theorem_area,

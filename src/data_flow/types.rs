@@ -9,8 +9,8 @@ use crate::{
         NodeTextContent,
     },
     protocol::{
-        AnnotatedTextTree, BindingKind, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
-        GenericDag, GraphNode, LocalBinding, NodeId, PreresolvedNavigationTargets,
+        BindingKind, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
+        LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
     },
     shared::{LayoutSize, Theme},
 };
@@ -18,28 +18,20 @@ use crate::{
 /// Data flow node kinds from the lean-prism backend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataFlowKind {
-    /// Let binding: `let x := v; body`
-    Binding,
-    /// Lambda abstraction: `fun x => body`
+    LetBinding,
     Lambda,
-    /// Branch in control flow (then/else/match arm)
     Branch,
-    /// Condition being tested (if condition)
     Condition,
-    /// Part of a compound condition (e.g., left side of &&)
     ConditionPart,
-    /// Match scrutinee expression
     MatchScrutinee,
-    /// Final expression (leaf node)
     Result,
-    /// Unknown kind
     Custom(String),
 }
 
 impl DataFlowKind {
     pub fn from_str(s: &str) -> Self {
         match s {
-            "binding" => Self::Binding,
+            "binding" => Self::LetBinding,
             "lambda" => Self::Lambda,
             "branch" => Self::Branch,
             "condition" => Self::Condition,
@@ -52,7 +44,7 @@ impl DataFlowKind {
 
     pub fn icon(&self) -> &str {
         match self {
-            Self::Binding => "≔",
+            Self::LetBinding => "≔",
             Self::Lambda => "λ",
             Self::Branch => "⎇",
             Self::Condition => "?",
@@ -65,7 +57,7 @@ impl DataFlowKind {
 
     pub fn color(&self) -> Color {
         match self {
-            Self::Binding => Theme::DATAFLOW_BINDING,
+            Self::LetBinding => Theme::DATAFLOW_BINDING,
             Self::Lambda => Theme::DATAFLOW_LAMBDA,
             Self::Branch | Self::MatchScrutinee => Theme::DATAFLOW_BRANCH,
             Self::Condition | Self::ConditionPart => Theme::DATAFLOW_CONDITION,
@@ -76,7 +68,7 @@ impl DataFlowKind {
 
     pub fn description(&self) -> &str {
         match self {
-            Self::Binding => "binding",
+            Self::LetBinding => "binding",
             Self::Lambda => "lambda",
             Self::Branch => "branch",
             Self::Condition => "condition",
@@ -88,12 +80,9 @@ impl DataFlowKind {
     }
 }
 
-/// Simplified binding from dataflow metadata (type is plain string).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct SimpleBinding {
     pub name: String,
-    #[allow(dead_code)]
-    pub id: String,
     #[serde(rename = "type")]
     pub type_str: String,
     pub binding_kind: String,
@@ -102,7 +91,6 @@ pub struct SimpleBinding {
 }
 
 impl SimpleBinding {
-    /// Convert `binding_kind` string to `BindingKind` enum.
     pub fn kind(&self) -> BindingKind {
         match self.binding_kind.as_str() {
             "let_bind" => BindingKind::LetBind,
@@ -265,10 +253,8 @@ impl LayoutSize for DataFlowNode {
     }
 }
 
-/// Error when converting a `GenericDag` to `DataFlowDag`.
 #[derive(Debug)]
 pub enum DataFlowConversionError {
-    /// Wrong display style.
     WrongDisplayStyle {
         expected: DisplayStyle,
         actual: DisplayStyle,
@@ -293,22 +279,19 @@ pub struct DataFlowDag {
     pub root_node_id: Option<NodeId>,
     pub current_node_id: Option<NodeId>,
     pub orphans: Vec<NodeId>,
-    pub block_output: Option<AnnotatedTextTree>,
+    pub block_output: Option<RichText>,
     pub block_input: Vec<LocalBinding>,
 }
 
 impl DataFlowDag {
-    /// Get a node by ID.
     pub fn get(&self, id: NodeId) -> Option<&DataFlowNode> {
         self.nodes.iter().find(|n| n.inner.id == id)
     }
 
-    /// Get the number of nodes.
     pub fn len(&self) -> usize {
         self.nodes.len()
     }
 
-    /// Check if empty.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
@@ -344,7 +327,6 @@ impl DataFlowDag {
         graph
     }
 
-    /// Convert to layout graph for force-directed layout computation.
     pub fn to_layout_graph(&self) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();
@@ -403,7 +385,7 @@ fn add_data_flow_edges(node: &DataFlowNode, graph: &mut DagGraph<DataFlowNode>) 
             from_idx,
             to_idx,
             EdgeData {
-                style: Some(Style::new().fg(Theme::BORDER)),
+                style: Some(Style::new().fg(Theme::PANE_BORDER_FOCUSED)),
                 label: None,
             },
         );

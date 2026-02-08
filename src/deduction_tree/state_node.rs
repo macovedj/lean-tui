@@ -6,11 +6,12 @@ use ratatui::{
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
-use super::{given_pane::hyp_style_colors, types::ProofDagTacticNode};
+use super::types::ProofDagTacticNode;
 use crate::{
     deduction_tree::TacticProofState,
     shared::{
         aligned_table::{AlignedRow, AlignedTable},
+        diff_text::RichTextExt,
         theme::{Red, Theme},
         Region, Selection,
     },
@@ -73,22 +74,13 @@ impl<'a> StateNode<'a> {
             (true, _, _) => Theme::CURRENT_NODE_BORDER,
             (_, true, true) => Theme::COMPLETED_NODE_BORDER,
             (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
-            (_, false, _) => Theme::TACTIC_BORDER,
+            (_, false, _) => Theme::INACTIVE_NODE_BORDER,
         }
     }
 
     fn build_title(&self) -> String {
         let error_prefix = if self.node.has_error() { "⚠ " } else { "" };
-        if self.node.children.len() > 1 {
-            format!(
-                " {}{} [{}→] ",
-                error_prefix,
-                self.node.tactic.text,
-                self.node.children.len()
-            )
-        } else {
-            format!(" {}{} ", error_prefix, self.node.tactic.text)
-        }
+        format!(" {}{} ", error_prefix, self.node.tactic.text,)
     }
 
     fn build_hyp_rows(&self) -> Vec<AlignedRow> {
@@ -96,27 +88,26 @@ impl<'a> StateNode<'a> {
             .new_hypothesis_indices
             .iter()
             .filter_map(|&hyp_idx| {
-                let h = self.node.proof_state_after.hypotheses.get(hyp_idx as usize)?;
+                let h = self.node.proof_state.hypotheses.get(hyp_idx as usize)?;
                 let selected = matches!(
                     self.selection,
                     Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx as usize
                 );
-                let (fg, _bg) = hyp_style_colors(h.is_proof_term);
                 let underline = if selected {
                     Modifier::UNDERLINED
                 } else {
                     Modifier::empty()
                 };
 
-                let style = Style::new().fg(fg).add_modifier(underline);
+                let name_style = Style::new().fg(Theme::HYP_NAME).add_modifier(underline);
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
 
-                Some(AlignedRow::new(
+                Some(AlignedRow::with_styled_type(
                     h.name.clone(),
-                    style,
+                    name_style,
                     ":",
                     Style::new().fg(Color::DarkGray),
-                    h.type_.to_plain_text(),
-                    style,
+                    h.type_.to_spans(type_style),
                 ))
             })
             .collect()
@@ -139,20 +130,22 @@ impl<'a> StateNode<'a> {
 
         let goals = self
             .override_state
-            .map_or(&self.node.proof_state_after.goals, |s| &s.goals);
+            .map_or(&self.node.proof_state.goals, |s| &s.goals);
 
-        if goals.is_empty() {
+        let active_goals: Vec<_> = goals.iter().filter(|g| !g.is_removed).collect();
+
+        if active_goals.is_empty() {
             return vec![AlignedRow::new(
                 "",
                 Style::default(),
                 "⊢",
                 Style::new().fg(Color::DarkGray),
                 "...",
-                Style::new().fg(Theme::GOAL_FG),
+                Style::new().fg(Theme::GOAL),
             )];
         }
 
-        goals
+        active_goals
             .iter()
             .enumerate()
             .map(|(goal_idx, g)| {
@@ -169,20 +162,19 @@ impl<'a> StateNode<'a> {
                 let name_text = g.username_str().unwrap_or_default().to_string();
 
                 let name_style = if g.username_str().is_some() {
-                    Style::new().fg(Theme::GOAL_FG).add_modifier(underline)
+                    Style::new().fg(Theme::GOAL).add_modifier(underline)
                 } else {
                     Style::new()
                 };
 
-                let type_style = Style::new().fg(Theme::GOAL_FG).add_modifier(underline);
+                let type_style = Style::new().fg(Theme::GOAL).add_modifier(underline);
 
-                AlignedRow::new(
+                AlignedRow::with_styled_type(
                     name_text,
                     name_style,
                     "⊢",
                     Style::new().fg(Color::DarkGray),
-                    g.type_.to_plain_text(),
-                    type_style,
+                    g.type_.to_spans(type_style),
                 )
             })
             .collect()
@@ -198,7 +190,7 @@ impl<'a> StateNode<'a> {
             .map(|d| {
                 let error_style = Style::new().fg(Red::BRIGHT);
                 // Truncate message to first line for compact display
-                let msg = d.message.lines().next().unwrap_or(&d.message);
+                let msg = d.message.lines().next().unwrap_or_default();
                 (msg.to_string(), error_style)
             })
             .collect()
@@ -210,9 +202,17 @@ impl<'a> StateNode<'a> {
         let mut regions = Vec::new();
         let hyp_count = self.node.new_hypothesis_indices.len();
 
-        let goal_count = self
-            .override_state
-            .map_or(self.node.proof_state_after.goals.len(), |s| s.goals.len());
+        let goal_count = self.override_state.map_or_else(
+            || {
+                self.node
+                    .proof_state
+                    .goals
+                    .iter()
+                    .filter(|g| !g.is_removed)
+                    .count()
+            },
+            |s| s.goals.iter().filter(|g| !g.is_removed).count(),
+        );
 
         let error_count = self
             .node

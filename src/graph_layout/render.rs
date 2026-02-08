@@ -40,7 +40,6 @@ fn compute_y_offsets(routes: &[EdgeRoute<'_>]) -> Vec<i32> {
     for segments in by_y.values_mut() {
         segments.sort_by_key(|(_, x_left, _)| *x_left);
 
-        // channels[c] = rightmost x_end currently in channel c
         let mut channels: Vec<i32> = Vec::new();
 
         for &(idx, x_left, x_right) in segments.iter() {

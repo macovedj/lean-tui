@@ -20,7 +20,7 @@ use crate::{
         hypothesis_indices,
         legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
-        theme::{FocusedPane, Theme},
+        theme::Theme,
         FilterToggle, HypothesisFilters, InteractiveComponent, InteractiveStatefulWidget,
         KeyMouseEvent, ListSelection, Selection,
     },
@@ -31,6 +31,31 @@ use crate::{
     },
 };
 
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum FocusedPane {
+    #[default]
+    Sidebar,
+    Hypotheses,
+    Goals,
+}
+
+impl FocusedPane {
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Sidebar => Self::Hypotheses,
+            Self::Hypotheses => Self::Goals,
+            Self::Goals => Self::Sidebar,
+        }
+    }
+
+    pub const fn prev(self) -> Self {
+        match self {
+            Self::Sidebar => Self::Goals,
+            Self::Hypotheses => Self::Sidebar,
+            Self::Goals => Self::Hypotheses,
+        }
+    }
+}
 /// Input for updating the Steps mode.
 pub struct StepsModeInput {
     pub state: TacticProofState,
@@ -76,7 +101,7 @@ impl StepsModeInputBuilder {
             .as_ref()
             .and_then(|d| d.current_node_id)
             .and_then(|id| self.dag.as_ref()?.get(id))
-            .map(|node| node.proof_state_after.clone())
+            .map(|node| node.proof_state.clone())
             .unwrap_or_default();
 
         StepsModeInput {
@@ -375,15 +400,16 @@ impl InteractiveComponent for TacticTree {
                 .unwrap_or_default();
             let spawned_goal_ids: HashSet<String> = current_node
                 .map(|node| {
-                    node.proof_state_after
+                    node.proof_state
                         .goals
                         .iter()
+                        .filter(|g| !g.is_removed)
                         .filter_map(|g| g.username_str().map(String::from))
                         .collect()
                 })
                 .unwrap_or_default();
             let active_goal_name = current_node
-                .and_then(|node| node.proof_state_before.goals.first())
+                .and_then(|node| node.proof_state.goals.iter().find(|g| g.is_removed))
                 .and_then(|g| g.username_str().map(String::from));
             (errors, depends_on, spawned_goal_ids, active_goal_name)
         };
@@ -453,13 +479,7 @@ impl InteractiveComponent for TacticTree {
 impl Mode for TacticTree {
     type Model = StepsModeInput;
     const NAME: &'static str = "Tactic tree";
-    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[
-        ("Tab", "pane"),
-        ("i", "inst"),
-        ("a", "access"),
-        ("l", "let"),
-        ("r", "rev"),
-    ];
+    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[("Tab", "pane")];
     const SUPPORTED_FILTERS: &'static [FilterToggle] = &[
         FilterToggle::Instances,
         FilterToggle::Inaccessible,
@@ -474,16 +494,21 @@ impl Mode for TacticTree {
     }
 
     fn legend_sections(&self) -> Vec<LegendSection> {
-        vec![LegendSection::new(
-            "Tactic Tree",
-            Color::White,
-            vec![
-                LegendItem::new("▶", Theme::CURRENT_NODE_BORDER, "current step"),
-                LegendItem::new("⊢", Theme::CURRENT_NODE_BORDER, "active goal"),
-                LegendItem::new("⊢", Theme::GOAL_FG, "open goal"),
-                LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
-                LegendItem::new("uses", Theme::DEPENDENCY_FG, "dependency"),
-            ],
-        )]
+        vec![
+            LegendSection::new(
+                "Tactic Tree",
+                Color::Yellow,
+                vec![
+                    LegendItem::new("▶", Theme::CURRENT_NODE_BORDER, "current step"),
+                    LegendItem::new("⊢", Theme::GOAL, "open goal"),
+                    LegendItem::new("uses", Theme::DEPENDENCY_FG, "dependency"),
+                ],
+            ),
+            LegendSection::new(
+                "Hypotheses",
+                Theme::TITLE_ASSUMPTION.into(),
+                vec![LegendItem::new("h", Theme::HYP_NAME, "hypothesis")],
+            ),
+        ]
     }
 }

@@ -1,23 +1,3 @@
-//! Effect flow tableau layout - coordinates the panes.
-//!
-//! Layout structure:
-//! ```text
-//! ┌─────────────────────────────────────────────────────────────┐
-//! │ Given: parameters                                           │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │                                                             │
-//! │                     Effect Flow Graph                       │
-//! │                                                             │
-//! │  ⊛ deposit ──→ ⊛ withdraw ──→ ↵ return                     │
-//! │       │                                                     │
-//! │       ▼                                                     │
-//! │  ◁ get state                                               │
-//! │                                                             │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │ Result Type: ⊢ BankM Int                                    │
-//! └─────────────────────────────────────────────────────────────┘
-//! ```
-
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -33,7 +13,7 @@ use super::{
 use crate::{
     data_flow::given_pane::{BindingGivenPane, BindingGivenPaneState},
     graph_layout::LayoutConfig,
-    protocol::{AnnotatedTextTree, NodeId},
+    protocol::{NodeId, RichText},
     shared::{find_region_at, theme::Theme, Region, Selection},
 };
 
@@ -156,10 +136,10 @@ fn render_result_pane(
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::new().fg(Theme::GOAL_FG))
+        .border_style(Style::new().fg(Theme::GOAL))
         .title(Span::styled(
             " Output ",
-            Style::new().fg(Theme::GOAL_FG).add_modifier(Modifier::BOLD),
+            Style::new().fg(Theme::GOAL).add_modifier(Modifier::BOLD),
         ));
 
     let inner = block.inner(area);
@@ -172,15 +152,13 @@ fn render_result_pane(
     let type_text = dag
         .block_output
         .as_ref()
-        .map_or_else(|| "...".to_string(), AnnotatedTextTree::to_plain_text);
+        .map_or_else(|| "...".to_string(), RichText::to_plain_text);
 
-    let style = Style::new()
-        .fg(Theme::GOAL_FG)
-        .add_modifier(if is_selected {
-            Modifier::UNDERLINED
-        } else {
-            Modifier::empty()
-        });
+    let style = Style::new().fg(Theme::GOAL).add_modifier(if is_selected {
+        Modifier::UNDERLINED
+    } else {
+        Modifier::empty()
+    });
 
     Paragraph::new(format!("⊢ {type_text}"))
         .style(style)

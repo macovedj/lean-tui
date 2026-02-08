@@ -1,5 +1,28 @@
 //! CLI runtime and connection management.
 
+mod app;
+mod display_mode;
+mod error;
+mod protocol;
+mod tcp_client;
+
+// Display styles
+mod before_after;
+mod data_flow;
+mod deduction_tree;
+mod effect_flow;
+mod plain_goal;
+mod tactic_tree;
+
+// Shared components
+mod graph_layout;
+mod shared;
+
+// App-level UI components
+mod help_menu;
+mod status_bar;
+mod welcome;
+mod worker_selector;
 use std::{
     fs,
     io::{stdout, Stdout},
@@ -27,7 +50,6 @@ use crate::{
     tcp_client::{discover_workers, ConnectionPool},
 };
 
-/// Standalone TUI infoview for Lean 4 theorem prover
 #[derive(Parser)]
 #[command(version, about)]
 pub struct Args {
@@ -58,7 +80,7 @@ pub fn init_logging(verbose: bool) {
     if let Ok(log_file) = fs::File::create(&log_path) {
         let level = if verbose { "debug" } else { "info" };
         let filter = tracing_subscriber::EnvFilter::from_default_env()
-            .add_directive(format!("lean_tui={level}").parse().unwrap());
+            .add_directive(format!("lean_tui={level}").parse().unwrap_or_default());
         tracing_subscriber::fmt()
             .with_env_filter(filter)
             .with_writer(log_file)
@@ -92,7 +114,10 @@ fn run_blocking(port: u16) -> Result<()> {
 async fn run(port: u16) -> Result<()> {
     let mut terminal = setup_terminal()?;
     let result = event_loop(&mut terminal, port).await;
-    restore_terminal()?;
+    disable_raw_mode()?;
+    stdout()
+        .execute(DisableMouseCapture)?
+        .execute(LeaveAlternateScreen)?;
     result
 }
 
@@ -103,15 +128,6 @@ fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
         .execute(EnterAlternateScreen)?
         .execute(EnableMouseCapture)?;
     Ok(Terminal::new(CrosstermBackend::new(stdout()))?)
-}
-
-/// Restore the terminal to its original state.
-fn restore_terminal() -> Result<()> {
-    disable_raw_mode()?;
-    stdout()
-        .execute(DisableMouseCapture)?
-        .execute(LeaveAlternateScreen)?;
-    Ok(())
 }
 
 /// Core event loop handling connection pool, input, and rendering.
@@ -128,7 +144,6 @@ async fn event_loop(
         handle_active_switch(&mut app, &mut pool);
         scan_and_connect(&mut app, &mut pool).await;
 
-        // Handle reconnection - clear stale state
         if let Some(port) = pool.take_reconnected_port() {
             tracing::info!("Worker on port {port} reconnected, clearing state");
             app.clear_for_worker_switch(port);

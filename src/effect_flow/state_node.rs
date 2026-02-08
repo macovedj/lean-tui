@@ -72,7 +72,7 @@ impl<'a> EffectStateNode<'a> {
                 if self.is_leaf() {
                     Theme::COMPLETED_NODE_BORDER
                 } else {
-                    Theme::TACTIC_BORDER
+                    Theme::INACTIVE_NODE_BORDER
                 }
             }
         }
