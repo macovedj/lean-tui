@@ -19,6 +19,8 @@ use crate::{
     deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
     help_menu::{HelpMenu, HelpMenuWidget},
+    input_pane::{InputPane, InputPaneState},
+    output_pane::{OutputPane, OutputPaneState},
     protocol::{
         ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, RichText,
         ServerToClientMessage,
@@ -63,6 +65,14 @@ pub struct App {
     outgoing_commands: Vec<ClientToServerCommand>,
     /// Current display mode (includes DAG state).
     display_mode: DisplayMode,
+    /// Whether to show the input (assumptions) pane.
+    show_input: bool,
+    /// Whether to show the output (goals) pane.
+    show_output: bool,
+    /// State for the input pane widget.
+    input_pane_state: InputPaneState,
+    /// State for the output pane widget.
+    output_pane_state: OutputPaneState,
     /// Status bar component.
     status_bar: StatusBar,
     /// Help menu overlay.
@@ -97,6 +107,10 @@ impl App {
             should_exit: false,
             outgoing_commands: Vec::new(),
             display_mode: DisplayMode::default(),
+            show_input: false,
+            show_output: false,
+            input_pane_state: InputPaneState::default(),
+            output_pane_state: OutputPaneState::default(),
             status_bar: StatusBar::default(),
             help_menu: HelpMenu::default(),
             legend: Legend::default(),
@@ -402,8 +416,7 @@ impl App {
 
     /// Update all components with current state.
     pub fn update(&mut self) {
-        self.display_mode
-            .update(self.definition.clone(), self.error.clone());
+        self.display_mode.update(self.error.clone());
         StatusBarWidget::update_state(
             &mut self.status_bar,
             StatusBarInput {
@@ -480,7 +493,69 @@ impl App {
             return;
         }
 
-        self.display_mode.render(frame, inner);
+        // Calculate required heights for layout
+        let input_height = if self.show_input {
+            InputPane::required_height(self.display_mode.dag.block_input(), inner.width) + 2
+        } else {
+            0
+        };
+        let output_height = if self.show_output {
+            OutputPane::required_height(self.display_mode.dag.block_output(), inner.width) + 2
+        } else {
+            0
+        };
+
+        // Cap heights to reasonable maximum (25% of area each)
+        let max_pane_height = inner.height / 4;
+        let input_height = input_height.min(max_pane_height);
+        let output_height = output_height.min(max_pane_height);
+
+        // Compute layout based on pane visibility and content
+        let (input_area, mode_area, output_area) = match (self.show_input, self.show_output) {
+            (true, true) => {
+                let [input, mode, output] = Layout::vertical([
+                    Constraint::Length(input_height),
+                    Constraint::Fill(1),
+                    Constraint::Length(output_height),
+                ])
+                .areas(inner);
+                (Some(input), mode, Some(output))
+            }
+            (true, false) => {
+                let [input, mode] =
+                    Layout::vertical([Constraint::Length(input_height), Constraint::Fill(1)])
+                        .areas(inner);
+                (Some(input), mode, None)
+            }
+            (false, true) => {
+                let [mode, output] =
+                    Layout::vertical([Constraint::Fill(1), Constraint::Length(output_height)])
+                        .areas(inner);
+                (None, mode, Some(output))
+            }
+            (false, false) => (None, inner, None),
+        };
+
+        // Render input pane
+        if let Some(input_area) = input_area {
+            let block_input = self.display_mode.dag.block_input();
+            let selection = self.display_mode.current_selection();
+
+            let widget = InputPane::new(block_input, selection, false);
+            frame.render_stateful_widget(widget, input_area, &mut self.input_pane_state);
+        }
+
+        // Render mode content
+        self.display_mode.render(frame, mode_area);
+
+        // Render output pane
+        if let Some(output_area) = output_area {
+            let block_output = self.display_mode.dag.block_output();
+            let selection = self.display_mode.current_selection();
+
+            let widget = OutputPane::new(block_output, selection, false);
+            frame.render_stateful_widget(widget, output_area, &mut self.output_pane_state);
+        }
     }
 
     fn build_title(&self) -> String {
@@ -612,6 +687,14 @@ impl App {
             }
             KeyCode::Char('L') => {
                 self.legend.toggle();
+                true
+            }
+            KeyCode::Char('i') => {
+                self.show_input = !self.show_input;
+                true
+            }
+            KeyCode::Char('o') => {
+                self.show_output = !self.show_output;
                 true
             }
             KeyCode::Char('f') => {

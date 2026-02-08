@@ -6,14 +6,13 @@ use ratatui::{
     widgets::{Paragraph, StatefulWidget, Widget},
 };
 
-use super::{
-    assumption_pane::{AssumptionPane, AssumptionPaneState},
-    goals_pane::{GoalsPane, GoalsPaneState},
-};
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
-    shared::{hypothesis_indices, theme::Theme, HypothesisFilters, Region, Selection},
+    shared::{
+        hypothesis_indices, theme::Theme, AssumptionPane, AssumptionPaneState, GoalsPane,
+        GoalsPaneState, HypothesisFilters, Region, Selection,
+    },
 };
 
 pub struct CurrentPaneState {

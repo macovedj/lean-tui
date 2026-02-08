@@ -1,4 +1,3 @@
-pub mod given_pane;
 pub mod layout;
 mod mode;
 mod state_node;

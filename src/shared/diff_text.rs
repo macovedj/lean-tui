@@ -1,5 +1,5 @@
 use ratatui::{
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::Span,
 };
 
@@ -11,39 +11,6 @@ pub const fn diff_status_style(status: DiffStatus, base_style: Style) -> Style {
         DiffStatus::Changed => base_style.fg(Theme::CHANGED),
         DiffStatus::Added => base_style.fg(Theme::ADDED),
         DiffStatus::Removed => base_style.fg(Theme::REMOVED).add_modifier(Modifier::DIM),
-    }
-}
-
-pub const fn item_style(is_selected: bool, fg_color: Color) -> Style {
-    if is_selected {
-        Style::new().fg(fg_color).add_modifier(Modifier::UNDERLINED)
-    } else {
-        Style::new().fg(fg_color)
-    }
-}
-
-pub struct DiffState {
-    pub is_inserted: bool,
-    pub is_removed: bool,
-}
-
-pub struct DiffStyle {
-    pub style: Style,
-}
-
-pub const fn diff_style(state: &DiffState, is_selected: bool, base_color: Color) -> DiffStyle {
-    if state.is_inserted {
-        DiffStyle {
-            style: item_style(is_selected, Theme::ADDED),
-        }
-    } else if state.is_removed {
-        DiffStyle {
-            style: item_style(is_selected, Theme::REMOVED).add_modifier(Modifier::CROSSED_OUT),
-        }
-    } else {
-        DiffStyle {
-            style: item_style(is_selected, base_color),
-        }
     }
 }
 

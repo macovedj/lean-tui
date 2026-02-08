@@ -119,6 +119,8 @@ Key bindings:
 | `g`   | Go to where item was introduced |
 | `y`   | Copy to clipboard (OSC 52)      |
 | `[/]` | Switch display mode             |
+| `i`   | Toggle input pane               |
+| `o`   | Toggle output pane              |
 | `?`   | Help menu                       |
 | `q`   | Quit                            |
 | `f`   | File selection                  |

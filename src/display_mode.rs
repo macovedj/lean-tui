@@ -5,7 +5,6 @@ use std::{error::Error, fmt, mem::take};
 use ratatui::{layout::Rect, Frame};
 
 use crate::{
-    app::DefinitionInfo,
     before_after::{BeforeAfterMode, BeforeAfterModeInput},
     data_flow::{DataFlowConversionError, DataFlowDag, DataFlowMode, DataFlowModeInput},
     deduction_tree::{
@@ -58,6 +57,26 @@ impl DagState {
             Self::Proof(_) => Some("proof"),
             Self::Dataflow(_) => Some("dataflow"),
             Self::Effectflow(_) => Some("effectflow"),
+        }
+    }
+
+    /// Get block input bindings (theorem/def parameters).
+    pub fn block_input(&self) -> &[crate::protocol::LocalBinding] {
+        match self {
+            Self::Proof(dag) => &dag.block_input,
+            Self::Dataflow(dag) => &dag.block_input,
+            Self::Effectflow(dag) => &dag.block_input,
+            Self::None => &[],
+        }
+    }
+
+    /// Get block output (theorem statement).
+    pub fn block_output(&self) -> Option<&crate::protocol::RichText> {
+        match self {
+            Self::Proof(dag) => dag.block_output.as_ref(),
+            Self::Dataflow(dag) => dag.block_output.as_ref(),
+            Self::Effectflow(dag) => dag.block_output.as_ref(),
+            Self::None => None,
         }
     }
 
@@ -300,34 +319,21 @@ impl DisplayMode {
     }
 
     /// Update active mode. Each mode builds its own input from the DAG.
-    #[allow(clippy::too_many_lines)]
-    pub fn update(&mut self, definition: Option<DefinitionInfo>, error: Option<String>) {
+    pub fn update(&mut self, error: Option<String>) {
         let error = error.or_else(|| self.incompatibility_error());
 
         match (&mut self.mode, &self.dag) {
             (ModeVariant::PlainGoal(m), DagState::Proof(dag)) => {
-                m.update(
-                    PlainListInput::builder()
-                        .dag(dag)
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(PlainListInput::builder().dag(dag).error(error).build());
             }
             (ModeVariant::PlainGoal(m), _) => {
-                m.update(
-                    PlainListInput::builder()
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(PlainListInput::builder().error(error).build());
             }
 
             (ModeVariant::BeforeAfter(m), DagState::Proof(dag)) => {
                 m.update(
                     BeforeAfterModeInput::builder()
                         .dag(dag)
-                        .definition(definition)
                         .error(error)
                         .show_previous(m.show_previous())
                         .show_next(m.show_next())
@@ -335,84 +341,45 @@ impl DisplayMode {
                 );
             }
             (ModeVariant::BeforeAfter(m), _) => {
-                m.update(
-                    BeforeAfterModeInput::builder()
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(BeforeAfterModeInput::builder().error(error).build());
             }
 
             (ModeVariant::TacticTree(m), DagState::Proof(dag)) => {
-                m.update(
-                    StepsModeInput::builder()
-                        .dag(dag)
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(StepsModeInput::builder().dag(dag).error(error).build());
             }
             (ModeVariant::TacticTree(m), _) => {
-                m.update(
-                    StepsModeInput::builder()
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(StepsModeInput::builder().error(error).build());
             }
 
             (ModeVariant::DeductionTree(m), DagState::Proof(dag)) => {
                 m.update(
                     DeductionTreeModeInput::builder()
                         .dag(dag)
-                        .definition(definition)
                         .error(error)
                         .build(),
                 );
             }
             (ModeVariant::DeductionTree(m), _) => {
-                m.update(
-                    DeductionTreeModeInput::builder()
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(DeductionTreeModeInput::builder().error(error).build());
             }
 
             (ModeVariant::DataFlow(m), DagState::Dataflow(dag)) => {
-                m.update(
-                    DataFlowModeInput::builder()
-                        .dag(dag)
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(DataFlowModeInput::builder().dag(dag).error(error).build());
             }
             (ModeVariant::DataFlow(m), _) => {
-                m.update(
-                    DataFlowModeInput::builder()
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(DataFlowModeInput::builder().error(error).build());
             }
 
             (ModeVariant::EffectFlow(m), DagState::Effectflow(dag)) => {
                 m.update(
                     EffectFlowModeInput::builder()
                         .effect_dag(dag)
-                        .definition(definition)
                         .error(error)
                         .build(),
                 );
             }
             (ModeVariant::EffectFlow(m), _) => {
-                m.update(
-                    EffectFlowModeInput::builder()
-                        .definition(definition)
-                        .error(error)
-                        .build(),
-                );
+                m.update(EffectFlowModeInput::builder().error(error).build());
             }
         }
     }

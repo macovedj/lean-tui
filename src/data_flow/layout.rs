@@ -1,62 +1,39 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
+    layout::Rect,
+    style::{Color, Style},
+    widgets::{Paragraph, StatefulWidget, Widget},
 };
 
 use super::{
-    given_pane::{BindingGivenPane, BindingGivenPaneState},
     state_node::{FunctionalStateNode, FunctionalStateNodeState},
     types::DataFlowDag,
 };
 use crate::{
     graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
-    protocol::{NodeId, RichText},
-    shared::{build_navigation_regions, find_region_at, theme::Theme, Region, Selection},
+    protocol::NodeId,
+    shared::{build_navigation_regions, find_region_at, Region, Selection},
 };
 
 /// State for the functional tableau layout.
 #[derive(Default)]
 pub struct FunctionalTableauState {
-    pub given: BindingGivenPaneState,
     pub proof: GraphViewport,
-    pub theorem: TheoremPaneState,
 }
 
 impl FunctionalTableauState {
     pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        [
-            self.given.click_regions.as_slice(),
-            self.proof.click_regions.as_slice(),
-            self.theorem.click_regions.as_slice(),
-        ]
-        .into_iter()
-        .find_map(|regions| find_region_at(regions, x, y))
+        find_region_at(self.proof.click_regions.as_slice(), x, y)
     }
 
     pub fn update_current_node(&mut self, current_node_id: Option<NodeId>) {
         self.proof.update_current_node(current_node_id);
     }
 
-    /// Get all navigation regions including initial context bindings and
-    /// theorem.
+    /// Get all navigation regions.
     pub fn navigation_regions(&self) -> Vec<Region> {
-        self.given
-            .click_regions
-            .iter()
-            .copied()
-            .chain(self.proof.navigation_regions().iter().copied())
-            .chain(self.theorem.click_regions.iter().copied())
-            .collect()
+        self.proof.navigation_regions().to_vec()
     }
-}
-
-/// State for the theorem pane.
-#[derive(Default)]
-pub struct TheoremPaneState {
-    pub click_regions: Vec<Region>,
 }
 
 /// Functional tableau layout widget.
@@ -74,61 +51,19 @@ impl<'a> FunctionalTableauLayout<'a> {
             selection,
         }
     }
-
-    fn compute_layout(&self, area: Rect) -> [Rect; 3] {
-        let constraints = if self.config.top_down {
-            [
-                Constraint::Length(3),
-                Constraint::Fill(1),
-                Constraint::Length(3),
-            ]
-        } else {
-            [
-                Constraint::Length(3),
-                Constraint::Length(3),
-                Constraint::Fill(1),
-            ]
-        };
-        Layout::vertical(constraints).areas(area)
-    }
-
-    fn pane_areas(&self, area: Rect) -> (Rect, Rect, Rect) {
-        let [given, middle, bottom] = self.compute_layout(area);
-        if self.config.top_down {
-            (given, middle, bottom)
-        } else {
-            (given, bottom, middle)
-        }
-    }
 }
 
 impl StatefulWidget for FunctionalTableauLayout<'_> {
     type State = FunctionalTableauState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let (given_area, proof_area, theorem_area) = self.pane_areas(area);
-
-        BindingGivenPane::new(&self.dag.block_input, self.selection).render(
-            given_area,
-            buf,
-            &mut state.given,
-        );
-
         render_proof_pane(
             self.dag,
             self.config,
             self.selection,
-            proof_area,
+            area,
             buf,
             &mut state.proof,
-        );
-
-        render_theorem_pane(
-            self.dag,
-            self.selection,
-            theorem_area,
-            buf,
-            &mut state.theorem,
         );
     }
 }
@@ -196,50 +131,4 @@ fn render_proof_pane(
         .collect();
     state.click_regions.extend(click_regions);
     state.render_scrollbars(area, buf);
-}
-
-fn render_theorem_pane(
-    dag: &DataFlowDag,
-    selection: Option<Selection>,
-    area: Rect,
-    buf: &mut Buffer,
-    state: &mut TheoremPaneState,
-) {
-    state.click_regions.clear();
-
-    let is_selected = matches!(selection, Some(Selection::Theorem));
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(Theme::GOAL))
-        .title(Span::styled(
-            " Output ",
-            Style::new().fg(Theme::GOAL).add_modifier(Modifier::BOLD),
-        ));
-
-    let inner = block.inner(area);
-    block.render(area, buf);
-
-    if inner.width < 2 || inner.height < 1 {
-        return;
-    }
-
-    let type_text = dag
-        .block_output
-        .as_ref()
-        .map_or_else(|| "...".to_string(), RichText::to_plain_text);
-
-    let style = Style::new().fg(Theme::GOAL).add_modifier(if is_selected {
-        Modifier::UNDERLINED
-    } else {
-        Modifier::empty()
-    });
-
-    Paragraph::new(format!("⊢ {type_text}"))
-        .style(style)
-        .render(inner, buf);
-
-    state
-        .click_regions
-        .push(Region::from_rect(inner, Selection::Theorem));
 }

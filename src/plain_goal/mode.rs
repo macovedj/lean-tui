@@ -1,57 +1,43 @@
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{MouseButton, MouseEventKind};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
-    style::Color,
     Frame,
 };
 
 use crate::{
-    app::DefinitionInfo,
     deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
-    plain_goal::widget::OpenGoalList,
     protocol::{DiagnosticInfo, NodeId},
     shared::{
         errors_section::{ErrorsSection, ErrorsSectionState},
-        hypothesis_indices,
-        legend::{LegendItem, LegendSection},
-        render_helpers::render_error,
-        FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, ListSelection,
-        Selection, Theme,
+        render_helpers::{render_error, render_no_goals},
+        AssumptionPane, AssumptionPaneState, FilterToggle, GoalsPane, GoalsPaneState,
+        HypothesisFilters, InteractiveComponent, KeyMouseEvent, Selection,
     },
 };
 
-/// Input for updating the Open Goal List mode.
+/// Input for updating the Plain List mode.
 pub struct PlainListInput {
     pub state: TacticProofState,
-    pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
 }
 
 impl PlainListInput {
-    /// Create a builder for this input type.
     pub fn builder() -> PlainListInputBuilder {
         PlainListInputBuilder::default()
     }
 }
 
-/// Builder for `PlainListInput`.
 #[derive(Default)]
 pub struct PlainListInputBuilder {
     dag: Option<CompleteProofDag>,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
 }
 
 impl PlainListInputBuilder {
     pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
         self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
-        self.definition = definition;
         self
     }
 
@@ -71,29 +57,24 @@ impl PlainListInputBuilder {
 
         PlainListInput {
             state,
-            definition: self.definition,
             error: self.error,
             proof_dag: self.dag,
         }
     }
 }
 
-/// Open Goal List display mode - navigable list of open goals with hypotheses.
+/// Plain list mode - shows assumptions and goals panes.
 #[derive(Default)]
 pub struct PlainList {
-    /// Current proof state.
     state: TacticProofState,
-    /// Current node ID in the DAG (for building selections).
     current_node_id: Option<NodeId>,
-    /// Name of the goal the cursor's tactic is working on.
     active_goal_name: Option<String>,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
     filters: HypothesisFilters,
-    selection: ListSelection,
-    /// Errors from the current node.
     current_node_errors: Vec<DiagnosticInfo>,
     errors_section_state: ErrorsSectionState,
+    assumption_state: AssumptionPaneState,
+    goals_state: GoalsPaneState,
 }
 
 impl PlainList {
@@ -101,37 +82,6 @@ impl PlainList {
         self.filters
     }
 
-    fn selectable_items(&self) -> Vec<Selection> {
-        let Some(node_id) = self.current_node_id else {
-            return Vec::new();
-        };
-
-        let hyp_count = self.state.hypotheses.len();
-        let goal_count = self.state.goals.len();
-
-        let hyp_items = hypothesis_indices(hyp_count, self.filters.reverse_order)
-            .filter(|&i| self.should_show_hypothesis(i))
-            .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
-
-        let goal_items = (0..goal_count).map(move |goal_idx| Selection::Goal { node_id, goal_idx });
-
-        hyp_items.chain(goal_items).collect()
-    }
-
-    fn should_show_hypothesis(&self, idx: usize) -> bool {
-        let Some(h) = self.state.hypotheses.get(idx) else {
-            return false;
-        };
-        if self.filters.hide_instances && h.is_typeclass_instance {
-            return false;
-        }
-        if self.filters.hide_inaccessible && h.is_proof_term {
-            return false;
-        }
-        true
-    }
-
-    /// Take the clicked error message (if any) and clear it.
     pub fn take_clicked_error(&mut self) -> Option<String> {
         self.errors_section_state.take_clicked_error()
     }
@@ -145,79 +95,38 @@ impl InteractiveComponent for PlainList {
         let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
         let current_node = current_node_id.and_then(|id| input.proof_dag.as_ref()?.get(id));
 
-        let state_changed = self.state.goals.len() != input.state.goals.len()
-            || self.state.hypotheses.len() != input.state.hypotheses.len();
-
         self.current_node_id = current_node_id;
         self.active_goal_name = current_node
-            .and_then(|node| node.proof_state.goals.iter().find(|g| g.is_removed))
+            .and_then(|node| node.proof_state.goals.first())
             .and_then(|g| g.username_str().map(String::from));
         self.current_node_errors = current_node
             .map(|node| node.diagnostics.clone())
             .unwrap_or_default();
         self.state = input.state;
-        self.definition = input.definition;
         self.error = input.error;
-
-        if state_changed {
-            self.selection.reset(self.selectable_items().len());
-        }
     }
 
     fn handle_event(&mut self, event: Self::Event) -> bool {
-        let items = self.selectable_items();
         match event {
-            KeyMouseEvent::Key(key) => match key.code {
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.selection.select_next(items.len());
-                    true
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.selection.select_previous(items.len());
-                    true
-                }
-                KeyCode::Char('i') => {
-                    self.filters.toggle(FilterToggle::Instances);
-                    true
-                }
-                KeyCode::Char('a') => {
-                    self.filters.toggle(FilterToggle::Inaccessible);
-                    true
-                }
-                KeyCode::Char('l') => {
-                    self.filters.toggle(FilterToggle::LetValues);
-                    true
-                }
-                KeyCode::Char('r') => {
-                    self.filters.toggle(FilterToggle::ReverseOrder);
-                    true
-                }
-                _ => false,
-            },
+            KeyMouseEvent::Key(_) => false,
             KeyMouseEvent::Mouse(mouse) => {
                 if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
                     return false;
                 }
-
-                // Check for clicks on errors section
-                if self
-                    .errors_section_state
+                self.errors_section_state
                     .handle_click(mouse.column, mouse.row)
-                {
-                    return true;
-                }
-
-                self.selection.handle_click(mouse.column, mouse.row, &items)
             }
         }
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        self.selection.clear_regions();
-
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        // Count total lines in error messages
+        if self.state.goals.is_empty() && self.state.hypotheses.is_empty() {
+            render_no_goals(frame, content_area);
+            return;
+        }
+
         let error_lines: usize = self
             .current_node_errors
             .iter()
@@ -225,11 +134,8 @@ impl InteractiveComponent for PlainList {
             .sum();
 
         let (main_area, errors_area) = if error_lines > 0 {
-            // Calculate error section height: content lines + 2 for borders
-            // Cap at 1/3 of available space to leave room for content
             let max_error_height = (content_area.height / 3).max(3);
             let error_height = ((error_lines as u16) + 2).min(max_error_height);
-
             let [main, errors] =
                 Layout::vertical([Constraint::Fill(1), Constraint::Length(error_height)])
                     .areas(content_area);
@@ -238,27 +144,38 @@ impl InteractiveComponent for PlainList {
             (content_area, None)
         };
 
-        let goal_list = OpenGoalList::new(
-            &self.state,
-            self.current_selection(),
-            self.filters,
-            self.current_node_id,
-            self.active_goal_name.as_deref(),
-        );
-        let click_regions = goal_list.render_to_frame(frame, main_area);
+        // Two-row layout: assumptions on top, goals on bottom
+        let [hyp_area, goal_area] =
+            Layout::vertical([Constraint::Percentage(40), Constraint::Percentage(60)])
+                .areas(main_area);
 
-        let y_offset = i32::from(main_area.y.saturating_sub(area.y));
-        for region in click_regions {
-            self.selection.add_region(
-                Rect::new(
-                    region.x as u16,
-                    (region.y + y_offset) as u16,
-                    region.width,
-                    region.height,
-                ),
-                region.selection,
-            );
-        }
+        let is_current = self.current_node_id.is_some();
+
+        frame.render_stateful_widget(
+            AssumptionPane::new(
+                &self.state,
+                self.filters,
+                None,
+                false,
+                is_current,
+                self.current_node_id,
+            ),
+            hyp_area,
+            &mut self.assumption_state,
+        );
+
+        frame.render_stateful_widget(
+            GoalsPane::new(
+                &self.state,
+                None,
+                false,
+                is_current,
+                self.current_node_id,
+                self.active_goal_name.as_deref(),
+            ),
+            goal_area,
+            &mut self.goals_state,
+        );
 
         if let Some(errors_area) = errors_area {
             self.errors_section_state
@@ -275,25 +192,11 @@ impl InteractiveComponent for PlainList {
 impl Mode for PlainList {
     type Model = PlainListInput;
 
-    const NAME: &'static str = "Plain list";
+    const NAME: &'static str = "Plain";
     const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[];
     const SUPPORTED_FILTERS: &'static [FilterToggle] = &[];
 
-    fn legend_sections(&self) -> Vec<LegendSection> {
-        vec![LegendSection::new(
-            "Changes",
-            Color::White,
-            vec![
-                LegendItem::new("+", Theme::ADDED, "added"),
-                LegendItem::new("-", Theme::REMOVED, "will be removed"),
-                LegendItem::new("~", Theme::CHANGED, "changed"),
-            ],
-        )]
-    }
-
     fn current_selection(&self) -> Option<Selection> {
-        self.selection
-            .current_selection(&self.selectable_items())
-            .copied()
+        None
     }
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, iter::once};
+use std::collections::HashSet;
 
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
@@ -10,7 +10,6 @@ use ratatui::{
 use tracing::trace;
 
 use crate::{
-    app::DefinitionInfo,
     data_flow::{
         layout::{FunctionalTableauLayout, FunctionalTableauState},
         types::DataFlowDag,
@@ -27,7 +26,6 @@ use crate::{
 
 /// Input for updating the Data Flow mode.
 pub struct DataFlowModeInput {
-    pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub dag: Option<DataFlowDag>,
 }
@@ -43,18 +41,12 @@ impl DataFlowModeInput {
 #[derive(Default)]
 pub struct DataFlowModeInputBuilder {
     dag: Option<DataFlowDag>,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
 }
 
 impl DataFlowModeInputBuilder {
     pub fn dag(mut self, dag: &DataFlowDag) -> Self {
         self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
-        self.definition = definition;
         self
     }
 
@@ -65,7 +57,6 @@ impl DataFlowModeInputBuilder {
 
     pub fn build(self) -> DataFlowModeInput {
         DataFlowModeInput {
-            definition: self.definition,
             error: self.error,
             dag: self.dag,
         }
@@ -74,7 +65,6 @@ impl DataFlowModeInputBuilder {
 
 /// Data Flow display mode - functional DAG visualization.
 pub struct DataFlowMode {
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
     dag: Option<DataFlowDag>,
     filters: HypothesisFilters,
@@ -91,7 +81,6 @@ pub struct DataFlowMode {
 impl Default for DataFlowMode {
     fn default() -> Self {
         Self {
-            definition: None,
             error: None,
             dag: None,
             filters: HypothesisFilters::default(),
@@ -140,27 +129,19 @@ impl DataFlowMode {
             return Vec::new();
         }
 
-        let initial_hyps = dag
-            .block_input
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| !b.is_implicit && !b.is_instance)
-            .map(|(idx, _)| Selection::InitialHyp { hyp_idx: idx });
-
-        let node_selections = dag.dfs_iter().flat_map(|node| {
-            let node_id = node.id;
-            let binding_count = node.bindings_after().len();
-            (0..binding_count)
-                .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx })
-                .chain(once(Selection::Goal {
+        // Input/output panes are now global - only include node-specific selections
+        dag.dfs_iter()
+            .flat_map(|node| {
+                let node_id = node.id;
+                let binding_count = node.bindings_after().len();
+                let hyp_selections =
+                    (0..binding_count).map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
+                let goal_selection = std::iter::once(Selection::Goal {
                     node_id,
                     goal_idx: 0,
-                }))
-        });
-
-        initial_hyps
-            .chain(node_selections)
-            .chain(once(Selection::Theorem))
+                });
+                hyp_selections.chain(goal_selection)
+            })
             .collect()
     }
 
@@ -259,7 +240,6 @@ impl InteractiveComponent for DataFlowMode {
         self.functional_tableau_state
             .update_current_node(input.dag.as_ref().and_then(|dag| dag.current_node_id));
 
-        self.definition = input.definition;
         self.error = input.error;
         self.dag = input.dag;
 

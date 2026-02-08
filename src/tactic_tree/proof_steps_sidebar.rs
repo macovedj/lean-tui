@@ -146,10 +146,6 @@ impl ProofStepsSidebarState {
             self.horizontal_scroll += 1;
         }
     }
-
-    pub const fn reset_scroll(&mut self) {
-        self.manual_scroll = false;
-    }
 }
 
 fn update_active_levels(active_levels: &mut Vec<bool>, depth: usize, is_last_child: bool) {

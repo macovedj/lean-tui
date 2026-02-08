@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -10,7 +8,6 @@ use ratatui::{
 use tracing::trace;
 
 use crate::{
-    app::DefinitionInfo,
     deduction_tree::{
         layout::{SemanticTableauLayout, SemanticTableauState},
         types::CompleteProofDag,
@@ -30,7 +27,6 @@ use crate::{
 /// Input for updating the Deduction Tree mode.
 pub struct DeductionTreeModeInput {
     pub state: TacticProofState,
-    pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
 }
@@ -46,18 +42,12 @@ impl DeductionTreeModeInput {
 #[derive(Default)]
 pub struct DeductionTreeModeInputBuilder {
     dag: Option<CompleteProofDag>,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
 }
 
 impl DeductionTreeModeInputBuilder {
     pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
         self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
-        self.definition = definition;
         self
     }
 
@@ -77,7 +67,6 @@ impl DeductionTreeModeInputBuilder {
 
         DeductionTreeModeInput {
             state,
-            definition: self.definition,
             error: self.error,
             proof_dag: self.dag,
         }
@@ -87,7 +76,6 @@ impl DeductionTreeModeInputBuilder {
 /// Deduction Tree display mode - semantic tree visualization.
 pub struct SemanticTableau {
     state: TacticProofState,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
     proof_dag: Option<CompleteProofDag>,
     filters: HypothesisFilters,
@@ -103,7 +91,6 @@ impl Default for SemanticTableau {
     fn default() -> Self {
         Self {
             state: TacticProofState::default(),
-            definition: None,
             error: None,
             proof_dag: None,
             filters: HypothesisFilters::default(),
@@ -127,45 +114,36 @@ impl SemanticTableau {
             return Vec::new();
         }
 
-        let initial_hyps = dag
-            .block_input
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| !b.is_implicit && !b.is_instance)
-            .map(|(idx, _)| Selection::InitialHyp { hyp_idx: idx });
-
-        let node_selections = dag.dfs_iter().flat_map(|node| {
-            let node_id = node.id;
-            let hyp_selections =
-                node.new_hypothesis_indices
+        // Input/output panes are now global - only include node-specific selections
+        dag.dfs_iter()
+            .flat_map(|node| {
+                let node_id = node.id;
+                let hyp_selections =
+                    node.new_hypothesis_indices
+                        .iter()
+                        .map(move |&hyp_idx| Selection::Hyp {
+                            node_id,
+                            hyp_idx: hyp_idx as usize,
+                        });
+                let active_goal_count = node
+                    .proof_state
+                    .goals
                     .iter()
-                    .map(move |&hyp_idx| Selection::Hyp {
-                        node_id,
-                        hyp_idx: hyp_idx as usize,
-                    });
-            let active_goal_count = node
-                .proof_state
-                .goals
-                .iter()
-                .filter(|g| !g.is_removed)
-                .count();
-            let goal_selections =
-                (0..active_goal_count).map(move |goal_idx| Selection::Goal { node_id, goal_idx });
-            let error_count = node
-                .diagnostics
-                .iter()
-                .filter(|d| d.severity == DiagnosticSeverity::Error)
-                .count();
-            let error_selections =
-                (0..error_count).map(move |error_idx| Selection::Error { node_id, error_idx });
-            hyp_selections
-                .chain(goal_selections)
-                .chain(error_selections)
-        });
-
-        initial_hyps
-            .chain(node_selections)
-            .chain(once(Selection::Theorem))
+                    .filter(|g| !g.is_removed)
+                    .count();
+                let goal_selections = (0..active_goal_count)
+                    .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
+                let error_count = node
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.severity == DiagnosticSeverity::Error)
+                    .count();
+                let error_selections =
+                    (0..error_count).map(move |error_idx| Selection::Error { node_id, error_idx });
+                hyp_selections
+                    .chain(goal_selections)
+                    .chain(error_selections)
+            })
             .collect()
     }
 
@@ -250,7 +228,6 @@ impl InteractiveComponent for SemanticTableau {
             .update_current_node(input.proof_dag.as_ref().and_then(|dag| dag.current_node_id));
 
         self.state = input.state;
-        self.definition = input.definition;
         self.error = input.error;
         self.proof_dag = input.proof_dag;
 
