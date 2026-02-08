@@ -1,4 +1,9 @@
-use std::{collections::HashMap, error::Error, fmt, num::NonZero};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    fmt,
+    num::NonZero,
+};
 
 use petgraph::graph::NodeIndex;
 use ratatui::style::{Color, Style};
@@ -320,16 +325,24 @@ impl EffectFlowDag {
         }
     }
 
-    /// Convert to petgraph-based `DagGraph` for rendering.
-    pub fn to_graph(&self) -> DagGraph<EffectFlowNode> {
+    /// Convert to petgraph-based `DagGraph` for rendering, optionally filtering
+    /// out expand edges.
+    pub fn to_graph_filtered(&self, include_expand: bool) -> DagGraph<EffectFlowNode> {
+        let excluded_node_ids = self.expand_target_ids();
         let mut graph = DagGraph::new();
 
         for node in &self.nodes {
+            if !include_expand && excluded_node_ids.contains(&node.id) {
+                continue;
+            }
             graph.add_node(node.id, node.clone());
         }
 
         for node in &self.nodes {
-            add_effect_edges(node, &mut graph);
+            if !include_expand && excluded_node_ids.contains(&node.id) {
+                continue;
+            }
+            add_effect_edges_filtered(node, &mut graph, include_expand);
         }
 
         graph.root = self.root_node_id.and_then(|id| graph.index_of(id));
@@ -337,17 +350,23 @@ impl EffectFlowDag {
         graph.orphans = self
             .orphans
             .iter()
+            .filter(|id| include_expand || !excluded_node_ids.contains(id))
             .filter_map(|&id| graph.index_of(id))
             .collect();
 
         graph
     }
 
-    pub fn to_layout_graph(&self) -> LayoutGraph {
+    /// Convert to layout graph, optionally filtering out expand edges.
+    pub fn to_layout_graph_filtered(&self, include_expand: bool) -> LayoutGraph {
+        let excluded_node_ids = self.expand_target_ids();
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
+            if !include_expand && excluded_node_ids.contains(&node.id) {
+                continue;
+            }
             let (width, height) = node.layout_size();
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
@@ -355,7 +374,10 @@ impl EffectFlowDag {
         }
 
         for node in &self.nodes {
-            add_effect_layout_edges(node, &id_to_index, &mut layout);
+            if !include_expand && excluded_node_ids.contains(&node.id) {
+                continue;
+            }
+            add_effect_layout_edges_filtered(node, &id_to_index, &mut layout, include_expand);
         }
 
         layout.root = self
@@ -364,18 +386,73 @@ impl EffectFlowDag {
         layout.orphans = self
             .orphans
             .iter()
+            .filter(|id| include_expand || !excluded_node_ids.contains(id))
             .filter_map(|id| id_to_index.get(id).copied())
             .collect();
 
         layout
     }
+
+    /// Get all node IDs that should be hidden when expand is collapsed.
+    /// This includes direct targets of "expand" edges and all their descendants.
+    fn expand_target_ids(&self) -> HashSet<NodeId> {
+        let roots = self.direct_expand_targets();
+        self.reachable_from(&roots)
+    }
+
+    /// Get node IDs that are direct targets of "expand" edges.
+    fn direct_expand_targets(&self) -> HashSet<NodeId> {
+        self.nodes
+            .iter()
+            .flat_map(|node| &node.edges)
+            .filter(|e| e.label.as_deref() == Some("expand"))
+            .map(|e| e.target)
+            .collect()
+    }
+
+    /// Get all nodes reachable from a set of root nodes (inclusive).
+    fn reachable_from(&self, roots: &HashSet<NodeId>) -> HashSet<NodeId> {
+        let mut visited = roots.clone();
+        let mut frontier: Vec<NodeId> = roots.iter().copied().collect();
+
+        while let Some(node_id) = frontier.pop() {
+            let unvisited_children = self
+                .get(node_id)
+                .into_iter()
+                .flat_map(|node| node.edges.iter().map(|e| e.target))
+                .filter(|&id| visited.insert(id));
+            frontier.extend(unvisited_children);
+        }
+
+        visited
+    }
+
+    /// Get the number of nodes, optionally excluding expand targets.
+    pub fn node_count_filtered(&self, include_expand: bool) -> usize {
+        if include_expand {
+            self.nodes.len()
+        } else {
+            let excluded = self.expand_target_ids();
+            self.nodes
+                .iter()
+                .filter(|n| !excluded.contains(&n.id))
+                .count()
+        }
+    }
 }
 
-fn add_effect_edges(node: &EffectFlowNode, graph: &mut DagGraph<EffectFlowNode>) {
+fn add_effect_edges_filtered(
+    node: &EffectFlowNode,
+    graph: &mut DagGraph<EffectFlowNode>,
+    include_expand: bool,
+) {
     let Some(from_idx) = graph.index_of(node.id) else {
         return;
     };
     for edge in &node.edges {
+        if !include_expand && edge.label.as_deref() == Some("expand") {
+            continue;
+        }
         let Some(to_idx) = graph.index_of(edge.target) else {
             continue;
         };
@@ -391,15 +468,19 @@ fn add_effect_edges(node: &EffectFlowNode, graph: &mut DagGraph<EffectFlowNode>)
     }
 }
 
-fn add_effect_layout_edges(
+fn add_effect_layout_edges_filtered(
     node: &EffectFlowNode,
     id_to_index: &HashMap<NodeId, NodeIndex>,
     layout: &mut LayoutGraph,
+    include_expand: bool,
 ) {
     let Some(&from_idx) = id_to_index.get(&node.id) else {
         return;
     };
     for edge in &node.edges {
+        if !include_expand && edge.label.as_deref() == Some("expand") {
+            continue;
+        }
         let Some(&to_idx) = id_to_index.get(&edge.target) else {
             continue;
         };

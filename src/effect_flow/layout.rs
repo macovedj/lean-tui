@@ -31,11 +31,16 @@ impl EffectTableauState {
 pub struct EffectTableauLayout<'a> {
     dag: &'a EffectFlowDag,
     selection: Option<Selection>,
+    expanded: bool,
 }
 
 impl<'a> EffectTableauLayout<'a> {
-    pub fn new(dag: &'a EffectFlowDag, selection: Option<Selection>) -> Self {
-        Self { dag, selection }
+    pub fn new(dag: &'a EffectFlowDag, selection: Option<Selection>, expanded: bool) -> Self {
+        Self {
+            dag,
+            selection,
+            expanded,
+        }
     }
 }
 
@@ -47,6 +52,7 @@ impl StatefulWidget for EffectTableauLayout<'_> {
             self.dag,
             true, // top_down
             self.selection,
+            self.expanded,
             area,
             buf,
             &mut state.graph,
