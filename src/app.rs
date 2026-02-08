@@ -377,13 +377,7 @@ impl App {
                 .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
             Selection::Goal { node_id, goal_idx } => dag
                 .get(node_id)
-                .and_then(|node| {
-                    node.proof_state
-                        .goals
-                        .iter()
-                        .filter(|g| !g.is_removed)
-                        .nth(goal_idx)
-                })
+                .and_then(|node| node.proof_state.goals.get(goal_idx))
                 .map(|g| g.type_.to_plain_text()),
             Selection::Theorem => dag.block_output.as_ref().map(RichText::to_plain_text),
             Selection::Error { node_id, error_idx } => {
