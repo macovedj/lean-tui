@@ -14,12 +14,11 @@ use crate::{
     protocol::{DiagnosticInfo, NodeId},
     shared::{
         errors_section::{ErrorsSection, ErrorsSectionState},
-        hypothesis_indices,
+        has_filter, hypothesis_indices,
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
         theme::Theme,
-        FilterToggle, HypothesisFilters, InteractiveComponent, KeyMouseEvent, ListSelection,
-        Selection,
+        FilterToggle, InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
     },
 };
 
@@ -35,7 +34,6 @@ pub struct BeforeAfterMode {
     error: Option<String>,
     current_node_id: Option<NodeId>,
     active_goal_name: Option<String>,
-    filters: HypothesisFilters,
     selection: ListSelection,
     show_previous: bool,
     show_next: bool,
@@ -55,7 +53,6 @@ impl Default for BeforeAfterMode {
             error: None,
             current_node_id: None,
             active_goal_name: None,
-            filters: HypothesisFilters::default(),
             selection: ListSelection::default(),
             show_previous: true,
             show_next: false,
@@ -69,35 +66,28 @@ impl Default for BeforeAfterMode {
 }
 
 impl BeforeAfterMode {
-    pub const fn filters(&self) -> HypothesisFilters {
-        self.filters
-    }
-
     fn selectable_items(&self) -> Vec<Selection> {
         let Some(node_id) = self.current_node_id else {
             return Vec::new();
         };
 
-        let hyp_items = hypothesis_indices(
-            self.current_state.hypotheses.len(),
-            self.filters.reverse_order,
-        )
-        .filter(|&hyp_idx| {
-            self.current_state.hypotheses.get(hyp_idx).is_some_and(|h| {
-                (!self.filters.hide_instances || !h.is_typeclass_instance)
-                    && (!self.filters.hide_inaccessible || !h.is_proof_term)
+        let filters = self.filters();
+        let hide_instances = has_filter(filters, FilterToggle::Instances);
+        let hide_inaccessible = has_filter(filters, FilterToggle::Inaccessible);
+
+        let hyp_items = hypothesis_indices(self.current_state.hypotheses.len(), filters)
+            .filter(|&hyp_idx| {
+                self.current_state.hypotheses.get(hyp_idx).is_some_and(|h| {
+                    (!hide_instances || !h.is_typeclass_instance)
+                        && (!hide_inaccessible || !h.is_proof_term)
+                })
             })
-        })
-        .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
+            .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
 
         let goal_items = (0..self.current_state.goals.len())
             .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
 
         hyp_items.chain(goal_items).collect()
-    }
-
-    pub fn take_clicked_error(&mut self) -> Option<String> {
-        self.errors_section_state.take_clicked_error()
     }
 }
 
@@ -116,21 +106,27 @@ impl InteractiveComponent for BeforeAfterMode {
         let state_changed = self.current_state.goals.len() != new_current_state.goals.len()
             || self.current_state.hypotheses.len() != new_current_state.hypotheses.len();
 
-        self.previous_state = self.show_previous.then(|| {
-            current_node
-                .and_then(|n| n.parent)
-                .and_then(|parent_id| input.dag.as_ref()?.get(parent_id))
-                .map(|parent| parent.proof_state.clone())
-        }).flatten();
+        self.previous_state = self
+            .show_previous
+            .then(|| {
+                current_node
+                    .and_then(|n| n.parent)
+                    .and_then(|parent_id| input.dag.as_ref()?.get(parent_id))
+                    .map(|parent| parent.proof_state.clone())
+            })
+            .flatten();
 
         self.current_state = new_current_state;
 
-        self.next_state = self.show_next.then(|| {
-            current_node
-                .and_then(|n| n.children.first())
-                .and_then(|&child_id| input.dag.as_ref()?.get(child_id))
-                .map(|child| child.proof_state.clone())
-        }).flatten();
+        self.next_state = self
+            .show_next
+            .then(|| {
+                current_node
+                    .and_then(|n| n.children.first())
+                    .and_then(|&child_id| input.dag.as_ref()?.get(child_id))
+                    .map(|child| child.proof_state.clone())
+            })
+            .flatten();
 
         self.error = input.error;
         self.current_node_id = current_node_id;
@@ -232,7 +228,7 @@ impl InteractiveComponent for BeforeAfterMode {
                     DiffPane::new(
                         DiffPaneKind::Before,
                         state,
-                        self.filters,
+                        self.filters(),
                         None,
                         None,
                         self.active_goal_name.as_deref(),
@@ -248,7 +244,7 @@ impl InteractiveComponent for BeforeAfterMode {
             DiffPane::new(
                 DiffPaneKind::Current,
                 &self.current_state,
-                self.filters,
+                self.filters(),
                 selection,
                 self.current_node_id,
                 self.active_goal_name.as_deref(),
@@ -276,7 +272,7 @@ impl InteractiveComponent for BeforeAfterMode {
                     DiffPane::new(
                         DiffPaneKind::After,
                         state,
-                        self.filters,
+                        self.filters(),
                         None,
                         None,
                         self.active_goal_name.as_deref(),
@@ -302,19 +298,35 @@ impl InteractiveComponent for BeforeAfterMode {
 impl Mode for BeforeAfterMode {
     type Model = BeforeAfterModeInput;
 
-    const NAME: &'static str = "Compact";
-    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[("p", "prev"), ("n", "next")];
-    const SUPPORTED_FILTERS: &'static [FilterToggle] = &[
-        FilterToggle::Instances,
-        FilterToggle::Inaccessible,
-        FilterToggle::LetValues,
-        FilterToggle::ReverseOrder,
-    ];
+    fn name(&self) -> &'static str {
+        "Compact"
+    }
+
+    fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
+        &[("p", "prev"), ("n", "next")]
+    }
+
+    fn toggles(&self) -> &'static [FilterToggle] {
+        &[
+            FilterToggle::Instances,
+            FilterToggle::Inaccessible,
+            FilterToggle::LetValues,
+            FilterToggle::ReverseOrder,
+        ]
+    }
+
+    fn filters(&self) -> &'static [FilterToggle] {
+        &[]
+    }
 
     fn current_selection(&self) -> Option<Selection> {
         self.selection
             .current_selection(&self.selectable_items())
             .copied()
+    }
+
+    fn take_clicked_error(&mut self) -> Option<String> {
+        self.errors_section_state.take_clicked_error()
     }
 
     fn legend_sections(&self) -> Vec<LegendSection> {

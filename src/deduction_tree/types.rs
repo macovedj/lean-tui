@@ -11,7 +11,7 @@ use crate::{
     },
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, PreresolvedNavigationTargets, RichText,
+        LineCharacterPosition, LocalBinding, PreresolvedNavigationTargets, RichText,
     },
     shared::{LayoutSize, Theme},
 };
@@ -137,7 +137,7 @@ pub struct CompleteProofDag {
     pub orphans: Vec<NodeId>,
     pub block_output: Option<RichText>,
     #[serde(default)]
-    pub block_input: Vec<crate::protocol::LocalBinding>,
+    pub block_input: Vec<LocalBinding>,
 }
 
 impl CompleteProofDag {

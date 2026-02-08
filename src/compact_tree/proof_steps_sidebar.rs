@@ -129,8 +129,8 @@ impl ProofStepsSidebarState {
     }
 
     /// Calculate the required width for the sidebar based on content.
-    /// Returns the width needed to display all lines without horizontal scrolling,
-    /// plus borders and scrollbar.
+    /// Returns the width needed to display all lines without horizontal
+    /// scrolling, plus borders and scrollbar.
     pub fn required_width(&self) -> u16 {
         let lines = self.build_lines();
         let max_content = lines.iter().map(Line::width).max().unwrap_or(0);

@@ -60,7 +60,7 @@ impl<'a> OutputPane<'a> {
         let text_len = text.chars().count();
 
         // Calculate lines needed with wrapping
-        let lines = (text_len + inner_width - 1) / inner_width;
+        let lines = text_len.div_ceil(inner_width);
         (lines as u16).max(1)
     }
 }

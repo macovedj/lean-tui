@@ -30,7 +30,7 @@ use crate::{
         theme::Theme,
         InteractiveStatefulWidget, KeyMouseEvent, Selection,
     },
-    status_bar::{StatusBar, StatusBarInput, StatusBarWidget},
+    status_bar::StatusBar,
     tcp_client::{ConnectionPool, WorkerInfo},
     welcome::WelcomeScreen,
     worker_selector::{WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
@@ -73,8 +73,6 @@ pub struct App {
     input_pane_state: InputPaneState,
     /// State for the output pane widget.
     output_pane_state: OutputPaneState,
-    /// Status bar component.
-    status_bar: StatusBar,
     /// Help menu overlay.
     help_menu: HelpMenu,
     /// Legend popup overlay.
@@ -111,7 +109,6 @@ impl App {
             show_output: false,
             input_pane_state: InputPaneState::default(),
             output_pane_state: OutputPaneState::default(),
-            status_bar: StatusBar::default(),
             help_menu: HelpMenu::default(),
             legend: Legend::default(),
             worker_selector: WorkerSelector::default(),
@@ -417,14 +414,6 @@ impl App {
     /// Update all components with current state.
     pub fn update(&mut self) {
         self.display_mode.update(self.error.clone());
-        StatusBarWidget::update_state(
-            &mut self.status_bar,
-            StatusBarInput {
-                filters: self.display_mode.filters(),
-                keybindings: self.display_mode.keybindings(),
-                supported_filters: self.display_mode.supported_filters(),
-            },
-        );
     }
 
     /// Render the entire UI.
@@ -433,7 +422,14 @@ impl App {
             Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(frame.area());
 
         self.render_main(frame, main_area);
-        frame.render_stateful_widget(StatusBarWidget, status_area, &mut self.status_bar);
+        frame.render_widget(
+            StatusBar::new(
+                self.display_mode.keybindings(),
+                self.display_mode.toggles(),
+                self.display_mode.filters(),
+            ),
+            status_area,
+        );
         frame.render_stateful_widget(HelpMenuWidget, frame.area(), &mut self.help_menu);
         let legend_sections = self.display_mode.legend_sections();
         frame.render_stateful_widget(

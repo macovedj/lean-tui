@@ -31,15 +31,6 @@ pub enum KeyMouseEvent {
     Mouse(MouseEvent),
 }
 
-/// Hypothesis filter settings.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct HypothesisFilters {
-    pub hide_instances: bool,
-    pub hide_inaccessible: bool,
-    pub hide_let_values: bool,
-    pub reverse_order: bool,
-}
-
 /// Filter toggles that modes can support.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterToggle {
@@ -49,10 +40,27 @@ pub enum FilterToggle {
     ReverseOrder,
 }
 
+impl FilterToggle {
+    /// Single-character indicator for status bar display.
+    pub const fn indicator(self) -> char {
+        match self {
+            Self::Instances => 'i',
+            Self::Inaccessible => 'a',
+            Self::LetValues => 'l',
+            Self::ReverseOrder => 'r',
+        }
+    }
+}
+
+/// Check if a filter is active in a slice of toggles.
+pub fn has_filter(filters: &[FilterToggle], toggle: FilterToggle) -> bool {
+    filters.contains(&toggle)
+}
+
 /// Create an iterator over hypothesis indices with optional reversal.
-pub fn hypothesis_indices(len: usize, reverse: bool) -> Box<dyn Iterator<Item = usize>> {
+pub fn hypothesis_indices(len: usize, filters: &[FilterToggle]) -> Box<dyn Iterator<Item = usize>> {
     let range = 0..len;
-    if reverse {
+    if has_filter(filters, FilterToggle::ReverseOrder) {
         Box::new(range.rev())
     } else {
         Box::new(range)

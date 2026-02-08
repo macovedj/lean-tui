@@ -11,22 +11,15 @@ use crate::{
     shared::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::RichTextExt,
-        hypothesis_indices,
+        has_filter, hypothesis_indices,
         theme::{Blue, Gray, Theme},
-        HypothesisFilters, Region, Selection,
+        FilterToggle, Region, Selection,
     },
 };
 
+#[derive(Default)]
 pub struct AssumptionPaneState {
     click_regions: Vec<Region>,
-}
-
-impl Default for AssumptionPaneState {
-    fn default() -> Self {
-        Self {
-            click_regions: Vec::new(),
-        }
-    }
 }
 
 impl AssumptionPaneState {
@@ -37,7 +30,7 @@ impl AssumptionPaneState {
 
 pub struct AssumptionPane<'a> {
     state: &'a TacticProofState,
-    filters: HypothesisFilters,
+    filters: &'a [FilterToggle],
     selection: Option<Selection>,
     is_focused: bool,
     is_current: bool,
@@ -45,9 +38,9 @@ pub struct AssumptionPane<'a> {
 }
 
 impl<'a> AssumptionPane<'a> {
-    pub const fn new(
+    pub fn new(
         state: &'a TacticProofState,
-        filters: HypothesisFilters,
+        filters: &'a [FilterToggle],
         selection: Option<Selection>,
         is_focused: bool,
         is_current: bool,
@@ -67,10 +60,10 @@ impl<'a> AssumptionPane<'a> {
         let Some(h) = self.state.hypotheses.get(idx) else {
             return false;
         };
-        if self.filters.hide_instances && h.is_typeclass_instance {
+        if has_filter(self.filters, FilterToggle::Instances) && h.is_typeclass_instance {
             return false;
         }
-        if self.filters.hide_inaccessible && h.is_proof_term {
+        if has_filter(self.filters, FilterToggle::Inaccessible) && h.is_proof_term {
             return false;
         }
         true
@@ -112,11 +105,10 @@ impl StatefulWidget for AssumptionPane<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let visible_hyps: Vec<_> =
-            hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
-                .filter(|&i| self.should_show_hypothesis(i))
-                .take(inner.height as usize)
-                .collect();
+        let visible_hyps: Vec<_> = hypothesis_indices(self.state.hypotheses.len(), self.filters)
+            .filter(|&i| self.should_show_hypothesis(i))
+            .take(inner.height as usize)
+            .collect();
 
         let rows: Vec<AlignedRow> = visible_hyps
             .iter()

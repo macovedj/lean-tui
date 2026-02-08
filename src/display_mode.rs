@@ -6,31 +6,32 @@ use ratatui::{layout::Rect, Frame};
 
 use crate::{
     before_after::{BeforeAfterMode, BeforeAfterModeInput},
+    compact_tree::{CompactTree, CompactTreeInput},
     data_flow::{DataFlowConversionError, DataFlowDag, DataFlowMode, DataFlowModeInput},
     deduction_tree::{
         CompleteProofDag, DeductionTreeModeInput, ProofDagConversionError, SemanticTableau,
     },
     effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode, EffectFlowModeInput},
-    protocol::GenericDag,
-    shared::{
-        legend::LegendSection, FilterToggle, HypothesisFilters, InteractiveComponent,
-        KeyMouseEvent, Selection,
-    },
-    compact_tree::{CompactTree, CompactTreeInput},
+    protocol::{GenericDag, LocalBinding, RichText},
+    shared::{legend::LegendSection, FilterToggle, InteractiveComponent, KeyMouseEvent, Selection},
 };
 
 /// Trait for display modes in the TUI.
 pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent> {
     type Model;
 
-    const NAME: &'static str;
-    const KEYBINDINGS: &'static [(&'static str, &'static str)];
-    const SUPPORTED_FILTERS: &'static [FilterToggle];
-
+    fn name(&self) -> &'static str;
+    fn keybindings(&self) -> &'static [(&'static str, &'static str)];
+    fn toggles(&self) -> &'static [FilterToggle];
+    fn filters(&self) -> &'static [FilterToggle];
     fn current_selection(&self) -> Option<Selection>;
 
     fn legend_sections(&self) -> Vec<LegendSection> {
         Vec::new()
+    }
+
+    fn take_clicked_error(&mut self) -> Option<String> {
+        None
     }
 }
 
@@ -60,7 +61,7 @@ impl DagState {
     }
 
     /// Get block input bindings (theorem/def parameters).
-    pub fn block_input(&self) -> &[crate::protocol::LocalBinding] {
+    pub fn block_input(&self) -> &[LocalBinding] {
         match self {
             Self::Proof(dag) => &dag.block_input,
             Self::Dataflow(dag) => &dag.block_input,
@@ -70,7 +71,7 @@ impl DagState {
     }
 
     /// Get block output (theorem statement).
-    pub fn block_output(&self) -> Option<&crate::protocol::RichText> {
+    pub fn block_output(&self) -> Option<&RichText> {
         match self {
             Self::Proof(dag) => dag.block_output.as_ref(),
             Self::Dataflow(dag) => dag.block_output.as_ref(),
@@ -220,33 +221,33 @@ impl DisplayMode {
     /// Get the display name of the current mode.
     pub fn name(&self) -> &'static str {
         match &self.mode {
-            ModeVariant::Compact(_) => BeforeAfterMode::NAME,
-            ModeVariant::CompactTree(_) => CompactTree::NAME,
-            ModeVariant::DeductionTree(_) => SemanticTableau::NAME,
-            ModeVariant::DataFlow(_) => DataFlowMode::NAME,
-            ModeVariant::EffectFlow(_) => EffectFlowMode::NAME,
+            ModeVariant::Compact(m) => m.name(),
+            ModeVariant::CompactTree(m) => m.name(),
+            ModeVariant::DeductionTree(m) => m.name(),
+            ModeVariant::DataFlow(m) => m.name(),
+            ModeVariant::EffectFlow(m) => m.name(),
         }
     }
 
     /// Get mode-specific keybindings.
-    pub const fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
+    pub fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
         match &self.mode {
-            ModeVariant::Compact(_) => BeforeAfterMode::KEYBINDINGS,
-            ModeVariant::CompactTree(_) => CompactTree::KEYBINDINGS,
-            ModeVariant::DeductionTree(_) => SemanticTableau::KEYBINDINGS,
-            ModeVariant::DataFlow(_) => DataFlowMode::KEYBINDINGS,
-            ModeVariant::EffectFlow(_) => EffectFlowMode::KEYBINDINGS,
+            ModeVariant::Compact(m) => m.keybindings(),
+            ModeVariant::CompactTree(m) => m.keybindings(),
+            ModeVariant::DeductionTree(m) => m.keybindings(),
+            ModeVariant::DataFlow(m) => m.keybindings(),
+            ModeVariant::EffectFlow(m) => m.keybindings(),
         }
     }
 
-    /// Get supported filter toggles.
-    pub const fn supported_filters(&self) -> &'static [FilterToggle] {
+    /// Get available filter toggles for this mode.
+    pub fn toggles(&self) -> &'static [FilterToggle] {
         match &self.mode {
-            ModeVariant::Compact(_) => BeforeAfterMode::SUPPORTED_FILTERS,
-            ModeVariant::CompactTree(_) => CompactTree::SUPPORTED_FILTERS,
-            ModeVariant::DeductionTree(_) => SemanticTableau::SUPPORTED_FILTERS,
-            ModeVariant::DataFlow(_) => DataFlowMode::SUPPORTED_FILTERS,
-            ModeVariant::EffectFlow(_) => EffectFlowMode::SUPPORTED_FILTERS,
+            ModeVariant::Compact(m) => m.toggles(),
+            ModeVariant::CompactTree(m) => m.toggles(),
+            ModeVariant::DeductionTree(m) => m.toggles(),
+            ModeVariant::DataFlow(m) => m.toggles(),
+            ModeVariant::EffectFlow(m) => m.toggles(),
         }
     }
 
@@ -272,14 +273,14 @@ impl DisplayMode {
         }
     }
 
-    /// Get filters from active mode.
-    pub const fn filters(&self) -> HypothesisFilters {
+    /// Get active filters from current mode.
+    pub fn filters(&self) -> &[FilterToggle] {
         match &self.mode {
-            ModeVariant::Compact(m) => m.filters(),
-            ModeVariant::CompactTree(m) => m.filters(),
-            ModeVariant::DeductionTree(m) => m.filters(),
-            ModeVariant::DataFlow(m) => m.filters(),
-            ModeVariant::EffectFlow(m) => m.filters(),
+            ModeVariant::Compact(m) => Mode::filters(m),
+            ModeVariant::CompactTree(m) => Mode::filters(m),
+            ModeVariant::DeductionTree(m) => Mode::filters(m),
+            ModeVariant::DataFlow(m) => Mode::filters(m),
+            ModeVariant::EffectFlow(m) => Mode::filters(m),
         }
     }
 
@@ -297,10 +298,11 @@ impl DisplayMode {
     /// Take clicked error from modes that support it (if any).
     pub fn take_clicked_error(&mut self) -> Option<String> {
         match &mut self.mode {
-            ModeVariant::Compact(m) => m.take_clicked_error(),
-            ModeVariant::CompactTree(m) => m.take_clicked_error(),
-            ModeVariant::DataFlow(m) => m.take_clicked_error(),
-            _ => None,
+            ModeVariant::Compact(m) => Mode::take_clicked_error(m),
+            ModeVariant::CompactTree(m) => Mode::take_clicked_error(m),
+            ModeVariant::DeductionTree(m) => Mode::take_clicked_error(m),
+            ModeVariant::DataFlow(m) => Mode::take_clicked_error(m),
+            ModeVariant::EffectFlow(m) => Mode::take_clicked_error(m),
         }
     }
 
@@ -310,35 +312,50 @@ impl DisplayMode {
 
         match (&mut self.mode, &self.dag) {
             (ModeVariant::Compact(m), DagState::Proof(dag)) => {
-                m.update(BeforeAfterModeInput { dag: Some(dag.clone()), error });
+                m.update(BeforeAfterModeInput {
+                    dag: Some(dag.clone()),
+                    error,
+                });
             }
             (ModeVariant::Compact(m), _) => {
                 m.update(BeforeAfterModeInput { dag: None, error });
             }
 
             (ModeVariant::CompactTree(m), DagState::Proof(dag)) => {
-                m.update(CompactTreeInput { dag: Some(dag.clone()), error });
+                m.update(CompactTreeInput {
+                    dag: Some(dag.clone()),
+                    error,
+                });
             }
             (ModeVariant::CompactTree(m), _) => {
                 m.update(CompactTreeInput { dag: None, error });
             }
 
             (ModeVariant::DeductionTree(m), DagState::Proof(dag)) => {
-                m.update(DeductionTreeModeInput { dag: Some(dag.clone()), error });
+                m.update(DeductionTreeModeInput {
+                    dag: Some(dag.clone()),
+                    error,
+                });
             }
             (ModeVariant::DeductionTree(m), _) => {
                 m.update(DeductionTreeModeInput { dag: None, error });
             }
 
             (ModeVariant::DataFlow(m), DagState::Dataflow(dag)) => {
-                m.update(DataFlowModeInput { dag: Some(dag.clone()), error });
+                m.update(DataFlowModeInput {
+                    dag: Some(dag.clone()),
+                    error,
+                });
             }
             (ModeVariant::DataFlow(m), _) => {
                 m.update(DataFlowModeInput { dag: None, error });
             }
 
             (ModeVariant::EffectFlow(m), DagState::Effectflow(dag)) => {
-                m.update(EffectFlowModeInput { dag: Some(dag.clone()), error });
+                m.update(EffectFlowModeInput {
+                    dag: Some(dag.clone()),
+                    error,
+                });
             }
             (ModeVariant::EffectFlow(m), _) => {
                 m.update(EffectFlowModeInput { dag: None, error });
