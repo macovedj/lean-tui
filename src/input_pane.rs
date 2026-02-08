@@ -8,10 +8,8 @@ use ratatui::{
 
 use crate::{
     protocol::LocalBinding,
-    shared::{
-        theme::{Blue, Gray, Theme},
-        Region, Selection,
-    },
+    selection::{Region, Selection},
+    theme::{Blue, Gray, Theme},
 };
 
 #[derive(Default)]

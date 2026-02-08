@@ -6,15 +6,12 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use crate::{
-    protocol::DiagnosticInfo,
-    shared::theme::Red,
-};
+use crate::{protocol::DiagnosticInfo, selection::Region, theme::Red};
 
 /// State for the errors pane.
 #[derive(Default)]
 pub struct ErrorsPaneState {
-    pub click_regions: Vec<crate::shared::Region>,
+    pub click_regions: Vec<Region>,
 }
 
 /// Errors pane widget - displays diagnostic errors.

@@ -7,11 +7,9 @@ use ratatui::{
 
 use crate::{
     protocol::RichText,
-    shared::{
-        diff_text::RichTextExt,
-        theme::{Gray, Orange, Theme},
-        Region, Selection,
-    },
+    selection::{Region, Selection},
+    theme::{Gray, Orange, Theme},
+    widgets::diff_text::RichTextExt,
 };
 
 #[derive(Default)]

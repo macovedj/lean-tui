@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::shared::theme::Theme;
+use crate::theme::Theme;
 
 /// Stateless status bar widget.
 pub struct StatusBar<'a> {

@@ -11,13 +11,14 @@ use ratatui::{
 use crate::{
     deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
+    interactive::{InteractiveComponent, KeyMouseEvent},
     protocol::{DiagnosticInfo, NodeId},
-    shared::{
+    selection::{ListSelection, Selection},
+    theme::Theme,
+    widgets::{
         errors_section::{ErrorsSection, ErrorsSectionState},
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
-        theme::Theme,
-        InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
     },
 };
 

@@ -13,8 +13,9 @@ use ratatui::{
 
 use crate::{
     deduction_tree::types::{CompleteProofDag, ProofDagTacticNode},
+    interactive::InteractiveStatefulWidget,
     protocol::NodeId,
-    shared::{theme::Theme, InteractiveStatefulWidget},
+    theme::Theme,
 };
 
 const BRANCH_MID: &str = "├─ ";

@@ -6,14 +6,14 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     graph_layout::{
-        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode,
+        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode,
         NodeTextContent,
     },
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
         LineCharacterPosition, LocalBinding, PreresolvedNavigationTargets, RichText,
     },
-    shared::{LayoutSize, Theme},
+    theme::Theme,
 };
 
 /// A hypothesis in a proof context.

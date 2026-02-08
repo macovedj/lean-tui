@@ -9,11 +9,11 @@ use ratatui::{
 use super::types::ProofDagTacticNode;
 use crate::{
     deduction_tree::TacticProofState,
-    shared::{
+    selection::{Region, Selection},
+    theme::{Red, Theme},
+    widgets::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::RichTextExt,
-        theme::{Red, Theme},
-        Region, Selection,
     },
 };
 

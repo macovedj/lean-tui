@@ -11,11 +11,9 @@ use ratatui::{
 use super::types::{DataFlowKind, DataFlowNode, SimpleBinding};
 use crate::{
     protocol::{BindingKind, DiagnosticSeverity},
-    shared::{
-        aligned_table::{AlignedRow, AlignedTable},
-        theme::{Red, Theme},
-        Region, Selection,
-    },
+    selection::{Region, Selection},
+    theme::{Red, Theme},
+    widgets::aligned_table::{AlignedRow, AlignedTable},
 };
 
 /// State for a single functional state node widget.

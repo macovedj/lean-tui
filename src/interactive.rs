@@ -1,6 +1,14 @@
 //! Interactive widget traits extending ratatui's `StatefulWidget`.
 
+pub use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{layout::Rect, widgets::StatefulWidget, Frame};
+
+/// Key or mouse event for interactive components.
+#[derive(Clone)]
+pub enum KeyMouseEvent {
+    Key(KeyEvent),
+    Mouse(MouseEvent),
+}
 
 /// Extension trait for `StatefulWidget` that adds state management and event
 /// handling.

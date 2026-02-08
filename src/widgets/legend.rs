@@ -1,6 +1,6 @@
 //! Legend popup overlay for displaying color/icon meanings.
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -9,7 +9,7 @@ use ratatui::{
     widgets::{Block, Clear, Paragraph, StatefulWidget, Widget},
 };
 
-use super::{InteractiveStatefulWidget, KeyEvent};
+use crate::interactive::InteractiveStatefulWidget;
 
 /// A single legend entry with icon, color, and description.
 #[derive(Debug, Clone)]

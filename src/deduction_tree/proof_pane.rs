@@ -12,7 +12,8 @@ use super::{
 use crate::{
     deduction_tree::TacticProofState,
     graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
-    shared::{build_navigation_regions, Selection},
+    navigation::build_navigation_regions,
+    selection::Selection,
 };
 
 pub type ProofPaneState = GraphViewport;

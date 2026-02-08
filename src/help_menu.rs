@@ -7,7 +7,10 @@ use ratatui::{
     widgets::{Block, Clear, Paragraph, StatefulWidget, Widget},
 };
 
-use crate::shared::{theme::Theme, InteractiveStatefulWidget, KeyEvent};
+use crate::{
+    interactive::{InteractiveStatefulWidget, KeyEvent},
+    theme::Theme,
+};
 
 const KEYBINDINGS: &[(&str, &str)] = &[
     ("[/]", "cycle display mode"),

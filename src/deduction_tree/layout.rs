@@ -10,7 +10,7 @@ use super::{
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
-    shared::{find_region_at, Region, Selection},
+    selection::{find_region_at, Region, Selection},
 };
 
 /// Combined state for the semantic tableau layout.

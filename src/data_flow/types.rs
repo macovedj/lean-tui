@@ -5,14 +5,14 @@ use ratatui::style::{Color, Style};
 
 use crate::{
     graph_layout::{
-        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode,
+        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode,
         NodeTextContent,
     },
     protocol::{
         BindingKind, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
         LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
     },
-    shared::{LayoutSize, Theme},
+    theme::Theme,
 };
 
 /// Data flow node kinds from the lean-prism backend.

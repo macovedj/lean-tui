@@ -7,7 +7,7 @@ use super::{
 use crate::{
     graph_layout::LayoutConfig,
     protocol::NodeId,
-    shared::{find_region_at, Region, Selection},
+    selection::{find_region_at, Region, Selection},
 };
 
 /// State for the effect flow tableau layout.

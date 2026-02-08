@@ -15,7 +15,11 @@ mod effect_flow;
 
 // Shared components
 mod graph_layout;
-mod shared;
+mod interactive;
+mod navigation;
+mod selection;
+mod theme;
+mod widgets;
 
 // Global panes (input/output)
 mod input_pane;
