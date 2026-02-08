@@ -11,7 +11,7 @@ use ratatui::{
 use crate::{
     deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
-    interactive::{InteractiveComponent, KeyMouseEvent},
+    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
     protocol::{DiagnosticInfo, NodeId},
     selection::{ListSelection, Selection},
     theme::Theme,
@@ -21,11 +21,6 @@ use crate::{
         render_helpers::render_error,
     },
 };
-
-pub struct BeforeAfterModeInput {
-    pub dag: Option<CompleteProofDag>,
-    pub error: Option<String>,
-}
 
 pub struct BeforeAfterMode {
     previous_state: Option<TacticProofState>,
@@ -82,7 +77,7 @@ impl BeforeAfterMode {
 }
 
 impl InteractiveComponent for BeforeAfterMode {
-    type Input = BeforeAfterModeInput;
+    type Input = ModeInput<CompleteProofDag>;
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
@@ -283,7 +278,7 @@ impl InteractiveComponent for BeforeAfterMode {
 }
 
 impl Mode for BeforeAfterMode {
-    type Model = BeforeAfterModeInput;
+    type Model = ModeInput<CompleteProofDag>;
 
     fn name(&self) -> &'static str {
         "Compact"

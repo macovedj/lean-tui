@@ -3,12 +3,10 @@
 
 use ratatui::{buffer::Buffer, layout::Rect, widgets::StatefulWidget};
 
-use super::{
-    proof_pane::{ProofPane, ProofPaneState},
-    types::CompleteProofDag,
-};
+use super::{proof_pane::ProofPane, types::CompleteProofDag};
 use crate::{
     deduction_tree::TacticProofState,
+    graph_layout::GraphViewport,
     protocol::NodeId,
     selection::{find_region_at, Region, Selection},
 };
@@ -16,7 +14,7 @@ use crate::{
 /// Combined state for the semantic tableau layout.
 #[derive(Default)]
 pub struct SemanticTableauState {
-    pub proof: ProofPaneState,
+    pub proof: GraphViewport,
 }
 
 impl SemanticTableauState {

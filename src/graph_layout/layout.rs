@@ -5,7 +5,7 @@ use std::{
 
 use petgraph::graph::NodeIndex;
 
-use super::graph::NodeId;
+use crate::protocol::NodeId;
 
 pub const ORPHAN_GAP: i32 = 4;
 const VERTICAL_GAP: i32 = 2;
@@ -47,11 +47,6 @@ pub struct NodePosition {
     pub y: i32,
     pub width: u16,
     pub height: u16,
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct LayoutConfig {
-    pub top_down: bool,
 }
 
 #[derive(Debug, Default)]
@@ -109,7 +104,7 @@ impl LayoutGraph {
     }
 }
 
-pub fn calculate_layout(graph: &LayoutGraph, config: LayoutConfig) -> DagLayout {
+pub fn calculate_layout(graph: &LayoutGraph, top_down: bool) -> DagLayout {
     if graph.nodes.is_empty() {
         return DagLayout::default();
     }
@@ -129,7 +124,7 @@ pub fn calculate_layout(graph: &LayoutGraph, config: LayoutConfig) -> DagLayout 
         };
     }
 
-    let main_positions = layered_layout(&main_nodes, &graph.edges, graph.root, config);
+    let main_positions = layered_layout(&main_nodes, &graph.edges, graph.root, top_down);
     let (orphan_positions, final_width, final_height) = position_orphans(
         &orphan_nodes,
         main_positions.content_width,
@@ -151,7 +146,7 @@ fn layered_layout(
     nodes: &[&LayoutNode],
     edges: &[LayoutEdge],
     root: Option<NodeIndex>,
-    config: LayoutConfig,
+    top_down: bool,
 ) -> DagLayout {
     if nodes.is_empty() {
         return DagLayout::default();
@@ -185,7 +180,7 @@ fn layered_layout(
         .iter()
         .map(|node| {
             let depth = depths.get(&node.index).copied().unwrap_or(0);
-            let y = if config.top_down {
+            let y = if top_down {
                 layer_y_positions[depth]
             } else {
                 current_y - layer_y_positions[depth] - i32::from(node.height)

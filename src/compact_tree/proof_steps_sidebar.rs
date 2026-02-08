@@ -275,7 +275,7 @@ fn step_line(node: &ProofDagTacticNode, prefix: &str, is_current: bool) -> Line<
     Line::from(vec![
         Span::styled(marker, Style::new().fg(Theme::CURRENT_NODE_BORDER)),
         Span::styled(prefix.to_string(), Theme::INACTIVE_NODE_BORDER),
-        Span::styled(node.tactic.text.clone(), style),
+        Span::styled(node.tactic_text.clone(), style),
     ])
 }
 

@@ -18,21 +18,23 @@ use crate::{
     data_flow::DataFlowNode,
     deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
-    help_menu::{HelpMenu, HelpMenuWidget},
-    input_pane::{InputPane, InputPaneState},
     interactive::{InteractiveStatefulWidget, KeyMouseEvent},
-    output_pane::{OutputPane, OutputPaneState},
     protocol::{
         ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, RichText,
         ServerToClientMessage,
     },
     selection::Selection,
-    status_bar::StatusBar,
     tcp_client::{ConnectionPool, WorkerInfo},
     theme::Theme,
-    welcome::WelcomeScreen,
-    widgets::legend::{Legend, LegendWidget},
-    worker_selector::{WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
+    widgets::{
+        help_menu::{HelpMenuState, HelpMenuWidget},
+        input_pane::{InputPane, InputPaneState},
+        legend::{Legend, LegendWidget},
+        output_pane::{OutputPane, OutputPaneState},
+        status_bar::StatusBar,
+        welcome::WelcomeScreen,
+        worker_selector::{WorkerSelectorResult, WorkerSelectorState, WorkerSelectorWidget},
+    },
 };
 
 /// Information about the enclosing definition (theorem, lemma, def, etc.)
@@ -73,11 +75,11 @@ pub struct App {
     /// State for the output pane widget.
     output_pane_state: OutputPaneState,
     /// Help menu overlay.
-    help_menu: HelpMenu,
+    help_menu: HelpMenuState,
     /// Legend popup overlay.
     legend: Legend,
     /// Worker selector dialog.
-    worker_selector: WorkerSelector,
+    worker_selector: WorkerSelectorState,
     /// File URI of the currently connected worker.
     pub connected_file_uri: Option<String>,
     /// Pending port to switch to (set by worker selector).
@@ -108,9 +110,9 @@ impl App {
             show_output: false,
             input_pane_state: InputPaneState::default(),
             output_pane_state: OutputPaneState::default(),
-            help_menu: HelpMenu::default(),
+            help_menu: HelpMenuState::default(),
             legend: Legend::default(),
-            worker_selector: WorkerSelector::default(),
+            worker_selector: WorkerSelectorState::default(),
             connected_file_uri: None,
             pending_port_switch: None,
             scan_requested: true, // Trigger initial scan on startup
@@ -421,10 +423,7 @@ impl App {
             Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(frame.area());
 
         self.render_main(frame, main_area);
-        frame.render_widget(
-            StatusBar::new(self.display_mode.keybindings()),
-            status_area,
-        );
+        frame.render_widget(StatusBar::new(self.display_mode.keybindings()), status_area);
         frame.render_stateful_widget(HelpMenuWidget, frame.area(), &mut self.help_menu);
         let legend_sections = self.display_mode.legend_sections();
         frame.render_stateful_widget(

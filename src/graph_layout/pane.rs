@@ -3,7 +3,7 @@ use ratatui::{buffer::Buffer, layout::Rect};
 
 use super::{
     center_on, clip_to_viewport, render_edges, render_scrollbars, scroll_target, DagGraph,
-    DagLayout, LayoutConfig,
+    DagLayout,
 };
 use crate::{protocol::NodeId, selection::Region};
 
@@ -75,7 +75,7 @@ impl GraphViewport {
     pub fn render_edges<N>(
         &self,
         graph: &DagGraph<N>,
-        config: LayoutConfig,
+        top_down: bool,
         viewport: Rect,
         buf: &mut Buffer,
     ) {
@@ -84,7 +84,7 @@ impl GraphViewport {
             &self.layout,
             self.scroll_x,
             self.scroll_y,
-            config.top_down,
+            top_down,
             viewport,
             buf,
         );

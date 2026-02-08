@@ -1,11 +1,8 @@
 use ratatui::{buffer::Buffer, layout::Rect, widgets::StatefulWidget};
 
-use super::{
-    graph_pane::{render_graph_pane, GraphPaneState},
-    types::EffectFlowDag,
-};
+use super::{graph_pane::render_graph_pane, types::EffectFlowDag};
 use crate::{
-    graph_layout::LayoutConfig,
+    graph_layout::GraphViewport,
     protocol::NodeId,
     selection::{find_region_at, Region, Selection},
 };
@@ -13,7 +10,7 @@ use crate::{
 /// State for the effect flow tableau layout.
 #[derive(Default)]
 pub struct EffectTableauState {
-    pub graph: GraphPaneState,
+    pub graph: GraphViewport,
 }
 
 impl EffectTableauState {
@@ -48,7 +45,7 @@ impl StatefulWidget for EffectTableauLayout<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         render_graph_pane(
             self.dag,
-            LayoutConfig { top_down: true },
+            true, // top_down
             self.selection,
             area,
             buf,

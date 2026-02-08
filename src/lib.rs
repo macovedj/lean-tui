@@ -20,16 +20,6 @@ mod navigation;
 mod selection;
 mod theme;
 mod widgets;
-
-// Global panes (input/output)
-mod input_pane;
-mod output_pane;
-
-// App-level UI components
-mod help_menu;
-mod status_bar;
-mod welcome;
-mod worker_selector;
 use std::{
     fs,
     io::{stdout, Stdout},

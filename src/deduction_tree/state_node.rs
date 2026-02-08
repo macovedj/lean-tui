@@ -80,7 +80,7 @@ impl<'a> StateNode<'a> {
 
     fn build_title(&self) -> String {
         let error_prefix = if self.node.has_error() { "⚠ " } else { "" };
-        format!(" {}{} ", error_prefix, self.node.tactic.text,)
+        format!(" {}{} ", error_prefix, self.node.tactic_text,)
     }
 
     fn build_hyp_rows(&self) -> Vec<AlignedRow> {

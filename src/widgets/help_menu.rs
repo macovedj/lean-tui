@@ -26,11 +26,11 @@ const KEYBINDINGS: &[(&str, &str)] = &[
 
 /// State for the help menu widget.
 #[derive(Default)]
-pub struct HelpMenu {
+pub struct HelpMenuState {
     visible: bool,
 }
 
-impl HelpMenu {
+impl HelpMenuState {
     pub const fn toggle(&mut self) {
         self.visible = !self.visible;
     }
@@ -40,7 +40,7 @@ impl HelpMenu {
 pub struct HelpMenuWidget;
 
 impl StatefulWidget for HelpMenuWidget {
-    type State = HelpMenu;
+    type State = HelpMenuState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         if !state.visible {

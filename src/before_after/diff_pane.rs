@@ -125,8 +125,14 @@ impl StatefulWidget for DiffPane<'_> {
         let selection = if is_current { self.selection } else { None };
         let node_id = if is_current { self.node_id } else { None };
 
-        AssumptionPane::new(self.state, selection, self.is_hyp_focused(), is_current, node_id)
-            .render(hyp_area, buf, &mut state.assumption_state);
+        AssumptionPane::new(
+            self.state,
+            selection,
+            self.is_hyp_focused(),
+            is_current,
+            node_id,
+        )
+        .render(hyp_area, buf, &mut state.assumption_state);
 
         GoalsPane::new(
             self.state,
