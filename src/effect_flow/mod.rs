@@ -3,7 +3,7 @@ mod layout;
 mod state_node;
 pub mod types;
 
-use crossterm::event::{MouseButton, MouseEventKind};
+use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -33,6 +33,7 @@ pub struct EffectFlowMode {
     effect_dag: Option<EffectFlowDag>,
     selected_idx: Option<usize>,
     effect_tableau_state: EffectTableauState,
+    expanded: bool,
 }
 
 impl EffectFlowMode {
@@ -205,7 +206,13 @@ impl InteractiveComponent for EffectFlowMode {
                 if let Some(dir) = key_to_direction(key.code) {
                     return self.move_in_direction(dir);
                 }
-                false
+                match key.code {
+                    KeyCode::Char('e') => {
+                        self.expanded = !self.expanded;
+                        true
+                    }
+                    _ => false,
+                }
             }
             KeyMouseEvent::Mouse(mouse) => {
                 if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
@@ -230,7 +237,8 @@ impl InteractiveComponent for EffectFlowMode {
 
         if let Some(ref dag) = self.effect_dag {
             let remaining = self.render_monad_stack(frame, content_area);
-            let widget = EffectTableauLayout::new(dag, self.current_tree_selection());
+            let widget =
+                EffectTableauLayout::new(dag, self.current_tree_selection(), self.expanded);
             frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
             return;
         }
@@ -250,7 +258,7 @@ impl Mode for EffectFlowMode {
     }
 
     fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
-        &[("hjkl", "nav")]
+        &[("hjkl", "nav"), ("e", "expand")]
     }
 
     fn current_selection(&self) -> Option<Selection> {

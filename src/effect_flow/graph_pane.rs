@@ -19,6 +19,7 @@ pub fn render_graph_pane(
     dag: &EffectFlowDag,
     top_down: bool,
     selection: Option<Selection>,
+    expanded: bool,
     area: Rect,
     buf: &mut Buffer,
     state: &mut GraphViewport,
@@ -32,10 +33,10 @@ pub fn render_graph_pane(
         return;
     }
 
-    let graph = dag.to_graph();
+    let graph = dag.to_graph_filtered(expanded);
 
-    let layout_changed = state.update_layout_if_needed(dag.len(), || {
-        let layout_graph = dag.to_layout_graph();
+    let layout_changed = state.update_layout_if_needed(dag.node_count_filtered(expanded), || {
+        let layout_graph = dag.to_layout_graph_filtered(expanded);
         calculate_layout(&layout_graph, top_down)
     });
 

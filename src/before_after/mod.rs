@@ -304,7 +304,7 @@ impl Mode for BeforeAfterMode {
                 "Diff markers",
                 Color::White,
                 vec![
-                    LegendItem::new("", Theme::UNCHANGED, "unchanged"),
+                    LegendItem::new("x", Theme::UNCHANGED, "unchanged"),
                     LegendItem::new("+", Theme::ADDED, "added"),
                     LegendItem::new("~", Theme::CHANGED, "changed"),
                     LegendItem::new("-", Theme::REMOVED, "removed"),
