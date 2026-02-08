@@ -23,7 +23,7 @@ use crate::{
         find_nearest_in_direction, key_to_direction,
         legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
-        Direction, FilterToggle, InteractiveComponent, KeyMouseEvent, Selection, Theme,
+        Direction, InteractiveComponent, KeyMouseEvent, Selection, Theme,
     },
 };
 
@@ -263,14 +263,6 @@ impl Mode for SemanticTableau {
             ("hjkl", "nav"),
             // TODO flip upside down with `m` (mirror), currently with t but broken
         ]
-    }
-
-    fn toggles(&self) -> &'static [FilterToggle] {
-        &[]
-    }
-
-    fn filters(&self) -> &'static [FilterToggle] {
-        &[]
     }
 
     fn current_selection(&self) -> Option<Selection> {

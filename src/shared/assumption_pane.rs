@@ -11,9 +11,8 @@ use crate::{
     shared::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::RichTextExt,
-        has_filter, hypothesis_indices,
         theme::{Blue, Gray, Theme},
-        FilterToggle, Region, Selection,
+        Region, Selection,
     },
 };
 
@@ -30,7 +29,6 @@ impl AssumptionPaneState {
 
 pub struct AssumptionPane<'a> {
     state: &'a TacticProofState,
-    filters: &'a [FilterToggle],
     selection: Option<Selection>,
     is_focused: bool,
     is_current: bool,
@@ -40,7 +38,6 @@ pub struct AssumptionPane<'a> {
 impl<'a> AssumptionPane<'a> {
     pub fn new(
         state: &'a TacticProofState,
-        filters: &'a [FilterToggle],
         selection: Option<Selection>,
         is_focused: bool,
         is_current: bool,
@@ -48,25 +45,11 @@ impl<'a> AssumptionPane<'a> {
     ) -> Self {
         Self {
             state,
-            filters,
             selection,
             is_focused,
             is_current,
             node_id,
         }
-    }
-
-    fn should_show_hypothesis(&self, idx: usize) -> bool {
-        let Some(h) = self.state.hypotheses.get(idx) else {
-            return false;
-        };
-        if has_filter(self.filters, FilterToggle::Instances) && h.is_typeclass_instance {
-            return false;
-        }
-        if has_filter(self.filters, FilterToggle::Inaccessible) && h.is_proof_term {
-            return false;
-        }
-        true
     }
 }
 
@@ -105,8 +88,7 @@ impl StatefulWidget for AssumptionPane<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let visible_hyps: Vec<_> = hypothesis_indices(self.state.hypotheses.len(), self.filters)
-            .filter(|&i| self.should_show_hypothesis(i))
+        let visible_hyps: Vec<_> = (0..self.state.hypotheses.len())
             .take(inner.height as usize)
             .collect();
 

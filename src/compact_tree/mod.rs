@@ -17,12 +17,11 @@ use crate::{
     protocol::NodeId,
     shared::{
         errors_section::{ErrorsSection, ErrorsSectionState},
-        has_filter, hypothesis_indices,
         legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
         theme::Theme,
-        AssumptionPane, AssumptionPaneState, FilterToggle, GoalsPane, GoalsPaneState,
-        InteractiveComponent, InteractiveStatefulWidget, KeyMouseEvent, ListSelection, Selection,
+        AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState, InteractiveComponent,
+        InteractiveStatefulWidget, KeyMouseEvent, ListSelection, Selection,
     },
 };
 
@@ -64,16 +63,7 @@ impl CompactTree {
             return Vec::new();
         };
 
-        let hide_instances = has_filter(self.filters(), FilterToggle::Instances);
-        let hide_inaccessible = has_filter(self.filters(), FilterToggle::Inaccessible);
-
-        let hyp_items = hypothesis_indices(self.state.hypotheses.len(), self.filters())
-            .filter(|&hyp_idx| {
-                self.state.hypotheses.get(hyp_idx).is_some_and(|h| {
-                    (!hide_instances || !h.is_typeclass_instance)
-                        && (!hide_inaccessible || !h.is_proof_term)
-                })
-            })
+        let hyp_items = (0..self.state.hypotheses.len())
             .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
 
         let goal_items =
@@ -214,14 +204,7 @@ impl InteractiveComponent for CompactTree {
         let selection = self.current_selection();
 
         frame.render_stateful_widget(
-            AssumptionPane::new(
-                &self.state,
-                self.filters(),
-                selection,
-                true,
-                is_current,
-                self.current_node_id,
-            ),
+            AssumptionPane::new(&self.state, selection, true, is_current, self.current_node_id),
             hyp_area,
             &mut self.assumption_state,
         );
@@ -284,14 +267,6 @@ impl Mode for CompactTree {
 
     fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
         &[("jk", "select"), ("hl", "scroll")]
-    }
-
-    fn toggles(&self) -> &'static [FilterToggle] {
-        &[]
-    }
-
-    fn filters(&self) -> &'static [FilterToggle] {
-        &[]
     }
 
     fn current_selection(&self) -> Option<Selection> {

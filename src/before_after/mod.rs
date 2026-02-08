@@ -14,11 +14,10 @@ use crate::{
     protocol::{DiagnosticInfo, NodeId},
     shared::{
         errors_section::{ErrorsSection, ErrorsSectionState},
-        has_filter, hypothesis_indices,
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
         theme::Theme,
-        FilterToggle, InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
+        InteractiveComponent, KeyMouseEvent, ListSelection, Selection,
     },
 };
 
@@ -71,17 +70,7 @@ impl BeforeAfterMode {
             return Vec::new();
         };
 
-        let filters = self.filters();
-        let hide_instances = has_filter(filters, FilterToggle::Instances);
-        let hide_inaccessible = has_filter(filters, FilterToggle::Inaccessible);
-
-        let hyp_items = hypothesis_indices(self.current_state.hypotheses.len(), filters)
-            .filter(|&hyp_idx| {
-                self.current_state.hypotheses.get(hyp_idx).is_some_and(|h| {
-                    (!hide_instances || !h.is_typeclass_instance)
-                        && (!hide_inaccessible || !h.is_proof_term)
-                })
-            })
+        let hyp_items = (0..self.current_state.hypotheses.len())
             .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
 
         let goal_items = (0..self.current_state.goals.len())
@@ -228,7 +217,6 @@ impl InteractiveComponent for BeforeAfterMode {
                     DiffPane::new(
                         DiffPaneKind::Before,
                         state,
-                        self.filters(),
                         None,
                         None,
                         self.active_goal_name.as_deref(),
@@ -244,7 +232,6 @@ impl InteractiveComponent for BeforeAfterMode {
             DiffPane::new(
                 DiffPaneKind::Current,
                 &self.current_state,
-                self.filters(),
                 selection,
                 self.current_node_id,
                 self.active_goal_name.as_deref(),
@@ -272,7 +259,6 @@ impl InteractiveComponent for BeforeAfterMode {
                     DiffPane::new(
                         DiffPaneKind::After,
                         state,
-                        self.filters(),
                         None,
                         None,
                         self.active_goal_name.as_deref(),
@@ -304,19 +290,6 @@ impl Mode for BeforeAfterMode {
 
     fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
         &[("p", "prev"), ("n", "next")]
-    }
-
-    fn toggles(&self) -> &'static [FilterToggle] {
-        &[
-            FilterToggle::Instances,
-            FilterToggle::Inaccessible,
-            FilterToggle::LetValues,
-            FilterToggle::ReverseOrder,
-        ]
-    }
-
-    fn filters(&self) -> &'static [FilterToggle] {
-        &[]
     }
 
     fn current_selection(&self) -> Option<Selection> {

@@ -10,10 +10,8 @@ use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{
-        has_filter, hypothesis_indices,
         theme::{Gray, Theme},
-        AssumptionPane, AssumptionPaneState, FilterToggle, GoalsPane, GoalsPaneState, Region,
-        Selection,
+        AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState, Region, Selection,
     },
 };
 
@@ -62,23 +60,9 @@ impl DiffPaneKind {
     }
 }
 
-fn should_show_hypothesis(state: &TacticProofState, filters: &[FilterToggle], idx: usize) -> bool {
-    let Some(h) = state.hypotheses.get(idx) else {
-        return false;
-    };
-    if has_filter(filters, FilterToggle::Instances) && h.is_typeclass_instance {
-        return false;
-    }
-    if has_filter(filters, FilterToggle::Inaccessible) && h.is_proof_term {
-        return false;
-    }
-    true
-}
-
 pub struct DiffPane<'a> {
     kind: DiffPaneKind,
     state: &'a TacticProofState,
-    filters: &'a [FilterToggle],
     selection: Option<Selection>,
     node_id: Option<NodeId>,
     active_goal_name: Option<&'a str>,
@@ -88,7 +72,6 @@ impl<'a> DiffPane<'a> {
     pub fn new(
         kind: DiffPaneKind,
         state: &'a TacticProofState,
-        filters: &'a [FilterToggle],
         selection: Option<Selection>,
         node_id: Option<NodeId>,
         active_goal_name: Option<&'a str>,
@@ -96,7 +79,6 @@ impl<'a> DiffPane<'a> {
         Self {
             kind,
             state,
-            filters,
             selection,
             node_id,
             active_goal_name,
@@ -129,9 +111,7 @@ impl StatefulWidget for DiffPane<'_> {
             area.height.saturating_sub(1),
         );
 
-        let visible_hyp_count = hypothesis_indices(self.state.hypotheses.len(), self.filters)
-            .filter(|&i| should_show_hypothesis(self.state, self.filters, i))
-            .count();
+        let visible_hyp_count = self.state.hypotheses.len();
 
         let hyp_pane_height =
             (visible_hyp_count + 2).min(content_area.height.saturating_sub(4) as usize / 2);
@@ -146,15 +126,8 @@ impl StatefulWidget for DiffPane<'_> {
         let selection = if is_current { self.selection } else { None };
         let node_id = if is_current { self.node_id } else { None };
 
-        AssumptionPane::new(
-            self.state,
-            self.filters,
-            selection,
-            self.is_hyp_focused(),
-            is_current,
-            node_id,
-        )
-        .render(hyp_area, buf, &mut state.assumption_state);
+        AssumptionPane::new(self.state, selection, self.is_hyp_focused(), is_current, node_id)
+            .render(hyp_area, buf, &mut state.assumption_state);
 
         GoalsPane::new(
             self.state,
