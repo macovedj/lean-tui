@@ -386,7 +386,7 @@ fn add_data_flow_edges(node: &DataFlowNode, graph: &mut DagGraph<DataFlowNode>) 
             to_idx,
             EdgeData {
                 style: Some(Style::new().fg(Theme::PANE_BORDER_FOCUSED)),
-                label: None,
+                label: edge.label.clone(),
             },
         );
     }

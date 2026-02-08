@@ -34,6 +34,7 @@ impl StatefulWidget for StatusBarWidget {
             ("?", "help"),
             ("j/k", "nav"),
             ("[/]", "mode"),
+            ("i/o", "in/out"),
             ("q", "quit"),
         ];
 

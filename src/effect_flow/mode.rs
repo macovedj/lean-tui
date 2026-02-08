@@ -25,41 +25,8 @@ use crate::{
 
 /// Input for updating the Effect Flow mode.
 pub struct EffectFlowModeInput {
+    pub dag: Option<EffectFlowDag>,
     pub error: Option<String>,
-    pub effect_dag: Option<EffectFlowDag>,
-}
-
-impl EffectFlowModeInput {
-    /// Create a builder for this input type.
-    pub fn builder() -> EffectFlowModeInputBuilder {
-        EffectFlowModeInputBuilder::default()
-    }
-}
-
-/// Builder for `EffectFlowModeInput`.
-#[derive(Default)]
-pub struct EffectFlowModeInputBuilder {
-    effect_dag: Option<EffectFlowDag>,
-    error: Option<String>,
-}
-
-impl EffectFlowModeInputBuilder {
-    pub fn effect_dag(mut self, dag: &EffectFlowDag) -> Self {
-        self.effect_dag = Some(dag.clone());
-        self
-    }
-
-    pub fn error(mut self, error: Option<String>) -> Self {
-        self.error = error;
-        self
-    }
-
-    pub fn build(self) -> EffectFlowModeInput {
-        EffectFlowModeInput {
-            error: self.error,
-            effect_dag: self.effect_dag,
-        }
-    }
 }
 
 #[derive(Default)]
@@ -199,9 +166,9 @@ impl InteractiveComponent for EffectFlowMode {
 
     fn update(&mut self, input: Self::Input) {
         let old_count = self.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
-        let new_count = input.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
+        let new_count = input.dag.as_ref().map_or(0, EffectFlowDag::len);
 
-        if let Some(ref dag) = input.effect_dag {
+        if let Some(ref dag) = input.dag {
             trace!(
                 node_count = dag.len(),
                 root_id = ?dag.root_node_id,
@@ -220,22 +187,15 @@ impl InteractiveComponent for EffectFlowMode {
         }
 
         let old_current = self.effect_dag.as_ref().and_then(|dag| dag.current_node_id);
-        let new_current = input
-            .effect_dag
-            .as_ref()
-            .and_then(|dag| dag.current_node_id);
+        let new_current = input.dag.as_ref().and_then(|dag| dag.current_node_id);
 
         let tree_changed = old_count != new_count || old_current != new_current;
 
-        self.effect_tableau_state.update_current_node(
-            input
-                .effect_dag
-                .as_ref()
-                .and_then(|dag| dag.current_node_id),
-        );
+        self.effect_tableau_state
+            .update_current_node(input.dag.as_ref().and_then(|dag| dag.current_node_id));
 
         self.error = input.error;
-        self.effect_dag = input.effect_dag;
+        self.effect_dag = input.dag;
 
         if tree_changed {
             if let Some(sel) = self.active_goal_selection() {

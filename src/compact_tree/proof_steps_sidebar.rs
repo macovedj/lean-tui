@@ -29,8 +29,6 @@ pub struct ProofStepsSidebarState {
     scroll_state: ScrollbarState,
     vertical_scroll: usize,
     horizontal_scroll: usize,
-    /// Whether this pane is currently focused.
-    is_focused: bool,
     /// Whether the user has taken manual control of scrolling.
     manual_scroll: bool,
     /// Previous current node ID, used to detect changes.
@@ -117,23 +115,6 @@ impl ProofStepsSidebarState {
             .sum()
     }
 
-    pub const fn set_focused(&mut self, focused: bool) {
-        self.is_focused = focused;
-    }
-
-    pub const fn scroll_up(&mut self) {
-        self.manual_scroll = true;
-        self.vertical_scroll = self.vertical_scroll.saturating_sub(1);
-    }
-
-    pub fn scroll_down(&mut self, viewport_height: usize) {
-        self.manual_scroll = true;
-        let max_scroll = self.total_lines().saturating_sub(viewport_height);
-        if self.vertical_scroll < max_scroll {
-            self.vertical_scroll += 1;
-        }
-    }
-
     pub const fn scroll_left(&mut self) {
         self.manual_scroll = true;
         self.horizontal_scroll = self.horizontal_scroll.saturating_sub(1);
@@ -145,6 +126,16 @@ impl ProofStepsSidebarState {
         if self.horizontal_scroll < max_horiz {
             self.horizontal_scroll += 1;
         }
+    }
+
+    /// Calculate the required width for the sidebar based on content.
+    /// Returns the width needed to display all lines without horizontal scrolling,
+    /// plus borders and scrollbar.
+    pub fn required_width(&self) -> u16 {
+        let lines = self.build_lines();
+        let max_content = lines.iter().map(Line::width).max().unwrap_or(0);
+        // Add 4 for borders (2) + scrollbar (1) + padding (1)
+        (max_content as u16).saturating_add(4)
     }
 }
 
@@ -218,21 +209,10 @@ impl StatefulWidget for ProofStepsSidebar {
     type State = ProofStepsSidebarState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let border_style = if state.is_focused {
-            Style::new().fg(Theme::BORDER_FOCUSED)
-        } else {
-            Theme::FRAME_BORDER.into()
-        };
-        let title = if state.is_focused {
-            "▶ Proof Steps "
-        } else {
-            " Proof Steps "
-        };
-
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(border_style)
-            .title(title)
+            .border_style(Style::new().fg(Theme::INACTIVE_NODE_BORDER))
+            .title(" Steps ")
             .title_style(Style::new().fg(Theme::TITLE_TACTIC));
 
         let inner = block.inner(area);

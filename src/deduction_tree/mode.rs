@@ -26,51 +26,8 @@ use crate::{
 
 /// Input for updating the Deduction Tree mode.
 pub struct DeductionTreeModeInput {
-    pub state: TacticProofState,
+    pub dag: Option<CompleteProofDag>,
     pub error: Option<String>,
-    pub proof_dag: Option<CompleteProofDag>,
-}
-
-impl DeductionTreeModeInput {
-    /// Create a builder for this input type.
-    pub fn builder() -> DeductionTreeModeInputBuilder {
-        DeductionTreeModeInputBuilder::default()
-    }
-}
-
-/// Builder for `DeductionTreeModeInput`.
-#[derive(Default)]
-pub struct DeductionTreeModeInputBuilder {
-    dag: Option<CompleteProofDag>,
-    error: Option<String>,
-}
-
-impl DeductionTreeModeInputBuilder {
-    pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
-        self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn error(mut self, error: Option<String>) -> Self {
-        self.error = error;
-        self
-    }
-
-    pub fn build(self) -> DeductionTreeModeInput {
-        let state = self
-            .dag
-            .as_ref()
-            .and_then(|d| d.current_node_id)
-            .and_then(|id| self.dag.as_ref()?.get(id))
-            .map(|node| node.proof_state.clone())
-            .unwrap_or_default();
-
-        DeductionTreeModeInput {
-            state,
-            error: self.error,
-            proof_dag: self.dag,
-        }
-    }
 }
 
 /// Deduction Tree display mode - semantic tree visualization.
@@ -215,21 +172,25 @@ impl InteractiveComponent for SemanticTableau {
 
     fn update(&mut self, input: Self::Input) {
         let old_proof_count = self.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
-        let new_proof_count = input.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
+        let new_proof_count = input.dag.as_ref().map_or(0, CompleteProofDag::len);
 
         let old_current = self.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
-        let new_current = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
+        let new_current = input.dag.as_ref().and_then(|dag| dag.current_node_id);
+
+        let new_state = new_current
+            .and_then(|id| input.dag.as_ref()?.get(id))
+            .map(|node| node.proof_state.clone())
+            .unwrap_or_default();
 
         let tree_changed = old_proof_count != new_proof_count || old_current != new_current;
-        let state_changed = self.state.goals.len() != input.state.goals.len()
-            || self.state.hypotheses.len() != input.state.hypotheses.len();
+        let state_changed = self.state.goals.len() != new_state.goals.len()
+            || self.state.hypotheses.len() != new_state.hypotheses.len();
 
-        self.tableau_state
-            .update_current_node(input.proof_dag.as_ref().and_then(|dag| dag.current_node_id));
+        self.tableau_state.update_current_node(new_current);
 
-        self.state = input.state;
+        self.state = new_state;
         self.error = input.error;
-        self.proof_dag = input.proof_dag;
+        self.proof_dag = input.dag;
 
         if tree_changed || state_changed {
             if let Some(sel) = self.active_goal_selection() {
