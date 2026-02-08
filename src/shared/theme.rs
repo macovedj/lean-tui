@@ -29,8 +29,6 @@ pub struct Green;
 
 impl Green {
     pub const BRIGHT: Color = Color::Rgb(100, 200, 100); // Added elements
-    pub const BG: Color = Color::Rgb(30, 45, 30); // Background tint
-    pub const FG: Color = Color::Rgb(150, 200, 150); // Foreground for proof terms
 }
 
 pub struct Red;
@@ -88,13 +86,10 @@ impl Theme {
     pub const COMPLETED_GOAL_FG: Color = Purple::BRIGHT;
 
     // === Hypothesis Background Colors (by type) ===
-    pub const PROOF_HYP_BG: Color = Green::BG;
-    pub const PROOF_HYP_FG: Color = Green::FG;
     pub const DATA_HYP_BG: Color = Blue::BG;
     pub const DATA_HYP_FG: Color = Color::Rgb(130, 170, 220);
 
     // === Dependency Styling ===
-    pub const DEPENDENCY_FG: Color = Blue::MUTED;
     pub const DEPENDENCY: Style = Style::new().fg(Blue::MUTED).add_modifier(Modifier::DIM);
 
     // === Effect Flow Colors ===

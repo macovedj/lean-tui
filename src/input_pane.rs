@@ -7,28 +7,36 @@ use ratatui::{
 };
 
 use crate::{
-    protocol::{BindingKind, LocalBinding},
-    shared::{theme::Theme, Region, Selection},
+    protocol::LocalBinding,
+    shared::{
+        theme::{Blue, Gray, Theme},
+        Region, Selection,
+    },
 };
 
-/// State for the binding given pane.
 #[derive(Default)]
-pub struct BindingGivenPaneState {
-    pub click_regions: Vec<Region>,
+pub struct InputPaneState {
+    click_regions: Vec<Region>,
 }
 
-/// Given pane widget for functional DAG - displays initial bindings (function
+/// Input pane widget - displays block-level input bindings (theorem/def
 /// parameters).
-pub struct BindingGivenPane<'a> {
+pub struct InputPane<'a> {
     bindings: &'a [LocalBinding],
     selection: Option<Selection>,
+    is_focused: bool,
 }
 
-impl<'a> BindingGivenPane<'a> {
-    pub const fn new(bindings: &'a [LocalBinding], selection: Option<Selection>) -> Self {
+impl<'a> InputPane<'a> {
+    pub const fn new(
+        bindings: &'a [LocalBinding],
+        selection: Option<Selection>,
+        is_focused: bool,
+    ) -> Self {
         Self {
             bindings,
             selection,
+            is_focused,
         }
     }
 
@@ -44,10 +52,9 @@ impl<'a> BindingGivenPane<'a> {
     }
 
     fn render_binding(&self, binding_idx: usize, binding: &LocalBinding) -> (Span<'static>, u16) {
-        let (fg, bg) = binding_style_colors(binding.binding_kind);
         let style = Style::new()
-            .fg(fg)
-            .bg(bg)
+            .fg(Theme::DATA_HYP_FG)
+            .bg(Theme::DATA_HYP_BG)
             .add_modifier(if self.is_selected(binding_idx) {
                 Modifier::UNDERLINED
             } else {
@@ -58,23 +65,78 @@ impl<'a> BindingGivenPane<'a> {
         let width = text.chars().count() as u16;
         (Span::styled(text, style), width)
     }
+
+    /// Calculate the required height to display all bindings, given the
+    /// available width. Returns the content height (excluding borders).
+    pub fn required_height(bindings: &[LocalBinding], available_width: u16) -> u16 {
+        let visible: Vec<_> = bindings
+            .iter()
+            .filter(|b| !b.is_implicit && !b.is_instance)
+            .collect();
+
+        if visible.is_empty() {
+            return 1; // "(no parameters)" text
+        }
+
+        // Calculate how many lines needed with wrapping
+        let inner_width = available_width.saturating_sub(2) as usize; // Account for borders
+        if inner_width == 0 {
+            return 1;
+        }
+
+        let mut current_line_width = 0usize;
+        let mut lines = 1u16;
+
+        for binding in &visible {
+            let text = format!(" {}: {} ", binding.name, binding.type_.to_plain_text());
+            let binding_width = text.chars().count();
+
+            if current_line_width == 0 {
+                current_line_width = binding_width;
+            } else if current_line_width + 1 + binding_width <= inner_width {
+                current_line_width += 1 + binding_width; // +1 for separator
+                                                         // space
+            } else {
+                lines += 1;
+                current_line_width = binding_width;
+            }
+        }
+
+        lines
+    }
 }
 
-impl StatefulWidget for BindingGivenPane<'_> {
-    type State = BindingGivenPaneState;
+impl StatefulWidget for InputPane<'_> {
+    type State = InputPaneState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
+        let border_color = if self.is_focused {
+            Blue::BRIGHT
+        } else if !self.bindings.is_empty() {
+            Blue::MUTED
+        } else {
+            Gray::DIM
+        };
+
+        let title = if self.is_focused {
+            "▶ Input "
+        } else {
+            " Input "
+        };
+
+        let title_color = if !self.bindings.is_empty() {
+            Theme::TITLE_ASSUMPTION
+        } else {
+            Gray::DIM
+        };
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(Theme::TITLE_ASSUMPTION))
-            .title(Span::styled(
-                " Input ",
-                Style::new()
-                    .fg(Theme::TITLE_ASSUMPTION)
-                    .add_modifier(Modifier::BOLD),
-            ));
+            .border_style(Style::new().fg(border_color))
+            .title(title)
+            .title_style(Style::new().fg(title_color));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -92,9 +154,10 @@ impl StatefulWidget for BindingGivenPane<'_> {
             return;
         }
 
+        let max_bindings = 5;
         let (spans, regions): (Vec<_>, Vec<_>) = visible
             .iter()
-            .take(5)
+            .take(max_bindings)
             .scan(inner.x, |x_offset, (binding_idx, binding)| {
                 let (span, width) = self.render_binding(*binding_idx, binding);
                 let region = Region::from_rect(
@@ -119,23 +182,13 @@ impl StatefulWidget for BindingGivenPane<'_> {
         state.click_regions.extend(regions);
 
         let mut all_spans: Vec<Span> = spans.into_iter().flatten().collect();
-        if visible.len() > 5 {
+        if visible.len() > max_bindings {
             all_spans.push(Span::styled(
-                format!(" +{}", visible.len() - 5),
+                format!(" +{}", visible.len() - max_bindings),
                 Style::new().fg(Color::DarkGray),
             ));
         }
 
         Paragraph::new(Line::from(all_spans)).render(inner, buf);
-    }
-}
-
-/// Get binding style colors based on binding kind.
-pub const fn binding_style_colors(kind: BindingKind) -> (Color, Color) {
-    match kind {
-        BindingKind::LetBind => (Theme::PROOF_HYP_FG, Theme::PROOF_HYP_BG),
-        BindingKind::FunParam => (Theme::DATA_HYP_FG, Theme::DATA_HYP_BG),
-        BindingKind::MatchVar => (Color::Rgb(180, 150, 200), Color::Rgb(40, 35, 50)),
-        BindingKind::ForVar => (Color::Rgb(150, 180, 200), Color::Rgb(35, 40, 50)),
     }
 }

@@ -1,8 +1,6 @@
 mod after_pane;
-mod assumption_pane;
 mod before_pane;
 mod current_pane;
-mod goals_pane;
 
 use after_pane::{AfterPane, AfterPaneState};
 use before_pane::{BeforePane, BeforePaneState};
@@ -15,7 +13,6 @@ use ratatui::{
 };
 
 use crate::{
-    app::DefinitionInfo,
     deduction_tree::{types::CompleteProofDag, TacticProofState},
     display_mode::Mode,
     protocol::{DiagnosticInfo, NodeId},
@@ -34,7 +31,6 @@ pub struct BeforeAfterModeInput {
     pub previous_state: Option<TacticProofState>,
     pub current_state: TacticProofState,
     pub next_state: Option<TacticProofState>,
-    pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub proof_dag: Option<CompleteProofDag>,
 }
@@ -48,7 +44,6 @@ impl BeforeAfterModeInput {
 #[derive(Default)]
 pub struct BeforeAfterModeInputBuilder {
     dag: Option<CompleteProofDag>,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
     show_previous: bool,
     show_next: bool,
@@ -57,11 +52,6 @@ pub struct BeforeAfterModeInputBuilder {
 impl BeforeAfterModeInputBuilder {
     pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
         self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
-        self.definition = definition;
         self
     }
 
@@ -115,7 +105,6 @@ impl BeforeAfterModeInputBuilder {
             previous_state,
             current_state,
             next_state,
-            definition: self.definition,
             error: self.error,
             proof_dag: self.dag,
         }
@@ -126,7 +115,6 @@ pub struct BeforeAfterMode {
     previous_state: Option<TacticProofState>,
     current_state: TacticProofState,
     next_state: Option<TacticProofState>,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
     current_node_id: Option<NodeId>,
     active_goal_name: Option<String>,
@@ -147,7 +135,6 @@ impl Default for BeforeAfterMode {
             previous_state: None,
             current_state: TacticProofState::default(),
             next_state: None,
-            definition: None,
             error: None,
             current_node_id: None,
             active_goal_name: None,
@@ -215,7 +202,6 @@ impl InteractiveComponent for BeforeAfterMode {
         self.previous_state = input.previous_state;
         self.current_state = input.current_state;
         self.next_state = input.next_state;
-        self.definition = input.definition;
         self.error = input.error;
         let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
         let current_node = current_node_id.and_then(|id| input.proof_dag.as_ref()?.get(id));
@@ -241,22 +227,6 @@ impl InteractiveComponent for BeforeAfterMode {
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
                     self.selection.select_previous(items.len());
-                    true
-                }
-                KeyCode::Char('i') => {
-                    self.filters.toggle(FilterToggle::Instances);
-                    true
-                }
-                KeyCode::Char('a') => {
-                    self.filters.toggle(FilterToggle::Inaccessible);
-                    true
-                }
-                KeyCode::Char('l') => {
-                    self.filters.toggle(FilterToggle::LetValues);
-                    true
-                }
-                KeyCode::Char('r') => {
-                    self.filters.toggle(FilterToggle::ReverseOrder);
                     true
                 }
                 KeyCode::Char('p') => {

@@ -1,7 +1,9 @@
 pub mod aligned_table;
+pub mod assumption_pane;
 pub mod diff_text;
 pub mod error_banner;
 pub mod errors_section;
+pub mod goals_pane;
 pub mod interactive;
 pub mod legend;
 pub mod navigation;
@@ -9,8 +11,10 @@ pub mod render_helpers;
 pub mod selection;
 pub mod theme;
 
+pub use assumption_pane::{AssumptionPane, AssumptionPaneState};
 pub use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;
+pub use goals_pane::{GoalsPane, GoalsPaneState};
 pub use interactive::{InteractiveComponent, InteractiveStatefulWidget};
 pub use navigation::{
     build_navigation_regions, find_nearest_in_direction, key_to_direction, Direction,
@@ -43,17 +47,6 @@ pub enum FilterToggle {
     Inaccessible,
     LetValues,
     ReverseOrder,
-}
-
-impl HypothesisFilters {
-    pub const fn toggle(&mut self, filter: FilterToggle) {
-        match filter {
-            FilterToggle::Instances => self.hide_instances = !self.hide_instances,
-            FilterToggle::Inaccessible => self.hide_inaccessible = !self.hide_inaccessible,
-            FilterToggle::LetValues => self.hide_let_values = !self.hide_let_values,
-            FilterToggle::ReverseOrder => self.reverse_order = !self.reverse_order,
-        }
-    }
 }
 
 /// Create an iterator over hypothesis indices with optional reversal.

@@ -18,6 +18,10 @@ mod tactic_tree;
 mod graph_layout;
 mod shared;
 
+// Global panes (input/output)
+mod input_pane;
+mod output_pane;
+
 // App-level UI components
 mod help_menu;
 mod status_bar;

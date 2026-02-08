@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use crossterm::event::{MouseButton, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -11,7 +9,6 @@ use ratatui::{
 use tracing::trace;
 
 use crate::{
-    app::DefinitionInfo,
     display_mode::Mode,
     effect_flow::{
         layout::{EffectTableauLayout, EffectTableauState},
@@ -28,7 +25,6 @@ use crate::{
 
 /// Input for updating the Effect Flow mode.
 pub struct EffectFlowModeInput {
-    pub definition: Option<DefinitionInfo>,
     pub error: Option<String>,
     pub effect_dag: Option<EffectFlowDag>,
 }
@@ -44,18 +40,12 @@ impl EffectFlowModeInput {
 #[derive(Default)]
 pub struct EffectFlowModeInputBuilder {
     effect_dag: Option<EffectFlowDag>,
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
 }
 
 impl EffectFlowModeInputBuilder {
     pub fn effect_dag(mut self, dag: &EffectFlowDag) -> Self {
         self.effect_dag = Some(dag.clone());
-        self
-    }
-
-    pub fn definition(mut self, definition: Option<DefinitionInfo>) -> Self {
-        self.definition = definition;
         self
     }
 
@@ -66,7 +56,6 @@ impl EffectFlowModeInputBuilder {
 
     pub fn build(self) -> EffectFlowModeInput {
         EffectFlowModeInput {
-            definition: self.definition,
             error: self.error,
             effect_dag: self.effect_dag,
         }
@@ -75,7 +64,6 @@ impl EffectFlowModeInputBuilder {
 
 #[derive(Default)]
 pub struct EffectFlowMode {
-    definition: Option<DefinitionInfo>,
     error: Option<String>,
     effect_dag: Option<EffectFlowDag>,
     filters: HypothesisFilters,
@@ -97,21 +85,12 @@ impl EffectFlowMode {
             return Vec::new();
         }
 
-        let initial_hyps = dag
-            .block_input
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| !b.is_implicit && !b.is_instance)
-            .map(|(idx, _)| Selection::InitialHyp { hyp_idx: idx });
-
-        let node_selections = dag.dfs_iter().map(|node| Selection::Goal {
-            node_id: node.id,
-            goal_idx: 0,
-        });
-
-        initial_hyps
-            .chain(node_selections)
-            .chain(once(Selection::Theorem))
+        // Input/output panes are now global - only include node-specific selections
+        dag.dfs_iter()
+            .map(|node| Selection::Goal {
+                node_id: node.id,
+                goal_idx: 0,
+            })
             .collect()
     }
 
@@ -255,7 +234,6 @@ impl InteractiveComponent for EffectFlowMode {
                 .and_then(|dag| dag.current_node_id),
         );
 
-        self.definition = input.definition;
         self.error = input.error;
         self.effect_dag = input.effect_dag;
 

@@ -1,45 +1,24 @@
-use ratatui::{
-    buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
-    style::{Modifier, Style},
-    text::Span,
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
-};
+use ratatui::{buffer::Buffer, layout::Rect, widgets::StatefulWidget};
 
 use super::{
     graph_pane::{render_graph_pane, GraphPaneState},
     types::EffectFlowDag,
 };
 use crate::{
-    data_flow::given_pane::{BindingGivenPane, BindingGivenPaneState},
     graph_layout::LayoutConfig,
-    protocol::{NodeId, RichText},
-    shared::{find_region_at, theme::Theme, Region, Selection},
+    protocol::NodeId,
+    shared::{find_region_at, Region, Selection},
 };
-
-/// State for the result pane.
-#[derive(Default)]
-pub struct ResultPaneState {
-    pub click_regions: Vec<Region>,
-}
 
 /// State for the effect flow tableau layout.
 #[derive(Default)]
 pub struct EffectTableauState {
-    pub given: BindingGivenPaneState,
     pub graph: GraphPaneState,
-    pub result: ResultPaneState,
 }
 
 impl EffectTableauState {
     pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
-        [
-            self.given.click_regions.as_slice(),
-            self.graph.click_regions.as_slice(),
-            self.result.click_regions.as_slice(),
-        ]
-        .into_iter()
-        .find_map(|regions| find_region_at(regions, x, y))
+        find_region_at(self.graph.click_regions.as_slice(), x, y)
     }
 
     pub fn update_current_node(&mut self, current_node_id: Option<NodeId>) {
@@ -47,21 +26,8 @@ impl EffectTableauState {
     }
 
     pub fn navigation_regions(&self) -> Vec<Region> {
-        self.given
-            .click_regions
-            .iter()
-            .copied()
-            .chain(self.graph.navigation_regions().iter().copied())
-            .chain(self.result.click_regions.iter().copied())
-            .collect()
+        self.graph.navigation_regions().to_vec()
     }
-}
-
-/// Computed layout areas.
-struct LayoutAreas {
-    given: Rect,
-    graph: Rect,
-    result: Rect,
 }
 
 /// Effect flow tableau layout widget.
@@ -74,97 +40,19 @@ impl<'a> EffectTableauLayout<'a> {
     pub fn new(dag: &'a EffectFlowDag, selection: Option<Selection>) -> Self {
         Self { dag, selection }
     }
-
-    /// Compute areas for the layout.
-    fn compute_layout(&self, area: Rect) -> LayoutAreas {
-        let has_result = self.dag.block_output.is_some();
-
-        let [given_area, graph_area, result_area] = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Fill(1),
-            Constraint::Length(if has_result { 3 } else { 0 }),
-        ])
-        .areas(area);
-
-        LayoutAreas {
-            given: given_area,
-            graph: graph_area,
-            result: result_area,
-        }
-    }
 }
 
 impl StatefulWidget for EffectTableauLayout<'_> {
     type State = EffectTableauState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let areas = self.compute_layout(area);
-
-        if areas.given.height > 0 {
-            BindingGivenPane::new(&self.dag.block_input, self.selection).render(
-                areas.given,
-                buf,
-                &mut state.given,
-            );
-        }
-
         render_graph_pane(
             self.dag,
             LayoutConfig { top_down: true },
             self.selection,
-            areas.graph,
+            area,
             buf,
             &mut state.graph,
         );
-
-        if areas.result.height > 0 {
-            let is_selected = matches!(self.selection, Some(Selection::Theorem));
-            render_result_pane(self.dag, is_selected, areas.result, buf, &mut state.result);
-        }
     }
-}
-
-/// Render the result pane showing the definition type.
-fn render_result_pane(
-    dag: &EffectFlowDag,
-    is_selected: bool,
-    area: Rect,
-    buf: &mut Buffer,
-    state: &mut ResultPaneState,
-) {
-    state.click_regions.clear();
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(Theme::GOAL))
-        .title(Span::styled(
-            " Output ",
-            Style::new().fg(Theme::GOAL).add_modifier(Modifier::BOLD),
-        ));
-
-    let inner = block.inner(area);
-    block.render(area, buf);
-
-    if inner.width < 2 || inner.height < 1 {
-        return;
-    }
-
-    let type_text = dag
-        .block_output
-        .as_ref()
-        .map_or_else(|| "...".to_string(), RichText::to_plain_text);
-
-    let style = Style::new().fg(Theme::GOAL).add_modifier(if is_selected {
-        Modifier::UNDERLINED
-    } else {
-        Modifier::empty()
-    });
-
-    Paragraph::new(format!("⊢ {type_text}"))
-        .style(style)
-        .render(inner, buf);
-
-    state
-        .click_regions
-        .push(Region::from_rect(inner, Selection::Theorem));
 }
