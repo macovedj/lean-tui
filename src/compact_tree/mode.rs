@@ -6,6 +6,7 @@ use ratatui::{
 };
 
 use crate::{
+    compact_tree::proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
     deduction_tree::{
         types::{CompleteProofDag, ProofDagTacticNode},
         TacticProofState,
@@ -14,69 +15,26 @@ use crate::{
     protocol::NodeId,
     shared::{
         errors_section::{ErrorsSection, ErrorsSectionState},
+        hypothesis_indices,
         legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
         theme::Theme,
         AssumptionPane, AssumptionPaneState, FilterToggle, GoalsPane, GoalsPaneState,
         HypothesisFilters, InteractiveComponent, InteractiveStatefulWidget, KeyMouseEvent,
-        Selection,
+        ListSelection, Selection,
     },
-    tactic_tree::proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
 };
 
-/// Input for updating the Steps mode.
-pub struct StepsModeInput {
-    pub state: TacticProofState,
+/// Input for updating the Compact Tree mode.
+pub struct CompactTreeInput {
+    pub dag: Option<CompleteProofDag>,
     pub error: Option<String>,
-    pub proof_dag: Option<CompleteProofDag>,
 }
 
-impl StepsModeInput {
-    /// Create a builder for this input type.
-    pub fn builder() -> StepsModeInputBuilder {
-        StepsModeInputBuilder::default()
-    }
-}
-
-/// Builder for `StepsModeInput`.
-#[derive(Default)]
-pub struct StepsModeInputBuilder {
-    dag: Option<CompleteProofDag>,
-    error: Option<String>,
-}
-
-impl StepsModeInputBuilder {
-    pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
-        self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn error(mut self, error: Option<String>) -> Self {
-        self.error = error;
-        self
-    }
-
-    pub fn build(self) -> StepsModeInput {
-        let state = self
-            .dag
-            .as_ref()
-            .and_then(|d| d.current_node_id)
-            .and_then(|id| self.dag.as_ref()?.get(id))
-            .map(|node| node.proof_state.clone())
-            .unwrap_or_default();
-
-        StepsModeInput {
-            state,
-            error: self.error,
-            proof_dag: self.dag,
-        }
-    }
-}
-
-/// Tactic tree display mode - shows the proof steps sidebar with
+/// Compact tree display mode - shows the proof steps sidebar with
 /// assumptions/goals in right column.
 #[derive(Default)]
-pub struct TacticTree {
+pub struct CompactTree {
     state: TacticProofState,
     error: Option<String>,
     proof_dag: Option<CompleteProofDag>,
@@ -87,10 +45,10 @@ pub struct TacticTree {
     assumption_state: AssumptionPaneState,
     goals_state: GoalsPaneState,
     filters: HypothesisFilters,
-    sidebar_viewport_height: usize,
+    selection: ListSelection,
 }
 
-impl TacticTree {
+impl CompactTree {
     pub const fn filters(&self) -> HypothesisFilters {
         self.filters
     }
@@ -105,18 +63,38 @@ impl TacticTree {
             .and_then(|dag| dag.current_node_id.and_then(|id| dag.get(id)))
     }
 
-    fn handle_key(&mut self, key: KeyEvent) -> bool {
-        self.handle_sidebar_navigation(key.code)
+    fn selectable_items(&self) -> Vec<Selection> {
+        let Some(node_id) = self.current_node_id else {
+            return Vec::new();
+        };
+
+        let hyp_items = hypothesis_indices(
+            self.state.hypotheses.len(),
+            self.filters.reverse_order,
+        )
+        .filter(|&hyp_idx| {
+            self.state.hypotheses.get(hyp_idx).is_some_and(|h| {
+                (!self.filters.hide_instances || !h.is_typeclass_instance)
+                    && (!self.filters.hide_inaccessible || !h.is_proof_term)
+            })
+        })
+        .map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
+
+        let goal_items = (0..self.state.goals.len())
+            .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
+
+        hyp_items.chain(goal_items).collect()
     }
 
-    fn handle_sidebar_navigation(&mut self, code: KeyCode) -> bool {
-        match code {
+    fn handle_key(&mut self, key: KeyEvent) -> bool {
+        let items = self.selectable_items();
+        match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                self.sidebar_state.scroll_down(self.sidebar_viewport_height);
+                self.selection.select_next(items.len());
                 true
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                self.sidebar_state.scroll_up();
+                self.selection.select_previous(items.len());
                 true
             }
             KeyCode::Char('h') | KeyCode::Left => {
@@ -136,8 +114,15 @@ impl TacticTree {
             return false;
         }
 
-        self.errors_section_state
+        if self
+            .errors_section_state
             .handle_click(mouse.column, mouse.row)
+        {
+            return true;
+        }
+
+        let items = self.selectable_items();
+        self.selection.handle_click(mouse.column, mouse.row, &items)
     }
 
     pub fn take_clicked_error(&mut self) -> Option<String> {
@@ -145,20 +130,33 @@ impl TacticTree {
     }
 }
 
-impl InteractiveComponent for TacticTree {
-    type Input = StepsModeInput;
+impl InteractiveComponent for CompactTree {
+    type Input = CompactTreeInput;
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
-        self.state = input.state;
-        self.error = input.error;
-        self.current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
-        self.active_goal_name = self
+        self.current_node_id = input.dag.as_ref().and_then(|dag| dag.current_node_id);
+        let current_node = self
             .current_node_id
-            .and_then(|id| input.proof_dag.as_ref()?.get(id))
+            .and_then(|id| input.dag.as_ref()?.get(id));
+
+        let new_state = current_node
+            .map(|node| node.proof_state.clone())
+            .unwrap_or_default();
+
+        let state_changed = self.state.goals.len() != new_state.goals.len()
+            || self.state.hypotheses.len() != new_state.hypotheses.len();
+
+        self.state = new_state;
+        self.active_goal_name = current_node
             .and_then(|node| node.proof_state.goals.first())
             .and_then(|g| g.username_str().map(String::from));
-        self.proof_dag = input.proof_dag;
+        self.error = input.error;
+        self.proof_dag = input.dag;
+
+        if state_changed {
+            self.selection.reset(self.selectable_items().len());
+        }
     }
 
     fn handle_event(&mut self, event: Self::Event) -> bool {
@@ -169,6 +167,8 @@ impl InteractiveComponent for TacticTree {
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
+        self.selection.clear_regions();
+
         let content = render_error(frame, area, self.error.as_deref());
 
         if self.state.goals.is_empty() && !self.has_steps() {
@@ -199,15 +199,18 @@ impl InteractiveComponent for TacticTree {
             (content, None)
         };
 
-        // Two-column layout: sidebar (60%) | assumptions+goals (40%)
-        let [sidebar_area, right_area] =
-            Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)])
-                .areas(main_area);
-
-        // Render sidebar
+        // Update sidebar state first to calculate required width
         ProofStepsSidebar::update_state(&mut self.sidebar_state, self.proof_dag.clone());
-        self.sidebar_state.set_focused(true);
-        self.sidebar_viewport_height = sidebar_area.height.saturating_sub(2) as usize;
+
+        // Dynamic sidebar width: fit content with min 20 and max 60% of available width
+        let required_width = self.sidebar_state.required_width();
+        let max_sidebar = (main_area.width * 60) / 100;
+        let sidebar_width = required_width.clamp(20, max_sidebar);
+
+        // Two-column layout: sidebar (fit content) | assumptions+goals (fill remaining)
+        let [sidebar_area, right_area] =
+            Layout::horizontal([Constraint::Length(sidebar_width), Constraint::Fill(1)])
+                .areas(main_area);
         frame.render_stateful_widget(ProofStepsSidebar, sidebar_area, &mut self.sidebar_state);
 
         // Right column: assumptions on top (40%), goals on bottom (60%)
@@ -216,13 +219,14 @@ impl InteractiveComponent for TacticTree {
                 .areas(right_area);
 
         let is_current = self.current_node_id.is_some();
+        let selection = self.current_selection();
 
         frame.render_stateful_widget(
             AssumptionPane::new(
                 &self.state,
                 self.filters,
-                None,
-                false,
+                selection,
+                true,
                 is_current,
                 self.current_node_id,
             ),
@@ -230,11 +234,23 @@ impl InteractiveComponent for TacticTree {
             &mut self.assumption_state,
         );
 
+        for region in self.assumption_state.click_regions() {
+            self.selection.add_region(
+                Rect::new(
+                    region.x as u16,
+                    region.y as u16,
+                    region.width,
+                    region.height,
+                ),
+                region.selection,
+            );
+        }
+
         frame.render_stateful_widget(
             GoalsPane::new(
                 &self.state,
-                None,
-                false,
+                selection,
+                true,
                 is_current,
                 self.current_node_id,
                 self.active_goal_name.as_deref(),
@@ -242,6 +258,18 @@ impl InteractiveComponent for TacticTree {
             goal_area,
             &mut self.goals_state,
         );
+
+        for region in self.goals_state.click_regions() {
+            self.selection.add_region(
+                Rect::new(
+                    region.x as u16,
+                    region.y as u16,
+                    region.width,
+                    region.height,
+                ),
+                region.selection,
+            );
+        }
 
         // Render errors
         if let Some(errors_area) = errors_area {
@@ -255,19 +283,20 @@ impl InteractiveComponent for TacticTree {
     }
 }
 
-impl Mode for TacticTree {
-    type Model = StepsModeInput;
-    const NAME: &'static str = "Tactic tree";
-    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[("hjkl", "scroll")];
+impl Mode for CompactTree {
+    type Model = CompactTreeInput;
+    const NAME: &'static str = "Compact Tree";
+    const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[("jk", "select"), ("hl", "scroll")];
     const SUPPORTED_FILTERS: &'static [FilterToggle] = &[];
 
     fn current_selection(&self) -> Option<Selection> {
-        None
+        let items = self.selectable_items();
+        self.selection.current_selection(&items).copied()
     }
 
     fn legend_sections(&self) -> Vec<LegendSection> {
         vec![LegendSection::new(
-            "Tactic Tree",
+            "Compact Tree",
             Color::Yellow,
             vec![
                 LegendItem::new("▶", Theme::CURRENT_NODE_BORDER, "current step"),

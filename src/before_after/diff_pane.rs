@@ -10,26 +10,18 @@ use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
     shared::{
-        hypothesis_indices, theme::Theme, AssumptionPane, AssumptionPaneState, GoalsPane,
-        GoalsPaneState, HypothesisFilters, Region, Selection,
+        hypothesis_indices, theme::Gray, theme::Theme, AssumptionPane, AssumptionPaneState,
+        GoalsPane, GoalsPaneState, HypothesisFilters, Region, Selection,
     },
 };
 
-pub struct CurrentPaneState {
+#[derive(Default)]
+pub struct DiffPaneState {
     assumption_state: AssumptionPaneState,
     goals_state: GoalsPaneState,
 }
 
-impl Default for CurrentPaneState {
-    fn default() -> Self {
-        Self {
-            assumption_state: AssumptionPaneState::default(),
-            goals_state: GoalsPaneState::default(),
-        }
-    }
-}
-
-impl CurrentPaneState {
+impl DiffPaneState {
     pub fn click_regions(&self) -> impl Iterator<Item = &Region> {
         self.assumption_state
             .click_regions()
@@ -38,7 +30,55 @@ impl CurrentPaneState {
     }
 }
 
-pub struct CurrentPane<'a> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum DiffPaneKind {
+    Before,
+    Current,
+    After,
+}
+
+impl DiffPaneKind {
+    const fn title(self) -> &'static str {
+        match self {
+            Self::Before => " Before ",
+            Self::Current => " Current ",
+            Self::After => " After ",
+        }
+    }
+
+    fn title_style(self) -> Style {
+        match self {
+            Self::Before | Self::After => Style::new().fg(Gray::DIM).add_modifier(Modifier::BOLD),
+            Self::Current => Style::new()
+                .fg(Theme::CURRENT_NODE_BORDER)
+                .add_modifier(Modifier::BOLD),
+        }
+    }
+
+    const fn is_current(self) -> bool {
+        matches!(self, Self::Current)
+    }
+}
+
+fn should_show_hypothesis(
+    state: &TacticProofState,
+    filters: HypothesisFilters,
+    idx: usize,
+) -> bool {
+    let Some(h) = state.hypotheses.get(idx) else {
+        return false;
+    };
+    if filters.hide_instances && h.is_typeclass_instance {
+        return false;
+    }
+    if filters.hide_inaccessible && h.is_proof_term {
+        return false;
+    }
+    true
+}
+
+pub struct DiffPane<'a> {
+    kind: DiffPaneKind,
     state: &'a TacticProofState,
     filters: HypothesisFilters,
     selection: Option<Selection>,
@@ -46,8 +86,9 @@ pub struct CurrentPane<'a> {
     active_goal_name: Option<&'a str>,
 }
 
-impl<'a> CurrentPane<'a> {
+impl<'a> DiffPane<'a> {
     pub const fn new(
+        kind: DiffPaneKind,
         state: &'a TacticProofState,
         filters: HypothesisFilters,
         selection: Option<Selection>,
@@ -55,6 +96,7 @@ impl<'a> CurrentPane<'a> {
         active_goal_name: Option<&'a str>,
     ) -> Self {
         Self {
+            kind,
             state,
             filters,
             selection,
@@ -63,36 +105,20 @@ impl<'a> CurrentPane<'a> {
         }
     }
 
-    fn should_show_hypothesis(&self, idx: usize) -> bool {
-        let Some(h) = self.state.hypotheses.get(idx) else {
-            return false;
-        };
-        if self.filters.hide_instances && h.is_typeclass_instance {
-            return false;
-        }
-        if self.filters.hide_inaccessible && h.is_proof_term {
-            return false;
-        }
-        true
-    }
-
     fn is_hyp_focused(&self) -> bool {
-        matches!(self.selection, Some(Selection::Hyp { .. }))
+        self.kind.is_current() && matches!(self.selection, Some(Selection::Hyp { .. }))
     }
 
     fn is_goal_focused(&self) -> bool {
-        matches!(self.selection, Some(Selection::Goal { .. }))
+        self.kind.is_current() && matches!(self.selection, Some(Selection::Goal { .. }))
     }
 }
 
-impl StatefulWidget for CurrentPane<'_> {
-    type State = CurrentPaneState;
+impl StatefulWidget for DiffPane<'_> {
+    type State = DiffPaneState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        let title_style = Style::new()
-            .fg(Theme::CURRENT_NODE_BORDER)
-            .add_modifier(Modifier::BOLD);
-        let title_line = Line::from(Span::styled(" Current ", title_style));
+        let title_line = Line::from(Span::styled(self.kind.title(), self.kind.title_style()));
         let title_area = Rect::new(area.x, area.y, area.width, 1);
         Paragraph::new(title_line)
             .alignment(Alignment::Center)
@@ -107,7 +133,7 @@ impl StatefulWidget for CurrentPane<'_> {
 
         let visible_hyp_count =
             hypothesis_indices(self.state.hypotheses.len(), self.filters.reverse_order)
-                .filter(|&i| self.should_show_hypothesis(i))
+                .filter(|&i| should_show_hypothesis(self.state, self.filters, i))
                 .count();
 
         let hyp_pane_height =
@@ -119,22 +145,26 @@ impl StatefulWidget for CurrentPane<'_> {
         ])
         .areas(content_area);
 
+        let is_current = self.kind.is_current();
+        let selection = if is_current { self.selection } else { None };
+        let node_id = if is_current { self.node_id } else { None };
+
         AssumptionPane::new(
             self.state,
             self.filters,
-            self.selection,
+            selection,
             self.is_hyp_focused(),
-            true,
-            self.node_id,
+            is_current,
+            node_id,
         )
         .render(hyp_area, buf, &mut state.assumption_state);
 
         GoalsPane::new(
             self.state,
-            self.selection,
+            selection,
             self.is_goal_focused(),
-            true,
-            self.node_id,
+            is_current,
+            node_id,
             self.active_goal_name,
         )
         .render(goal_area, buf, &mut state.goals_state);

@@ -126,10 +126,10 @@ impl StatefulWidget for InputPane<'_> {
             " Input "
         };
 
-        let title_color = if !self.bindings.is_empty() {
-            Theme::TITLE_ASSUMPTION
-        } else {
+        let title_color = if self.bindings.is_empty() {
             Gray::DIM
+        } else {
+            Theme::TITLE_ASSUMPTION
         };
 
         let block = Block::default()

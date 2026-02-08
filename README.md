@@ -160,15 +160,17 @@ I use the above code fragment in the screenshots below. Notice that there is a d
 
 The deliberate error is there to show how errors are displayed by this program. As errors are an important part of proof development, they are attached to every display style.
 
-### Plain View
+### Compact View
 
-Just shows the proof as a list of hypotheses and goals. When an error is active around the cursor position, it also shown. Select a hypotheses or goal and press `g` to move your cursor in your editor to the location where it was introduced. Press `y` to copy it to you clipboard for pasting elsewhere.
+Shows the proof as a list of hypotheses and goals. By default, displays the current state with the previous state (before the current tactic) side by side. You can hide the previous state pane with `p` and show the next state pane with `n` (disabled by default).
 
-Hypotheses are blue. Goals are orange. Errors are red.
+Select a hypothesis or goal and press `g` to move your cursor in your editor to the location where it was introduced. Press `y` to copy it to your clipboard for pasting elsewhere. When an error is active around the cursor position, it is also shown.
 
-![(Screenshot at Codeberg)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/plain_view.png)
+Hypotheses are blue. Goals are orange. Errors are red. Hypotheses that are added are highlighted in green, removed ones in red.
 
-For the **VS Code users**: Yes, the official info view endorsed by the Lean organization is written for VS Code, However, I don't like VS Code and vendor lock-in. We should all try to move away from any Microsoft-owned product as soon as possible. Why? Take a look at for example ["Embrace, extend, and extinguish"](https://en.wikipedia.org/wiki/Embrace,_extend,_and_extinguish) but also the recent news.
+![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/before_after.png)
+
+For the **VS Code users**: Yes, the official info view endorsed by the Lean organization is written for VS Code. However, I don't like VS Code and vendor lock-in. We should all try to move away from any Microsoft-owned product as soon as possible. Why? Take a look at for example ["Embrace, extend, and extinguish"](https://en.wikipedia.org/wiki/Embrace,_extend,_and_extinguish) but also the recent news.
 
 For the **Neovim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ...) since the Lean plugin relies on Neovim specific features. It is not a generic one.
 
@@ -182,17 +184,9 @@ Again, press `g` to jump to the selected hypothesis or goal. Use the arrow keys 
 
 For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this view. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
 
-### Before/After View
+### Compact Tree View
 
-Shows active goal state and on the left also the previous state. You can hide the previous state pane with `p` and also show the next pane with `n` (disabled by default).
-
-In addition to the default colors, assumptions, or hypotheses that are added are highlighted in green. Removed ones are highlighted in red. Errors from cursor position are also shown if present.
-
-![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/before_after.png)
-
-### Tactic Tree View
-
-Shows a rendering of the proof displayed as compact Unicode tree on the left. On the right, you can see, active hypotheses and goals. The tree will update its location by focusing the active proof state at the cursor position.
+Shows the proof as a compact Unicode tree on the left. On the right, you can see active hypotheses and goals. The tree follows the cursor position in your editor.
 
 The same key bindings and colors apply as other views.
 

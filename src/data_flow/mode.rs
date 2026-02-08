@@ -26,41 +26,8 @@ use crate::{
 
 /// Input for updating the Data Flow mode.
 pub struct DataFlowModeInput {
-    pub error: Option<String>,
     pub dag: Option<DataFlowDag>,
-}
-
-impl DataFlowModeInput {
-    /// Create a builder for this input type.
-    pub fn builder() -> DataFlowModeInputBuilder {
-        DataFlowModeInputBuilder::default()
-    }
-}
-
-/// Builder for `DataFlowModeInput`.
-#[derive(Default)]
-pub struct DataFlowModeInputBuilder {
-    dag: Option<DataFlowDag>,
-    error: Option<String>,
-}
-
-impl DataFlowModeInputBuilder {
-    pub fn dag(mut self, dag: &DataFlowDag) -> Self {
-        self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn error(mut self, error: Option<String>) -> Self {
-        self.error = error;
-        self
-    }
-
-    pub fn build(self) -> DataFlowModeInput {
-        DataFlowModeInput {
-            error: self.error,
-            dag: self.dag,
-        }
-    }
+    pub error: Option<String>,
 }
 
 /// Data Flow display mode - functional DAG visualization.

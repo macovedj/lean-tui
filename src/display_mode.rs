@@ -11,13 +11,12 @@ use crate::{
         CompleteProofDag, DeductionTreeModeInput, ProofDagConversionError, SemanticTableau,
     },
     effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode, EffectFlowModeInput},
-    plain_goal::{PlainList, PlainListInput},
     protocol::GenericDag,
     shared::{
         legend::LegendSection, FilterToggle, HypothesisFilters, InteractiveComponent,
         KeyMouseEvent, Selection,
     },
-    tactic_tree::{StepsModeInput, TacticTree},
+    compact_tree::{CompactTree, CompactTreeInput},
 };
 
 /// Trait for display modes in the TUI.
@@ -119,9 +118,8 @@ impl Error for DagConversionError {}
 
 /// Mode variant - the actual display mode implementation.
 enum ModeVariant {
-    PlainGoal(PlainList),
-    BeforeAfter(BeforeAfterMode),
-    TacticTree(TacticTree),
+    Compact(BeforeAfterMode),
+    CompactTree(CompactTree),
     DeductionTree(SemanticTableau),
     DataFlow(DataFlowMode),
     EffectFlow(EffectFlowMode),
@@ -154,9 +152,8 @@ impl DisplayMode {
             (ModeVariant::DataFlow(_), DagState::Dataflow(_))
                 | (ModeVariant::EffectFlow(_), DagState::Effectflow(_))
                 | (
-                    ModeVariant::PlainGoal(_)
-                        | ModeVariant::BeforeAfter(_)
-                        | ModeVariant::TacticTree(_)
+                    ModeVariant::Compact(_)
+                        | ModeVariant::CompactTree(_)
                         | ModeVariant::DeductionTree(_),
                     DagState::Proof(_)
                 )
@@ -179,9 +176,8 @@ impl DisplayMode {
         let dag_style = self.dag.style_name()?;
 
         let expected_style = match &self.mode {
-            ModeVariant::PlainGoal(_)
-            | ModeVariant::BeforeAfter(_)
-            | ModeVariant::TacticTree(_)
+            ModeVariant::Compact(_)
+            | ModeVariant::CompactTree(_)
             | ModeVariant::DeductionTree(_) => "proof",
             ModeVariant::DataFlow(_) => "dataflow",
             ModeVariant::EffectFlow(_) => "effectflow",
@@ -202,22 +198,20 @@ impl DisplayMode {
     /// Cycle to the next display mode, preserving DAG state.
     pub fn next(&mut self) {
         self.mode = match take(&mut self.mode) {
-            ModeVariant::PlainGoal(_) => ModeVariant::BeforeAfter(BeforeAfterMode::default()),
-            ModeVariant::BeforeAfter(_) => ModeVariant::TacticTree(TacticTree::default()),
-            ModeVariant::TacticTree(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
+            ModeVariant::Compact(_) => ModeVariant::CompactTree(CompactTree::default()),
+            ModeVariant::CompactTree(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
             ModeVariant::DeductionTree(_) => ModeVariant::DataFlow(DataFlowMode::default()),
             ModeVariant::DataFlow(_) => ModeVariant::EffectFlow(EffectFlowMode::default()),
-            ModeVariant::EffectFlow(_) => ModeVariant::PlainGoal(PlainList::default()),
+            ModeVariant::EffectFlow(_) => ModeVariant::Compact(BeforeAfterMode::default()),
         };
     }
 
     /// Cycle to the previous display mode, preserving DAG state.
     pub fn prev(&mut self) {
         self.mode = match take(&mut self.mode) {
-            ModeVariant::PlainGoal(_) => ModeVariant::EffectFlow(EffectFlowMode::default()),
-            ModeVariant::BeforeAfter(_) => ModeVariant::PlainGoal(PlainList::default()),
-            ModeVariant::TacticTree(_) => ModeVariant::BeforeAfter(BeforeAfterMode::default()),
-            ModeVariant::DeductionTree(_) => ModeVariant::TacticTree(TacticTree::default()),
+            ModeVariant::Compact(_) => ModeVariant::EffectFlow(EffectFlowMode::default()),
+            ModeVariant::CompactTree(_) => ModeVariant::Compact(BeforeAfterMode::default()),
+            ModeVariant::DeductionTree(_) => ModeVariant::CompactTree(CompactTree::default()),
             ModeVariant::DataFlow(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
             ModeVariant::EffectFlow(_) => ModeVariant::DataFlow(DataFlowMode::default()),
         };
@@ -226,9 +220,8 @@ impl DisplayMode {
     /// Get the display name of the current mode.
     pub fn name(&self) -> &'static str {
         match &self.mode {
-            ModeVariant::PlainGoal(_) => PlainList::NAME,
-            ModeVariant::BeforeAfter(_) => BeforeAfterMode::NAME,
-            ModeVariant::TacticTree(_) => TacticTree::NAME,
+            ModeVariant::Compact(_) => BeforeAfterMode::NAME,
+            ModeVariant::CompactTree(_) => CompactTree::NAME,
             ModeVariant::DeductionTree(_) => SemanticTableau::NAME,
             ModeVariant::DataFlow(_) => DataFlowMode::NAME,
             ModeVariant::EffectFlow(_) => EffectFlowMode::NAME,
@@ -238,9 +231,8 @@ impl DisplayMode {
     /// Get mode-specific keybindings.
     pub const fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
         match &self.mode {
-            ModeVariant::PlainGoal(_) => PlainList::KEYBINDINGS,
-            ModeVariant::BeforeAfter(_) => BeforeAfterMode::KEYBINDINGS,
-            ModeVariant::TacticTree(_) => TacticTree::KEYBINDINGS,
+            ModeVariant::Compact(_) => BeforeAfterMode::KEYBINDINGS,
+            ModeVariant::CompactTree(_) => CompactTree::KEYBINDINGS,
             ModeVariant::DeductionTree(_) => SemanticTableau::KEYBINDINGS,
             ModeVariant::DataFlow(_) => DataFlowMode::KEYBINDINGS,
             ModeVariant::EffectFlow(_) => EffectFlowMode::KEYBINDINGS,
@@ -250,9 +242,8 @@ impl DisplayMode {
     /// Get supported filter toggles.
     pub const fn supported_filters(&self) -> &'static [FilterToggle] {
         match &self.mode {
-            ModeVariant::PlainGoal(_) => PlainList::SUPPORTED_FILTERS,
-            ModeVariant::BeforeAfter(_) => BeforeAfterMode::SUPPORTED_FILTERS,
-            ModeVariant::TacticTree(_) => TacticTree::SUPPORTED_FILTERS,
+            ModeVariant::Compact(_) => BeforeAfterMode::SUPPORTED_FILTERS,
+            ModeVariant::CompactTree(_) => CompactTree::SUPPORTED_FILTERS,
             ModeVariant::DeductionTree(_) => SemanticTableau::SUPPORTED_FILTERS,
             ModeVariant::DataFlow(_) => DataFlowMode::SUPPORTED_FILTERS,
             ModeVariant::EffectFlow(_) => EffectFlowMode::SUPPORTED_FILTERS,
@@ -262,9 +253,8 @@ impl DisplayMode {
     /// Get current selection from active mode.
     pub fn current_selection(&self) -> Option<Selection> {
         match &self.mode {
-            ModeVariant::PlainGoal(m) => m.current_selection(),
-            ModeVariant::BeforeAfter(m) => m.current_selection(),
-            ModeVariant::TacticTree(m) => m.current_selection(),
+            ModeVariant::Compact(m) => m.current_selection(),
+            ModeVariant::CompactTree(m) => m.current_selection(),
             ModeVariant::DeductionTree(m) => m.current_selection(),
             ModeVariant::DataFlow(m) => m.current_selection(),
             ModeVariant::EffectFlow(m) => m.current_selection(),
@@ -274,9 +264,8 @@ impl DisplayMode {
     /// Get legend sections from active mode.
     pub fn legend_sections(&self) -> Vec<LegendSection> {
         match &self.mode {
-            ModeVariant::PlainGoal(m) => m.legend_sections(),
-            ModeVariant::BeforeAfter(m) => m.legend_sections(),
-            ModeVariant::TacticTree(m) => m.legend_sections(),
+            ModeVariant::Compact(m) => m.legend_sections(),
+            ModeVariant::CompactTree(m) => m.legend_sections(),
             ModeVariant::DeductionTree(m) => m.legend_sections(),
             ModeVariant::DataFlow(m) => m.legend_sections(),
             ModeVariant::EffectFlow(m) => m.legend_sections(),
@@ -286,9 +275,8 @@ impl DisplayMode {
     /// Get filters from active mode.
     pub const fn filters(&self) -> HypothesisFilters {
         match &self.mode {
-            ModeVariant::PlainGoal(m) => m.filters(),
-            ModeVariant::BeforeAfter(m) => m.filters(),
-            ModeVariant::TacticTree(m) => m.filters(),
+            ModeVariant::Compact(m) => m.filters(),
+            ModeVariant::CompactTree(m) => m.filters(),
             ModeVariant::DeductionTree(m) => m.filters(),
             ModeVariant::DataFlow(m) => m.filters(),
             ModeVariant::EffectFlow(m) => m.filters(),
@@ -298,9 +286,8 @@ impl DisplayMode {
     /// Handle event for active mode.
     pub fn handle_event(&mut self, event: KeyMouseEvent) -> bool {
         match &mut self.mode {
-            ModeVariant::PlainGoal(m) => m.handle_event(event),
-            ModeVariant::BeforeAfter(m) => m.handle_event(event),
-            ModeVariant::TacticTree(m) => m.handle_event(event),
+            ModeVariant::Compact(m) => m.handle_event(event),
+            ModeVariant::CompactTree(m) => m.handle_event(event),
             ModeVariant::DeductionTree(m) => m.handle_event(event),
             ModeVariant::DataFlow(m) => m.handle_event(event),
             ModeVariant::EffectFlow(m) => m.handle_event(event),
@@ -310,9 +297,8 @@ impl DisplayMode {
     /// Take clicked error from modes that support it (if any).
     pub fn take_clicked_error(&mut self) -> Option<String> {
         match &mut self.mode {
-            ModeVariant::PlainGoal(m) => m.take_clicked_error(),
-            ModeVariant::BeforeAfter(m) => m.take_clicked_error(),
-            ModeVariant::TacticTree(m) => m.take_clicked_error(),
+            ModeVariant::Compact(m) => m.take_clicked_error(),
+            ModeVariant::CompactTree(m) => m.take_clicked_error(),
             ModeVariant::DataFlow(m) => m.take_clicked_error(),
             _ => None,
         }
@@ -323,63 +309,39 @@ impl DisplayMode {
         let error = error.or_else(|| self.incompatibility_error());
 
         match (&mut self.mode, &self.dag) {
-            (ModeVariant::PlainGoal(m), DagState::Proof(dag)) => {
-                m.update(PlainListInput::builder().dag(dag).error(error).build());
+            (ModeVariant::Compact(m), DagState::Proof(dag)) => {
+                m.update(BeforeAfterModeInput { dag: Some(dag.clone()), error });
             }
-            (ModeVariant::PlainGoal(m), _) => {
-                m.update(PlainListInput::builder().error(error).build());
-            }
-
-            (ModeVariant::BeforeAfter(m), DagState::Proof(dag)) => {
-                m.update(
-                    BeforeAfterModeInput::builder()
-                        .dag(dag)
-                        .error(error)
-                        .show_previous(m.show_previous())
-                        .show_next(m.show_next())
-                        .build(),
-                );
-            }
-            (ModeVariant::BeforeAfter(m), _) => {
-                m.update(BeforeAfterModeInput::builder().error(error).build());
+            (ModeVariant::Compact(m), _) => {
+                m.update(BeforeAfterModeInput { dag: None, error });
             }
 
-            (ModeVariant::TacticTree(m), DagState::Proof(dag)) => {
-                m.update(StepsModeInput::builder().dag(dag).error(error).build());
+            (ModeVariant::CompactTree(m), DagState::Proof(dag)) => {
+                m.update(CompactTreeInput { dag: Some(dag.clone()), error });
             }
-            (ModeVariant::TacticTree(m), _) => {
-                m.update(StepsModeInput::builder().error(error).build());
+            (ModeVariant::CompactTree(m), _) => {
+                m.update(CompactTreeInput { dag: None, error });
             }
 
             (ModeVariant::DeductionTree(m), DagState::Proof(dag)) => {
-                m.update(
-                    DeductionTreeModeInput::builder()
-                        .dag(dag)
-                        .error(error)
-                        .build(),
-                );
+                m.update(DeductionTreeModeInput { dag: Some(dag.clone()), error });
             }
             (ModeVariant::DeductionTree(m), _) => {
-                m.update(DeductionTreeModeInput::builder().error(error).build());
+                m.update(DeductionTreeModeInput { dag: None, error });
             }
 
             (ModeVariant::DataFlow(m), DagState::Dataflow(dag)) => {
-                m.update(DataFlowModeInput::builder().dag(dag).error(error).build());
+                m.update(DataFlowModeInput { dag: Some(dag.clone()), error });
             }
             (ModeVariant::DataFlow(m), _) => {
-                m.update(DataFlowModeInput::builder().error(error).build());
+                m.update(DataFlowModeInput { dag: None, error });
             }
 
             (ModeVariant::EffectFlow(m), DagState::Effectflow(dag)) => {
-                m.update(
-                    EffectFlowModeInput::builder()
-                        .effect_dag(dag)
-                        .error(error)
-                        .build(),
-                );
+                m.update(EffectFlowModeInput { dag: Some(dag.clone()), error });
             }
             (ModeVariant::EffectFlow(m), _) => {
-                m.update(EffectFlowModeInput::builder().error(error).build());
+                m.update(EffectFlowModeInput { dag: None, error });
             }
         }
     }
@@ -387,9 +349,8 @@ impl DisplayMode {
     /// Render active mode.
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         match &mut self.mode {
-            ModeVariant::PlainGoal(m) => m.render(frame, area),
-            ModeVariant::BeforeAfter(m) => m.render(frame, area),
-            ModeVariant::TacticTree(m) => m.render(frame, area),
+            ModeVariant::Compact(m) => m.render(frame, area),
+            ModeVariant::CompactTree(m) => m.render(frame, area),
             ModeVariant::DeductionTree(m) => m.render(frame, area),
             ModeVariant::DataFlow(m) => m.render(frame, area),
             ModeVariant::EffectFlow(m) => m.render(frame, area),

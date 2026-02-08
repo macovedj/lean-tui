@@ -1,11 +1,7 @@
-mod after_pane;
-mod before_pane;
-mod current_pane;
+mod diff_pane;
 
-use after_pane::{AfterPane, AfterPaneState};
-use before_pane::{BeforePane, BeforePaneState};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
-use current_pane::{CurrentPane, CurrentPaneState};
+use diff_pane::{DiffPane, DiffPaneKind, DiffPaneState};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::Color,
@@ -28,87 +24,8 @@ use crate::{
 };
 
 pub struct BeforeAfterModeInput {
-    pub previous_state: Option<TacticProofState>,
-    pub current_state: TacticProofState,
-    pub next_state: Option<TacticProofState>,
+    pub dag: Option<CompleteProofDag>,
     pub error: Option<String>,
-    pub proof_dag: Option<CompleteProofDag>,
-}
-
-impl BeforeAfterModeInput {
-    pub fn builder() -> BeforeAfterModeInputBuilder {
-        BeforeAfterModeInputBuilder::default()
-    }
-}
-
-#[derive(Default)]
-pub struct BeforeAfterModeInputBuilder {
-    dag: Option<CompleteProofDag>,
-    error: Option<String>,
-    show_previous: bool,
-    show_next: bool,
-}
-
-impl BeforeAfterModeInputBuilder {
-    pub fn dag(mut self, dag: &CompleteProofDag) -> Self {
-        self.dag = Some(dag.clone());
-        self
-    }
-
-    pub fn error(mut self, error: Option<String>) -> Self {
-        self.error = error;
-        self
-    }
-
-    pub fn show_previous(mut self, show: bool) -> Self {
-        self.show_previous = show;
-        self
-    }
-
-    pub fn show_next(mut self, show: bool) -> Self {
-        self.show_next = show;
-        self
-    }
-
-    pub fn build(self) -> BeforeAfterModeInput {
-        let current_node = self
-            .dag
-            .as_ref()
-            .and_then(|d| d.current_node_id)
-            .and_then(|id| self.dag.as_ref()?.get(id));
-
-        let current_state = current_node
-            .map(|n| n.proof_state.clone())
-            .unwrap_or_default();
-
-        let previous_state = self
-            .show_previous
-            .then(|| {
-                current_node
-                    .and_then(|n| n.parent)
-                    .and_then(|parent_id| self.dag.as_ref()?.get(parent_id))
-                    .map(|parent| parent.proof_state.clone())
-            })
-            .flatten();
-
-        let next_state = self
-            .show_next
-            .then(|| {
-                current_node
-                    .and_then(|n| n.children.first())
-                    .and_then(|&child_id| self.dag.as_ref()?.get(child_id))
-                    .map(|child| child.proof_state.clone())
-            })
-            .flatten();
-
-        BeforeAfterModeInput {
-            previous_state,
-            current_state,
-            next_state,
-            error: self.error,
-            proof_dag: self.dag,
-        }
-    }
 }
 
 pub struct BeforeAfterMode {
@@ -122,9 +39,9 @@ pub struct BeforeAfterMode {
     selection: ListSelection,
     show_previous: bool,
     show_next: bool,
-    before_pane_state: BeforePaneState,
-    current_pane_state: CurrentPaneState,
-    after_pane_state: AfterPaneState,
+    before_pane_state: DiffPaneState,
+    current_pane_state: DiffPaneState,
+    after_pane_state: DiffPaneState,
     current_node_errors: Vec<DiagnosticInfo>,
     errors_section_state: ErrorsSectionState,
 }
@@ -142,9 +59,9 @@ impl Default for BeforeAfterMode {
             selection: ListSelection::default(),
             show_previous: true,
             show_next: false,
-            before_pane_state: BeforePaneState::default(),
-            current_pane_state: CurrentPaneState::default(),
-            after_pane_state: AfterPaneState::default(),
+            before_pane_state: DiffPaneState::default(),
+            current_pane_state: DiffPaneState::default(),
+            after_pane_state: DiffPaneState::default(),
             current_node_errors: Vec::new(),
             errors_section_state: ErrorsSectionState::default(),
         }
@@ -154,14 +71,6 @@ impl Default for BeforeAfterMode {
 impl BeforeAfterMode {
     pub const fn filters(&self) -> HypothesisFilters {
         self.filters
-    }
-
-    pub const fn show_previous(&self) -> bool {
-        self.show_previous
-    }
-
-    pub const fn show_next(&self) -> bool {
-        self.show_next
     }
 
     fn selectable_items(&self) -> Vec<Selection> {
@@ -197,14 +106,33 @@ impl InteractiveComponent for BeforeAfterMode {
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
-        let state_changed = self.current_state.goals.len() != input.current_state.goals.len()
-            || self.current_state.hypotheses.len() != input.current_state.hypotheses.len();
-        self.previous_state = input.previous_state;
-        self.current_state = input.current_state;
-        self.next_state = input.next_state;
+        let current_node_id = input.dag.as_ref().and_then(|dag| dag.current_node_id);
+        let current_node = current_node_id.and_then(|id| input.dag.as_ref()?.get(id));
+
+        let new_current_state = current_node
+            .map(|n| n.proof_state.clone())
+            .unwrap_or_default();
+
+        let state_changed = self.current_state.goals.len() != new_current_state.goals.len()
+            || self.current_state.hypotheses.len() != new_current_state.hypotheses.len();
+
+        self.previous_state = self.show_previous.then(|| {
+            current_node
+                .and_then(|n| n.parent)
+                .and_then(|parent_id| input.dag.as_ref()?.get(parent_id))
+                .map(|parent| parent.proof_state.clone())
+        }).flatten();
+
+        self.current_state = new_current_state;
+
+        self.next_state = self.show_next.then(|| {
+            current_node
+                .and_then(|n| n.children.first())
+                .and_then(|&child_id| input.dag.as_ref()?.get(child_id))
+                .map(|child| child.proof_state.clone())
+        }).flatten();
+
         self.error = input.error;
-        let current_node_id = input.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
-        let current_node = current_node_id.and_then(|id| input.proof_dag.as_ref()?.get(id));
         self.current_node_id = current_node_id;
         self.active_goal_name = current_node
             .and_then(|node| node.proof_state.goals.first())
@@ -212,6 +140,7 @@ impl InteractiveComponent for BeforeAfterMode {
         self.current_node_errors = current_node
             .map(|node| node.diagnostics.clone())
             .unwrap_or_default();
+
         if state_changed {
             self.selection.reset(self.selectable_items().len());
         }
@@ -300,7 +229,14 @@ impl InteractiveComponent for BeforeAfterMode {
         if let Some(ref state) = self.previous_state {
             if self.show_previous {
                 frame.render_stateful_widget(
-                    BeforePane::new(state, self.filters, self.active_goal_name.as_deref()),
+                    DiffPane::new(
+                        DiffPaneKind::Before,
+                        state,
+                        self.filters,
+                        None,
+                        None,
+                        self.active_goal_name.as_deref(),
+                    ),
                     columns[col_idx],
                     &mut self.before_pane_state,
                 );
@@ -309,7 +245,8 @@ impl InteractiveComponent for BeforeAfterMode {
         }
 
         frame.render_stateful_widget(
-            CurrentPane::new(
+            DiffPane::new(
+                DiffPaneKind::Current,
                 &self.current_state,
                 self.filters,
                 selection,
@@ -336,7 +273,14 @@ impl InteractiveComponent for BeforeAfterMode {
         if let Some(ref state) = self.next_state {
             if self.show_next {
                 frame.render_stateful_widget(
-                    AfterPane::new(state, self.filters, self.active_goal_name.as_deref()),
+                    DiffPane::new(
+                        DiffPaneKind::After,
+                        state,
+                        self.filters,
+                        None,
+                        None,
+                        self.active_goal_name.as_deref(),
+                    ),
                     columns[col_idx],
                     &mut self.after_pane_state,
                 );
@@ -358,7 +302,7 @@ impl InteractiveComponent for BeforeAfterMode {
 impl Mode for BeforeAfterMode {
     type Model = BeforeAfterModeInput;
 
-    const NAME: &'static str = "Before/After";
+    const NAME: &'static str = "Compact";
     const KEYBINDINGS: &'static [(&'static str, &'static str)] = &[("p", "prev"), ("n", "next")];
     const SUPPORTED_FILTERS: &'static [FilterToggle] = &[
         FilterToggle::Instances,

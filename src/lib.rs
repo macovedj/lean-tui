@@ -8,11 +8,10 @@ mod tcp_client;
 
 // Display styles
 mod before_after;
+mod compact_tree;
 mod data_flow;
 mod deduction_tree;
 mod effect_flow;
-mod plain_goal;
-mod tactic_tree;
 
 // Shared components
 mod graph_layout;

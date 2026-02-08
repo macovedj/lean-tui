@@ -58,7 +58,6 @@ impl Theme {
 
     // === Frame & Border Colors ===
     pub const PANE_BORDER_FOCUSED: Color = Gray::DIM;
-    pub const BORDER_FOCUSED: Color = Blue::MUTED;
     pub const FRAME_BORDER: Color = Color::Reset; // Terminal default for outer frame
     pub const SELECTION_BG: Color = Color::Rgb(50, 50, 80);
 
