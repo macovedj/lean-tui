@@ -10,8 +10,7 @@ use ratatui::style::{Color, Style};
 
 use crate::{
     graph_layout::{
-        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode,
-        NodeTextContent,
+        Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode, NodeTextContent,
     },
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphEdge, GraphNode,
@@ -59,7 +58,7 @@ impl EffectKind {
         }
     }
 
-    pub fn icon(&self) -> &str {
+    pub fn icon(&self) -> &'static str {
         match self {
             Self::EffectBind => "⊛",
             Self::EffectBranch => "⎇",
@@ -227,6 +226,9 @@ impl NodeTextContent for EffectFlowNode {
             }
         }
 
+        // Add expression line - always present
+        lines.push(self.content.to_plain_text());
+
         // Add forward/backward effect lines
         if let Some(fwd) = &self.forward {
             lines.push(format!("→ {fwd}"));
@@ -237,7 +239,8 @@ impl NodeTextContent for EffectFlowNode {
 
         lines.extend(format_error_diagnostics(&self.diagnostics));
 
-        if lines.is_empty() && self.is_leaf() && !self.has_error() {
+        if self.is_leaf() && !self.has_error() && self.forward.is_none() && self.backward.is_none()
+        {
             lines.push("✓".to_string());
         }
 
@@ -247,7 +250,71 @@ impl NodeTextContent for EffectFlowNode {
 
 impl LayoutSize for EffectFlowNode {
     fn layout_size(&self) -> (u16, u16) {
-        calculate_node_size(self)
+        const BORDER_AND_PADDING: usize = 4;
+        const BORDER_HEIGHT: u16 = 2;
+
+        let visible_bindings = self.visible_bindings();
+        let shows_completed = self.shows_completed_marker();
+
+        let content_width = [
+            Self::binding_table_width(&visible_bindings),
+            self.content.to_plain_text().chars().count(),
+            self.effect_width(),
+            if shows_completed {
+                "✓ completed".chars().count()
+            } else {
+                0
+            },
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0);
+
+        let line_count = visible_bindings.len()
+            + 1 // expression
+            + usize::from(self.forward.is_some())
+            + usize::from(self.backward.is_some())
+            + usize::from(shows_completed);
+
+        let width = (content_width + BORDER_AND_PADDING) as u16;
+        let height = BORDER_HEIGHT + line_count as u16;
+
+        (width, height)
+    }
+}
+
+impl EffectFlowNode {
+    fn visible_bindings(&self) -> Vec<&LocalBinding> {
+        self.bindings
+            .iter()
+            .filter(|b| !b.is_implicit && !b.is_instance)
+            .collect()
+    }
+
+    fn binding_table_width(bindings: &[&LocalBinding]) -> usize {
+        if bindings.is_empty() {
+            return 0;
+        }
+        let max_name = bindings.iter().map(|b| b.name.chars().count()).max();
+        let max_type = bindings
+            .iter()
+            .map(|b| b.type_.to_plain_text().chars().count())
+            .max();
+
+        max_name.unwrap_or(0) + 1 + max_type.unwrap_or(0)
+    }
+
+    fn effect_width(&self) -> usize {
+        [&self.forward, &self.backward]
+            .into_iter()
+            .flatten()
+            .map(|s| 2 + s.chars().count())
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn shows_completed_marker(&self) -> bool {
+        self.is_leaf() && !self.has_error() && self.forward.is_none() && self.backward.is_none()
     }
 }
 
@@ -413,7 +480,8 @@ impl EffectFlowDag {
     }
 
     /// Get all node IDs that should be hidden when expand is collapsed.
-    /// This includes direct targets of "expand" edges and all their descendants.
+    /// This includes direct targets of "expand" edges and all their
+    /// descendants.
     fn expand_target_ids(&self) -> HashSet<NodeId> {
         let roots = self.direct_expand_targets();
         self.reachable_from(&roots)
