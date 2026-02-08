@@ -27,16 +27,11 @@ pub struct EffectStateNodeState {
 pub struct EffectStateNode<'a> {
     node: &'a EffectFlowNode,
     is_current: bool,
-    is_selected: bool,
 }
 
 impl<'a> EffectStateNode<'a> {
-    pub const fn new(node: &'a EffectFlowNode, is_current: bool, is_selected: bool) -> Self {
-        Self {
-            node,
-            is_current,
-            is_selected,
-        }
+    pub const fn new(node: &'a EffectFlowNode, is_current: bool) -> Self {
+        Self { node, is_current }
     }
 
     fn effect_kind(&self) -> &EffectKind {
@@ -82,45 +77,39 @@ impl<'a> EffectStateNode<'a> {
 
     fn title(&self) -> Vec<Span<'static>> {
         let kind = self.effect_kind();
-        let expr_text = self.node.content.to_plain_text();
         let has_error = self.node.has_error();
 
+        let mut spans = Vec::new();
+
+        // Icon in the title (top-left corner)
         let icon_style = if has_error {
             Style::new().fg(Red::BRIGHT)
         } else {
             Style::new().fg(kind.color())
         };
-
-        let mut text_style = if has_error {
-            Style::new().fg(Red::BRIGHT).add_modifier(Modifier::BOLD)
-        } else if self.is_current {
-            Style::new().fg(Color::White).add_modifier(Modifier::BOLD)
-        } else {
-            Style::new().fg(Color::Gray)
-        };
-
-        if self.is_selected {
-            text_style = text_style.add_modifier(Modifier::UNDERLINED);
-        }
-
-        let mut spans = Vec::new();
+        spans.push(Span::styled(format!(" {}", kind.icon()), icon_style));
 
         if has_error {
             spans.push(Span::styled(" ⚠", Style::new().fg(Red::BRIGHT)));
         }
 
-        spans.push(Span::styled(format!(" {} ", kind.icon()), icon_style));
-        spans.push(Span::styled(expr_text, text_style));
-
-        if self.node.edges.len() > 1 {
-            spans.push(Span::styled(
-                format!(" [{}→]", self.node.edges.len()),
-                Style::new().fg(Color::DarkGray),
-            ));
-        }
-
         spans.push(Span::raw(" "));
         spans
+    }
+
+    fn build_expression_line(&self) -> Line<'static> {
+        let has_error = self.node.has_error();
+
+        // Use ITALIC to distinguish expression from goals (which use bold/normal)
+        let style = if has_error {
+            Style::new().fg(Red::BRIGHT).add_modifier(Modifier::ITALIC)
+        } else if self.is_current {
+            Style::new().fg(Color::White).add_modifier(Modifier::ITALIC)
+        } else {
+            Style::new().fg(Color::Gray).add_modifier(Modifier::ITALIC)
+        };
+
+        Line::from(self.node.content.to_spans(style))
     }
 
     fn build_binding_rows(&self) -> Vec<AlignedRow> {
@@ -224,31 +213,40 @@ impl StatefulWidget for EffectStateNode<'_> {
             return;
         }
 
-        // Build table rows: bindings first, then effects
-        let mut rows: Vec<AlignedRow> = Vec::new();
-        rows.extend(self.build_binding_rows());
-        rows.extend(self.build_effect_rows());
+        let mut y = inner.y;
 
-        let table_height = rows.len() as u16;
-        let table_area = Rect::new(
-            inner.x,
-            inner.y,
-            inner.width,
-            table_height.min(inner.height),
-        );
+        // 1. Render bindings table
+        let binding_rows = self.build_binding_rows();
+        if !binding_rows.is_empty() {
+            let bindings_height = (binding_rows.len() as u16).min(inner.height);
+            let bindings_area = Rect::new(inner.x, y, inner.width, bindings_height);
+            Widget::render(AlignedTable::new(binding_rows), bindings_area, buf);
+            y += bindings_height;
+        }
 
-        let table = AlignedTable::new(rows);
-        Widget::render(table, table_area, buf);
+        // 2. Render expression line
+        if y < inner.y + inner.height {
+            buf.set_line(inner.x, y, &self.build_expression_line(), inner.width);
+            y += 1;
+        }
 
-        // Render error diagnostics below the table
+        // 3. Render effects table
+        let effect_rows = self.build_effect_rows();
+        if !effect_rows.is_empty() && y < inner.y + inner.height {
+            let effects_height = (effect_rows.len() as u16).min(inner.y + inner.height - y);
+            let effects_area = Rect::new(inner.x, y, inner.width, effects_height);
+            Widget::render(AlignedTable::new(effect_rows), effects_area, buf);
+            y += effects_height;
+        }
+
+        // 4. Render error diagnostics below
         let error_lines = format_diagnostic_lines(&self.node.diagnostics);
-        let error_y = inner.y + table_height;
-        for (i, line) in error_lines.into_iter().enumerate() {
-            let row_y = error_y + i as u16;
-            if row_y >= inner.y + inner.height {
+        for line in error_lines {
+            if y >= inner.y + inner.height {
                 break;
             }
-            buf.set_line(inner.x, row_y, &line, inner.width);
+            buf.set_line(inner.x, y, &line, inner.width);
+            y += 1;
         }
 
         state.click_regions = self.click_regions(area);

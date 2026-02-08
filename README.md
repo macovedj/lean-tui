@@ -180,7 +180,7 @@ Visualizes your active proof as a semantic tableau. This is based on how logicia
 
 Again, press `g` to jump to the selected hypothesis or goal. Use the arrow keys or `hjkl` to jump with keyboard only.
 
-![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png) |
+![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png)
 
 For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this view. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
 
