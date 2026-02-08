@@ -11,12 +11,10 @@ use super::{
 };
 use crate::{
     deduction_tree::TacticProofState,
-    graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
+    graph_layout::{calculate_layout, GraphViewport},
     navigation::build_navigation_regions,
     selection::Selection,
 };
-
-pub type ProofPaneState = GraphViewport;
 
 /// Proof pane widget.
 pub struct ProofPane<'a> {
@@ -43,7 +41,7 @@ impl<'a> ProofPane<'a> {
 }
 
 impl StatefulWidget for ProofPane<'_> {
-    type State = ProofPaneState;
+    type State = GraphViewport;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.clear_click_regions();
@@ -56,13 +54,10 @@ impl StatefulWidget for ProofPane<'_> {
         }
 
         let graph = self.dag.to_graph();
-        let config = LayoutConfig {
-            top_down: self.top_down,
-        };
 
         let layout_changed = state.update_layout_if_needed(self.dag.len(), || {
             let layout_graph = self.dag.to_layout_graph();
-            calculate_layout(&layout_graph, config)
+            calculate_layout(&layout_graph, self.top_down)
         });
 
         if layout_changed {
@@ -81,7 +76,7 @@ impl StatefulWidget for ProofPane<'_> {
         });
 
         state.compute_scroll(selected_idx, graph.current, graph.root, area);
-        state.render_edges(&graph, config, area, buf);
+        state.render_edges(&graph, self.top_down, area, buf);
 
         for pos in &state.layout.nodes {
             let Some(render_area) =

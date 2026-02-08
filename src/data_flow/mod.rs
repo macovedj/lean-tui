@@ -17,7 +17,7 @@ pub use types::{DataFlowConversionError, DataFlowDag, DataFlowNode};
 use crate::{
     data_flow::layout::{FunctionalTableauLayout, FunctionalTableauState},
     display_mode::Mode,
-    interactive::{InteractiveComponent, KeyMouseEvent},
+    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     selection::Selection,
     theme::Theme,
@@ -26,12 +26,6 @@ use crate::{
         render_helpers::render_error,
     },
 };
-
-/// Input for updating the Data Flow mode.
-pub struct DataFlowModeInput {
-    pub dag: Option<DataFlowDag>,
-    pub error: Option<String>,
-}
 
 /// Data Flow display mode - functional DAG visualization.
 pub struct DataFlowMode {
@@ -184,7 +178,7 @@ impl DataFlowMode {
 }
 
 impl InteractiveComponent for DataFlowMode {
-    type Input = DataFlowModeInput;
+    type Input = ModeInput<DataFlowDag>;
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
@@ -270,7 +264,7 @@ impl InteractiveComponent for DataFlowMode {
 }
 
 impl Mode for DataFlowMode {
-    type Model = DataFlowModeInput;
+    type Model = ModeInput<DataFlowDag>;
 
     fn name(&self) -> &'static str {
         "Data Flow"

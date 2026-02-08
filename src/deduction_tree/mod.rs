@@ -18,7 +18,7 @@ pub use types::{
 use crate::{
     deduction_tree::layout::{SemanticTableauLayout, SemanticTableauState},
     display_mode::Mode,
-    interactive::{InteractiveComponent, KeyMouseEvent},
+    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     protocol::DiagnosticSeverity,
     selection::Selection,
@@ -28,12 +28,6 @@ use crate::{
         render_helpers::{render_error, render_no_goals},
     },
 };
-
-/// Input for updating the Deduction Tree mode.
-pub struct DeductionTreeModeInput {
-    pub dag: Option<CompleteProofDag>,
-    pub error: Option<String>,
-}
 
 /// Deduction Tree display mode - semantic tree visualization.
 pub struct SemanticTableau {
@@ -166,7 +160,7 @@ impl SemanticTableau {
 }
 
 impl InteractiveComponent for SemanticTableau {
-    type Input = DeductionTreeModeInput;
+    type Input = ModeInput<CompleteProofDag>;
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
@@ -254,7 +248,7 @@ impl InteractiveComponent for SemanticTableau {
 }
 
 impl Mode for SemanticTableau {
-    type Model = DeductionTreeModeInput;
+    type Model = ModeInput<CompleteProofDag>;
 
     fn name(&self) -> &'static str {
         "Semantic tableau"

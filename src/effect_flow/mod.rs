@@ -17,7 +17,7 @@ pub use types::{EdgeKind, EffectFlowConversionError, EffectFlowDag, EffectKind};
 use crate::{
     display_mode::Mode,
     effect_flow::layout::{EffectTableauLayout, EffectTableauState},
-    interactive::{InteractiveComponent, KeyMouseEvent},
+    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     selection::Selection,
     theme::Theme,
@@ -26,12 +26,6 @@ use crate::{
         render_helpers::render_error,
     },
 };
-
-/// Input for updating the Effect Flow mode.
-pub struct EffectFlowModeInput {
-    pub dag: Option<EffectFlowDag>,
-    pub error: Option<String>,
-}
 
 #[derive(Default)]
 pub struct EffectFlowMode {
@@ -160,7 +154,7 @@ impl EffectFlowMode {
 }
 
 impl InteractiveComponent for EffectFlowMode {
-    type Input = EffectFlowModeInput;
+    type Input = ModeInput<EffectFlowDag>;
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
@@ -249,7 +243,7 @@ impl InteractiveComponent for EffectFlowMode {
 }
 
 impl Mode for EffectFlowMode {
-    type Model = EffectFlowModeInput;
+    type Model = ModeInput<EffectFlowDag>;
 
     fn name(&self) -> &'static str {
         "Effect Flow"

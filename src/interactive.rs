@@ -10,6 +10,12 @@ pub enum KeyMouseEvent {
     Mouse(MouseEvent),
 }
 
+/// Generic input for display mode components.
+pub struct ModeInput<D> {
+    pub dag: Option<D>,
+    pub error: Option<String>,
+}
+
 /// Extension trait for `StatefulWidget` that adds state management and event
 /// handling.
 ///

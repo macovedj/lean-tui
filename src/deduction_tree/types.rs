@@ -11,7 +11,7 @@ use crate::{
     },
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, LocalBinding, PreresolvedNavigationTargets, RichText,
+        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
     },
     theme::Theme,
 };
@@ -78,21 +78,11 @@ pub struct TacticProofState {
     pub hypotheses: Vec<ProofContextHypothesis>,
 }
 
-/// Type alias for node IDs.
-pub type NodeId = u64;
-
-/// Tactic text with position info.
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
-pub struct TacticText {
-    pub text: String,
-    pub position: LineCharacterPosition,
-}
-
 /// Proof DAG tactic node.
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize, Default)]
 pub struct ProofDagTacticNode {
     pub id: NodeId,
-    pub tactic: TacticText,
+    pub tactic_text: String,
     pub position: LineCharacterPosition,
     pub proof_state: TacticProofState,
     pub children: Vec<NodeId>,
@@ -353,10 +343,7 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
 
     Ok(ProofDagTacticNode {
         id: node.id,
-        tactic: TacticText {
-            text: node.content.to_plain_text(),
-            position: node.position,
-        },
+        tactic_text: node.content.to_plain_text(),
         position: node.position,
         proof_state,
         children,
@@ -426,7 +413,7 @@ impl DagNode for ProofDagTacticNode {
 
 impl NodeTextContent for ProofDagTacticNode {
     fn title(&self) -> String {
-        self.tactic.text.clone()
+        self.tactic_text.clone()
     }
 
     fn content_lines(&self) -> Vec<String> {

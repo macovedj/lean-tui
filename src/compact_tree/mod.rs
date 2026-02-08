@@ -14,7 +14,7 @@ use crate::{
         TacticProofState,
     },
     display_mode::Mode,
-    interactive::{InteractiveComponent, InteractiveStatefulWidget, KeyMouseEvent},
+    interactive::{InteractiveComponent, InteractiveStatefulWidget, KeyMouseEvent, ModeInput},
     protocol::NodeId,
     selection::{ListSelection, Selection},
     theme::Theme,
@@ -25,12 +25,6 @@ use crate::{
         AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState,
     },
 };
-
-/// Input for updating the Compact Tree mode.
-pub struct CompactTreeInput {
-    pub dag: Option<CompleteProofDag>,
-    pub error: Option<String>,
-}
 
 /// Compact tree display mode - shows the proof steps sidebar with
 /// assumptions/goals in right column.
@@ -114,7 +108,7 @@ impl CompactTree {
 }
 
 impl InteractiveComponent for CompactTree {
-    type Input = CompactTreeInput;
+    type Input = ModeInput<CompleteProofDag>;
     type Event = KeyMouseEvent;
 
     fn update(&mut self, input: Self::Input) {
@@ -205,7 +199,13 @@ impl InteractiveComponent for CompactTree {
         let selection = self.current_selection();
 
         frame.render_stateful_widget(
-            AssumptionPane::new(&self.state, selection, true, is_current, self.current_node_id),
+            AssumptionPane::new(
+                &self.state,
+                selection,
+                true,
+                is_current,
+                self.current_node_id,
+            ),
             hyp_area,
             &mut self.assumption_state,
         );
@@ -260,7 +260,7 @@ impl InteractiveComponent for CompactTree {
 }
 
 impl Mode for CompactTree {
-    type Model = CompactTreeInput;
+    type Model = ModeInput<CompleteProofDag>;
 
     fn name(&self) -> &'static str {
         "Compact Tree"

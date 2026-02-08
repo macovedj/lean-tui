@@ -5,14 +5,12 @@ use std::{error::Error, fmt, mem::take};
 use ratatui::{layout::Rect, Frame};
 
 use crate::{
-    before_after::{BeforeAfterMode, BeforeAfterModeInput},
-    compact_tree::{CompactTree, CompactTreeInput},
-    data_flow::{DataFlowConversionError, DataFlowDag, DataFlowMode, DataFlowModeInput},
-    deduction_tree::{
-        CompleteProofDag, DeductionTreeModeInput, ProofDagConversionError, SemanticTableau,
-    },
-    effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode, EffectFlowModeInput},
-    interactive::{InteractiveComponent, KeyMouseEvent},
+    before_after::BeforeAfterMode,
+    compact_tree::CompactTree,
+    data_flow::{DataFlowConversionError, DataFlowDag, DataFlowMode},
+    deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
+    effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode},
+    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
     protocol::{GenericDag, LocalBinding, RichText},
     selection::Selection,
     widgets::legend::LegendSection,
@@ -290,53 +288,53 @@ impl DisplayMode {
 
         match (&mut self.mode, &self.dag) {
             (ModeVariant::Compact(m), DagState::Proof(dag)) => {
-                m.update(BeforeAfterModeInput {
+                m.update(ModeInput {
                     dag: Some(dag.clone()),
                     error,
                 });
             }
             (ModeVariant::Compact(m), _) => {
-                m.update(BeforeAfterModeInput { dag: None, error });
+                m.update(ModeInput { dag: None, error });
             }
 
             (ModeVariant::CompactTree(m), DagState::Proof(dag)) => {
-                m.update(CompactTreeInput {
+                m.update(ModeInput {
                     dag: Some(dag.clone()),
                     error,
                 });
             }
             (ModeVariant::CompactTree(m), _) => {
-                m.update(CompactTreeInput { dag: None, error });
+                m.update(ModeInput { dag: None, error });
             }
 
             (ModeVariant::DeductionTree(m), DagState::Proof(dag)) => {
-                m.update(DeductionTreeModeInput {
+                m.update(ModeInput {
                     dag: Some(dag.clone()),
                     error,
                 });
             }
             (ModeVariant::DeductionTree(m), _) => {
-                m.update(DeductionTreeModeInput { dag: None, error });
+                m.update(ModeInput { dag: None, error });
             }
 
             (ModeVariant::DataFlow(m), DagState::Dataflow(dag)) => {
-                m.update(DataFlowModeInput {
+                m.update(ModeInput {
                     dag: Some(dag.clone()),
                     error,
                 });
             }
             (ModeVariant::DataFlow(m), _) => {
-                m.update(DataFlowModeInput { dag: None, error });
+                m.update(ModeInput { dag: None, error });
             }
 
             (ModeVariant::EffectFlow(m), DagState::Effectflow(dag)) => {
-                m.update(EffectFlowModeInput {
+                m.update(ModeInput {
                     dag: Some(dag.clone()),
                     error,
                 });
             }
             (ModeVariant::EffectFlow(m), _) => {
-                m.update(EffectFlowModeInput { dag: None, error });
+                m.update(ModeInput { dag: None, error });
             }
         }
     }

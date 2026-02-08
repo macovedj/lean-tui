@@ -29,7 +29,7 @@ pub enum WorkerSelectorResult {
 }
 
 /// State for the worker selector dialog.
-pub struct WorkerSelector {
+pub struct WorkerSelectorState {
     /// Whether the dialog is visible.
     pub visible: bool,
     /// Discovered workers.
@@ -44,7 +44,7 @@ pub struct WorkerSelector {
     pub result: WorkerSelectorResult,
 }
 
-impl Default for WorkerSelector {
+impl Default for WorkerSelectorState {
     fn default() -> Self {
         Self {
             visible: false,
@@ -57,7 +57,7 @@ impl Default for WorkerSelector {
     }
 }
 
-impl WorkerSelector {
+impl WorkerSelectorState {
     pub fn show(&mut self) {
         self.visible = true;
         self.result = WorkerSelectorResult::Pending;
@@ -121,7 +121,7 @@ impl WorkerSelector {
 pub struct WorkerSelectorWidget;
 
 impl StatefulWidget for WorkerSelectorWidget {
-    type State = WorkerSelector;
+    type State = WorkerSelectorState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         if !state.visible {

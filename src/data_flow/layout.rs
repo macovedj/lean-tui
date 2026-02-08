@@ -10,7 +10,7 @@ use super::{
     types::DataFlowDag,
 };
 use crate::{
-    graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
+    graph_layout::{calculate_layout, GraphViewport},
     navigation::build_navigation_regions,
     protocol::NodeId,
     selection::{find_region_at, Region, Selection},
@@ -40,7 +40,7 @@ impl FunctionalTableauState {
 /// Functional tableau layout widget.
 pub struct FunctionalTableauLayout<'a> {
     dag: &'a DataFlowDag,
-    config: LayoutConfig,
+    top_down: bool,
     selection: Option<Selection>,
 }
 
@@ -48,7 +48,7 @@ impl<'a> FunctionalTableauLayout<'a> {
     pub fn new(dag: &'a DataFlowDag, top_down: bool, selection: Option<Selection>) -> Self {
         Self {
             dag,
-            config: LayoutConfig { top_down },
+            top_down,
             selection,
         }
     }
@@ -60,7 +60,7 @@ impl StatefulWidget for FunctionalTableauLayout<'_> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         render_proof_pane(
             self.dag,
-            self.config,
+            self.top_down,
             self.selection,
             area,
             buf,
@@ -71,7 +71,7 @@ impl StatefulWidget for FunctionalTableauLayout<'_> {
 
 fn render_proof_pane(
     dag: &DataFlowDag,
-    config: LayoutConfig,
+    top_down: bool,
     selection: Option<Selection>,
     area: Rect,
     buf: &mut Buffer,
@@ -90,7 +90,7 @@ fn render_proof_pane(
 
     let layout_changed = state.update_layout_if_needed(dag.len(), || {
         let layout_graph = dag.to_layout_graph();
-        calculate_layout(&layout_graph, config)
+        calculate_layout(&layout_graph, top_down)
     });
 
     if layout_changed {
@@ -107,7 +107,7 @@ fn render_proof_pane(
     });
 
     state.compute_scroll(selected_idx, graph.current, graph.root, area);
-    state.render_edges(&graph, config, area, buf);
+    state.render_edges(&graph, top_down, area, buf);
 
     let click_regions: Vec<_> = state
         .layout
@@ -122,7 +122,7 @@ fn render_proof_pane(
         .flat_map(|(render_area, node, pos)| {
             let is_current = graph.is_current(pos.index);
             let mut node_state = FunctionalStateNodeState::default();
-            FunctionalStateNode::new(node, is_current, selection, config.top_down).render(
+            FunctionalStateNode::new(node, is_current, selection, top_down).render(
                 render_area,
                 buf,
                 &mut node_state,

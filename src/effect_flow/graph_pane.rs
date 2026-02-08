@@ -10,20 +10,18 @@ use super::{
     types::EffectFlowDag,
 };
 use crate::{
-    graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
+    graph_layout::{calculate_layout, GraphViewport},
     navigation::build_navigation_regions,
     selection::Selection,
 };
 
-pub type GraphPaneState = GraphViewport;
-
 pub fn render_graph_pane(
     dag: &EffectFlowDag,
-    config: LayoutConfig,
+    top_down: bool,
     selection: Option<Selection>,
     area: Rect,
     buf: &mut Buffer,
-    state: &mut GraphPaneState,
+    state: &mut GraphViewport,
 ) {
     state.clear_click_regions();
 
@@ -38,7 +36,7 @@ pub fn render_graph_pane(
 
     let layout_changed = state.update_layout_if_needed(dag.len(), || {
         let layout_graph = dag.to_layout_graph();
-        calculate_layout(&layout_graph, config)
+        calculate_layout(&layout_graph, top_down)
     });
 
     if layout_changed {
@@ -55,7 +53,7 @@ pub fn render_graph_pane(
     });
 
     state.compute_scroll(selected_idx, graph.current, graph.root, area);
-    state.render_edges(&graph, config, area, buf);
+    state.render_edges(&graph, top_down, area, buf);
 
     let click_regions: Vec<_> = state
         .layout

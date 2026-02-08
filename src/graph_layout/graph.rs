@@ -7,7 +7,7 @@ use petgraph::{
 };
 use ratatui::style::Style;
 
-pub type NodeId = u64;
+use crate::protocol::NodeId;
 
 pub trait LayoutSize {
     fn layout_size(&self) -> (u16, u16);
