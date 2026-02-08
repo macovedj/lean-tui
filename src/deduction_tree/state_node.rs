@@ -132,9 +132,7 @@ impl<'a> StateNode<'a> {
             .override_state
             .map_or(&self.node.proof_state.goals, |s| &s.goals);
 
-        let active_goals: Vec<_> = goals.iter().filter(|g| !g.is_removed).collect();
-
-        if active_goals.is_empty() {
+        if goals.is_empty() {
             return vec![AlignedRow::new(
                 "",
                 Style::default(),
@@ -145,7 +143,7 @@ impl<'a> StateNode<'a> {
             )];
         }
 
-        active_goals
+        goals
             .iter()
             .enumerate()
             .map(|(goal_idx, g)| {
@@ -202,17 +200,9 @@ impl<'a> StateNode<'a> {
         let mut regions = Vec::new();
         let hyp_count = self.node.new_hypothesis_indices.len();
 
-        let goal_count = self.override_state.map_or_else(
-            || {
-                self.node
-                    .proof_state
-                    .goals
-                    .iter()
-                    .filter(|g| !g.is_removed)
-                    .count()
-            },
-            |s| s.goals.iter().filter(|g| !g.is_removed).count(),
-        );
+        let goal_count = self
+            .override_state
+            .map_or(self.node.proof_state.goals.len(), |s| s.goals.len());
 
         let error_count = self
             .node

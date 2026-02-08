@@ -35,8 +35,6 @@ pub struct ProofContextHypothesis {
     #[serde(default)]
     pub is_instance: bool,
     #[serde(default)]
-    pub is_removed: bool,
-    #[serde(default)]
     pub navigation_locations: Option<PreresolvedNavigationTargets>,
 }
 
@@ -56,8 +54,6 @@ pub struct ProofObligation {
     #[serde(default)]
     pub username: Option<String>,
     pub id: String,
-    #[serde(default)]
-    pub is_removed: bool,
     #[serde(default)]
     pub navigation_locations: Option<PreresolvedNavigationTargets>,
 }
@@ -99,9 +95,9 @@ pub struct ProofDagTacticNode {
 }
 
 impl ProofDagTacticNode {
-    /// All sub-goals solved (no non-removed goals remaining).
+    /// All sub-goals solved (no goals remaining).
     pub fn is_complete(&self) -> bool {
-        self.proof_state.goals.iter().all(|g| g.is_removed)
+        self.proof_state.goals.is_empty()
     }
 
     /// No children in tree.
@@ -425,16 +421,10 @@ impl NodeTextContent for ProofDagTacticNode {
             }
         }
 
-        let active_goals: Vec<_> = self
-            .proof_state
-            .goals
-            .iter()
-            .filter(|g| !g.is_removed)
-            .collect();
-        if active_goals.is_empty() {
+        if self.proof_state.goals.is_empty() {
             lines.push("✓ Goal completed".to_string());
         } else {
-            for g in active_goals {
+            for g in &self.proof_state.goals {
                 let goal_type = g.type_.to_plain_text();
                 lines.push(g.username_str().map_or_else(
                     || format!("⊢ {goal_type}"),
@@ -474,14 +464,10 @@ impl NavNode for ProofDagTacticNode {
     }
 
     fn goal_count(&self) -> usize {
-        self.proof_state
-            .goals
-            .iter()
-            .filter(|g| !g.is_removed)
-            .count()
+        self.proof_state.goals.len()
     }
 
     fn has_selectable_goals(&self) -> bool {
-        self.proof_state.goals.iter().any(|g| !g.is_removed)
+        !self.proof_state.goals.is_empty()
     }
 }

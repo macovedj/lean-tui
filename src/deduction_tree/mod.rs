@@ -75,12 +75,7 @@ impl SemanticTableau {
                             node_id,
                             hyp_idx: hyp_idx as usize,
                         });
-                let active_goal_count = node
-                    .proof_state
-                    .goals
-                    .iter()
-                    .filter(|g| !g.is_removed)
-                    .count();
+                let active_goal_count = node.proof_state.goals.len();
                 let goal_selections = (0..active_goal_count)
                     .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
                 let error_count = node

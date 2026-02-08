@@ -20,6 +20,14 @@ use crate::{
     theme::Theme,
 };
 
+/// Parsed bindings from node metadata.
+fn parse_bindings(metadata: &serde_json::Map<String, serde_json::Value>) -> Vec<LocalBinding> {
+    metadata
+        .get("bindings")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default()
+}
+
 /// Effect node kinds from the lean-prism backend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectKind {
@@ -137,6 +145,7 @@ pub struct EffectFlowNode {
     pub effect_kind: EffectKind,
     pub forward: Option<String>,
     pub backward: Option<String>,
+    pub bindings: Vec<LocalBinding>,
     pub diagnostics: Vec<DiagnosticInfo>,
 }
 
@@ -152,6 +161,7 @@ impl EffectFlowNode {
                 .map(String::from)
         };
 
+        let bindings = parse_bindings(&node.metadata);
         let diagnostics = node.diagnostics.clone();
 
         Some(Self {
@@ -161,6 +171,7 @@ impl EffectFlowNode {
             effect_kind,
             forward: extract_str("forward"),
             backward: extract_str("backward"),
+            bindings,
             diagnostics,
         })
     }
@@ -209,6 +220,14 @@ impl NodeTextContent for EffectFlowNode {
     fn content_lines(&self) -> Vec<String> {
         let mut lines = Vec::new();
 
+        // Add binding lines (filtered like in state_node)
+        for b in &self.bindings {
+            if !b.is_implicit && !b.is_instance {
+                lines.push(format!("{}: {}", b.name, b.type_.to_plain_text()));
+            }
+        }
+
+        // Add forward/backward effect lines
         if let Some(fwd) = &self.forward {
             lines.push(format!("→ {fwd}"));
         }

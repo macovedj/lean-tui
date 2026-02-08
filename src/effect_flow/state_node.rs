@@ -3,7 +3,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
 use super::types::{EffectFlowNode, EffectKind};
@@ -11,6 +11,10 @@ use crate::{
     protocol::{DiagnosticInfo, DiagnosticSeverity},
     selection::{Region, Selection},
     theme::{Red, Theme},
+    widgets::{
+        aligned_table::{AlignedRow, AlignedTable},
+        diff_text::RichTextExt,
+    },
 };
 
 /// State for a single effect state node widget.
@@ -119,34 +123,64 @@ impl<'a> EffectStateNode<'a> {
         spans
     }
 
-    fn content_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
+    fn build_binding_rows(&self) -> Vec<AlignedRow> {
+        self.node
+            .bindings
+            .iter()
+            .filter(|b| !b.is_implicit && !b.is_instance)
+            .map(|b| {
+                AlignedRow::with_styled_type(
+                    b.name.clone(),
+                    Style::new().fg(Theme::HYP_NAME),
+                    ":",
+                    Style::new().fg(Color::DarkGray),
+                    b.type_.to_spans(Style::new().fg(Color::White)),
+                )
+            })
+            .collect()
+    }
+
+    fn build_effect_rows(&self) -> Vec<AlignedRow> {
+        let mut rows = Vec::new();
 
         if let Some(fwd) = &self.node.forward {
-            lines.push(Line::from(vec![
-                Span::styled("→ ", Style::new().fg(Color::Green)),
-                Span::raw(fwd.clone()),
-            ]));
+            rows.push(AlignedRow::new(
+                "",
+                Style::default(),
+                "→",
+                Style::new().fg(Color::Green),
+                fwd.clone(),
+                Style::new().fg(Color::White),
+            ));
         }
 
         if let Some(bwd) = &self.node.backward {
-            lines.push(Line::from(vec![
-                Span::styled("← ", Style::new().fg(Color::Magenta)),
-                Span::raw(bwd.clone()),
-            ]));
+            rows.push(AlignedRow::new(
+                "",
+                Style::default(),
+                "←",
+                Style::new().fg(Color::Magenta),
+                bwd.clone(),
+                Style::new().fg(Color::White),
+            ));
         }
 
-        if lines.is_empty() && self.is_leaf() && !self.node.has_error() {
-            lines.push(Line::from(Span::styled(
+        if rows.is_empty() && self.is_leaf() && !self.node.has_error() {
+            rows.push(AlignedRow::new(
+                "",
+                Style::default(),
                 "✓",
                 Style::new()
                     .fg(Theme::COMPLETED_GOAL_FG)
                     .add_modifier(Modifier::BOLD),
-            )));
+                "completed",
+                Style::new()
+                    .fg(Theme::COMPLETED_GOAL_FG)
+                    .add_modifier(Modifier::BOLD),
+            ));
         }
 
-        lines.extend(format_diagnostic_lines(&self.node.diagnostics));
-        lines
+        rows
     }
 
     fn click_regions(&self, area: Rect) -> Vec<Region> {
@@ -190,7 +224,32 @@ impl StatefulWidget for EffectStateNode<'_> {
             return;
         }
 
-        Paragraph::new(self.content_lines()).render(inner, buf);
+        // Build table rows: bindings first, then effects
+        let mut rows: Vec<AlignedRow> = Vec::new();
+        rows.extend(self.build_binding_rows());
+        rows.extend(self.build_effect_rows());
+
+        let table_height = rows.len() as u16;
+        let table_area = Rect::new(
+            inner.x,
+            inner.y,
+            inner.width,
+            table_height.min(inner.height),
+        );
+
+        let table = AlignedTable::new(rows);
+        Widget::render(table, table_area, buf);
+
+        // Render error diagnostics below the table
+        let error_lines = format_diagnostic_lines(&self.node.diagnostics);
+        let error_y = inner.y + table_height;
+        for (i, line) in error_lines.into_iter().enumerate() {
+            let row_y = error_y + i as u16;
+            if row_y >= inner.y + inner.height {
+                break;
+            }
+            buf.set_line(inner.x, row_y, &line, inner.width);
+        }
 
         state.click_regions = self.click_regions(area);
     }
