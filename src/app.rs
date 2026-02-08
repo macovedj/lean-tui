@@ -423,11 +423,7 @@ impl App {
 
         self.render_main(frame, main_area);
         frame.render_widget(
-            StatusBar::new(
-                self.display_mode.keybindings(),
-                self.display_mode.toggles(),
-                self.display_mode.filters(),
-            ),
+            StatusBar::new(self.display_mode.keybindings()),
             status_area,
         );
         frame.render_stateful_widget(HelpMenuWidget, frame.area(), &mut self.help_menu);

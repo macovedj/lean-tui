@@ -6,26 +6,16 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::shared::{theme::Theme, FilterToggle};
+use crate::shared::theme::Theme;
 
 /// Stateless status bar widget.
 pub struct StatusBar<'a> {
     keybindings: &'a [(&'static str, &'static str)],
-    toggles: &'a [FilterToggle],
-    filters: &'a [FilterToggle],
 }
 
 impl<'a> StatusBar<'a> {
-    pub fn new(
-        keybindings: &'a [(&'static str, &'static str)],
-        toggles: &'a [FilterToggle],
-        filters: &'a [FilterToggle],
-    ) -> Self {
-        Self {
-            keybindings,
-            toggles,
-            filters,
-        }
+    pub fn new(keybindings: &'a [(&'static str, &'static str)]) -> Self {
+        Self { keybindings }
     }
 }
 
@@ -71,23 +61,7 @@ impl Widget for StatusBar<'_> {
             Span::raw(": copy"),
         ];
 
-        let filter_status = build_filter_status(self.toggles, self.filters);
-        let filter_span = (!filter_status.is_empty())
-            .then(|| Span::styled(format!(" [{filter_status}]"), Style::new().fg(Theme::ADDED)));
-
-        let spans: Vec<Span> = global_spans
-            .chain(mode_spans)
-            .chain(nav_spans)
-            .chain(filter_span)
-            .collect();
+        let spans: Vec<Span> = global_spans.chain(mode_spans).chain(nav_spans).collect();
         Paragraph::new(Line::from(spans)).render(area, buf);
     }
-}
-
-fn build_filter_status(toggles: &[FilterToggle], filters: &[FilterToggle]) -> String {
-    toggles
-        .iter()
-        .filter(|toggle| filters.contains(toggle))
-        .map(|toggle| toggle.indicator())
-        .collect()
 }

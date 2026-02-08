@@ -30,39 +30,3 @@ pub enum KeyMouseEvent {
     Key(KeyEvent),
     Mouse(MouseEvent),
 }
-
-/// Filter toggles that modes can support.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilterToggle {
-    Instances,
-    Inaccessible,
-    LetValues,
-    ReverseOrder,
-}
-
-impl FilterToggle {
-    /// Single-character indicator for status bar display.
-    pub const fn indicator(self) -> char {
-        match self {
-            Self::Instances => 'i',
-            Self::Inaccessible => 'a',
-            Self::LetValues => 'l',
-            Self::ReverseOrder => 'r',
-        }
-    }
-}
-
-/// Check if a filter is active in a slice of toggles.
-pub fn has_filter(filters: &[FilterToggle], toggle: FilterToggle) -> bool {
-    filters.contains(&toggle)
-}
-
-/// Create an iterator over hypothesis indices with optional reversal.
-pub fn hypothesis_indices(len: usize, filters: &[FilterToggle]) -> Box<dyn Iterator<Item = usize>> {
-    let range = 0..len;
-    if has_filter(filters, FilterToggle::ReverseOrder) {
-        Box::new(range.rev())
-    } else {
-        Box::new(range)
-    }
-}

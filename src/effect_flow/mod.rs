@@ -21,7 +21,7 @@ use crate::{
         find_nearest_in_direction, key_to_direction,
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
-        Direction, FilterToggle, InteractiveComponent, KeyMouseEvent, Selection, Theme,
+        Direction, InteractiveComponent, KeyMouseEvent, Selection, Theme,
     },
 };
 
@@ -255,14 +255,6 @@ impl Mode for EffectFlowMode {
 
     fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
         &[("hjkl", "nav")]
-    }
-
-    fn toggles(&self) -> &'static [FilterToggle] {
-        &[]
-    }
-
-    fn filters(&self) -> &'static [FilterToggle] {
-        &[]
     }
 
     fn current_selection(&self) -> Option<Selection> {

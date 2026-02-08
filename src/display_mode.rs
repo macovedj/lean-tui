@@ -13,7 +13,7 @@ use crate::{
     },
     effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode, EffectFlowModeInput},
     protocol::{GenericDag, LocalBinding, RichText},
-    shared::{legend::LegendSection, FilterToggle, InteractiveComponent, KeyMouseEvent, Selection},
+    shared::{legend::LegendSection, InteractiveComponent, KeyMouseEvent, Selection},
 };
 
 /// Trait for display modes in the TUI.
@@ -22,8 +22,6 @@ pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent>
 
     fn name(&self) -> &'static str;
     fn keybindings(&self) -> &'static [(&'static str, &'static str)];
-    fn toggles(&self) -> &'static [FilterToggle];
-    fn filters(&self) -> &'static [FilterToggle];
     fn current_selection(&self) -> Option<Selection>;
 
     fn legend_sections(&self) -> Vec<LegendSection> {
@@ -240,17 +238,6 @@ impl DisplayMode {
         }
     }
 
-    /// Get available filter toggles for this mode.
-    pub fn toggles(&self) -> &'static [FilterToggle] {
-        match &self.mode {
-            ModeVariant::Compact(m) => m.toggles(),
-            ModeVariant::CompactTree(m) => m.toggles(),
-            ModeVariant::DeductionTree(m) => m.toggles(),
-            ModeVariant::DataFlow(m) => m.toggles(),
-            ModeVariant::EffectFlow(m) => m.toggles(),
-        }
-    }
-
     /// Get current selection from active mode.
     pub fn current_selection(&self) -> Option<Selection> {
         match &self.mode {
@@ -270,17 +257,6 @@ impl DisplayMode {
             ModeVariant::DeductionTree(m) => m.legend_sections(),
             ModeVariant::DataFlow(m) => m.legend_sections(),
             ModeVariant::EffectFlow(m) => m.legend_sections(),
-        }
-    }
-
-    /// Get active filters from current mode.
-    pub fn filters(&self) -> &[FilterToggle] {
-        match &self.mode {
-            ModeVariant::Compact(m) => Mode::filters(m),
-            ModeVariant::CompactTree(m) => Mode::filters(m),
-            ModeVariant::DeductionTree(m) => Mode::filters(m),
-            ModeVariant::DataFlow(m) => Mode::filters(m),
-            ModeVariant::EffectFlow(m) => Mode::filters(m),
         }
     }
 
