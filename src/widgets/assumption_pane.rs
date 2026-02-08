@@ -1,49 +1,47 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
+    style::Style,
+    widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
-    shared::{
+    selection::{Region, Selection},
+    theme::{Blue, Gray, Theme},
+    widgets::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::RichTextExt,
-        theme::{Gray, Orange, Theme},
-        Region, Selection,
     },
 };
 
 #[derive(Default)]
-pub struct GoalsPaneState {
+pub struct AssumptionPaneState {
     click_regions: Vec<Region>,
 }
 
-impl GoalsPaneState {
+impl AssumptionPaneState {
     pub fn click_regions(&self) -> &[Region] {
         &self.click_regions
     }
 }
 
-pub struct GoalsPane<'a> {
+pub struct AssumptionPane<'a> {
     state: &'a TacticProofState,
     selection: Option<Selection>,
     is_focused: bool,
     is_current: bool,
     node_id: Option<NodeId>,
-    active_goal_name: Option<&'a str>,
 }
 
-impl<'a> GoalsPane<'a> {
-    pub const fn new(
+impl<'a> AssumptionPane<'a> {
+    pub fn new(
         state: &'a TacticProofState,
         selection: Option<Selection>,
         is_focused: bool,
         is_current: bool,
         node_id: Option<NodeId>,
-        active_goal_name: Option<&'a str>,
     ) -> Self {
         Self {
             state,
@@ -51,33 +49,32 @@ impl<'a> GoalsPane<'a> {
             is_focused,
             is_current,
             node_id,
-            active_goal_name,
         }
     }
 }
 
-impl StatefulWidget for GoalsPane<'_> {
-    type State = GoalsPaneState;
+impl StatefulWidget for AssumptionPane<'_> {
+    type State = AssumptionPaneState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
         let border_color = if self.is_focused {
-            Orange::BRIGHT
+            Blue::BRIGHT
         } else if self.is_current {
-            Orange::MUTED
+            Blue::MUTED
         } else {
             Gray::DIM
         };
 
         let title = if self.is_focused {
-            "▶ Goals "
+            "▶ Assumptions "
         } else {
-            " Goals "
+            " Assumptions "
         };
 
         let title_color = if self.is_current {
-            Theme::TITLE_GOAL
+            Theme::TITLE_ASSUMPTION
         } else {
             Gray::DIM
         };
@@ -91,36 +88,18 @@ impl StatefulWidget for GoalsPane<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        if self.state.goals.is_empty() {
-            let complete_color = if self.is_current {
-                Theme::COMPLETED_GOAL_FG
-            } else {
-                Gray::DIM
-            };
-            Paragraph::new("✓ Complete")
-                .style(Style::new().fg(complete_color).add_modifier(Modifier::BOLD))
-                .render(inner, buf);
-            return;
-        }
-
-        let visible_goals: Vec<_> = self
-            .state
-            .goals
-            .iter()
-            .enumerate()
+        let visible_hyps: Vec<_> = (0..self.state.hypotheses.len())
             .take(inner.height as usize)
             .collect();
 
-        let rows: Vec<AlignedRow> = visible_goals
+        let rows: Vec<AlignedRow> = visible_hyps
             .iter()
-            .map(|&(goal_idx, g)| {
+            .map(|&hyp_idx| {
+                let h = &self.state.hypotheses[hyp_idx];
                 let is_selected = matches!(
                     self.selection,
-                    Some(Selection::Goal { goal_idx: sel, .. }) if sel == goal_idx
+                    Some(Selection::Hyp { hyp_idx: sel, .. }) if sel == hyp_idx
                 );
-                let is_active = self
-                    .active_goal_name
-                    .is_some_and(|name| g.username_str() == Some(name));
 
                 let base_style = if is_selected {
                     Style::new().bg(Theme::SELECTION_BG)
@@ -128,24 +107,18 @@ impl StatefulWidget for GoalsPane<'_> {
                     Style::default()
                 };
 
-                let name_style = if !self.is_current {
-                    base_style.fg(Gray::DIM)
-                } else if is_active {
-                    base_style
-                        .fg(Theme::CURRENT_NODE_BORDER)
-                        .add_modifier(Modifier::BOLD)
+                let name_color = if self.is_current {
+                    Theme::HYP_NAME
                 } else {
-                    base_style.fg(Theme::GOAL)
+                    Gray::DIM
                 };
 
-                let name_text = g.username_str().unwrap_or_default().to_string();
-
                 AlignedRow::with_styled_type(
-                    name_text,
-                    name_style,
-                    "⊢",
+                    h.name.clone(),
+                    base_style.fg(name_color),
+                    ":",
                     Style::new().fg(Gray::DIM),
-                    g.type_.to_spans(base_style),
+                    h.type_.to_spans(base_style),
                 )
             })
             .collect();
@@ -154,16 +127,16 @@ impl StatefulWidget for GoalsPane<'_> {
         Widget::render(table, inner, buf);
 
         if let Some(nid) = self.node_id {
-            for (row, (goal_idx, _)) in visible_goals.iter().enumerate() {
+            for (row, &hyp_idx) in visible_hyps.iter().enumerate() {
                 let row_y = inner.y + row as u16;
                 if row_y >= inner.bottom() {
                     break;
                 }
                 state.click_regions.push(Region::from_rect(
                     Rect::new(inner.x, row_y, inner.width, 1),
-                    Selection::Goal {
+                    Selection::Hyp {
                         node_id: nid,
-                        goal_idx: *goal_idx,
+                        hyp_idx,
                     },
                 ));
             }

@@ -5,7 +5,7 @@ use super::{
     center_on, clip_to_viewport, render_edges, render_scrollbars, scroll_target, DagGraph,
     DagLayout, LayoutConfig,
 };
-use crate::{protocol::NodeId, shared::Region};
+use crate::{protocol::NodeId, selection::Region};
 
 /// Shared viewport state for scrollable graph panes.
 #[derive(Default)]

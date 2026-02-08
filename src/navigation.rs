@@ -1,8 +1,10 @@
 use crossterm::event::KeyCode;
 use tracing::trace;
 
-use super::{Region, Selection};
-use crate::graph_layout::{Dag, DagLayout, NavNode, NodePosition};
+use crate::{
+    graph_layout::{Dag, DagLayout, NavNode, NodePosition},
+    selection::{Region, Selection},
+};
 
 /// Direction for spatial navigation.
 #[derive(Debug, Clone, Copy)]

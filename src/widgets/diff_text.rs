@@ -3,8 +3,10 @@ use ratatui::{
     text::Span,
 };
 
-use super::theme::Theme;
-use crate::protocol::{DiffStatus, RichText};
+use crate::{
+    protocol::{DiffStatus, RichText},
+    theme::Theme,
+};
 
 pub const fn diff_status_style(status: DiffStatus, base_style: Style) -> Style {
     match status {

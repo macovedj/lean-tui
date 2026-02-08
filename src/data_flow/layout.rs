@@ -11,8 +11,9 @@ use super::{
 };
 use crate::{
     graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
+    navigation::build_navigation_regions,
     protocol::NodeId,
-    shared::{build_navigation_regions, find_region_at, Region, Selection},
+    selection::{find_region_at, Region, Selection},
 };
 
 /// State for the functional tableau layout.

@@ -14,14 +14,15 @@ use crate::{
         TacticProofState,
     },
     display_mode::Mode,
+    interactive::{InteractiveComponent, InteractiveStatefulWidget, KeyMouseEvent},
     protocol::NodeId,
-    shared::{
+    selection::{ListSelection, Selection},
+    theme::Theme,
+    widgets::{
         errors_section::{ErrorsSection, ErrorsSectionState},
         legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
-        theme::Theme,
-        AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState, InteractiveComponent,
-        InteractiveStatefulWidget, KeyMouseEvent, ListSelection, Selection,
+        AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState,
     },
 };
 

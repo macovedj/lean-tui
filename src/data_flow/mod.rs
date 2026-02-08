@@ -17,11 +17,13 @@ pub use types::{DataFlowConversionError, DataFlowDag, DataFlowNode};
 use crate::{
     data_flow::layout::{FunctionalTableauLayout, FunctionalTableauState},
     display_mode::Mode,
-    shared::{
-        find_nearest_in_direction, key_to_direction,
+    interactive::{InteractiveComponent, KeyMouseEvent},
+    navigation::{find_nearest_in_direction, key_to_direction, Direction},
+    selection::Selection,
+    theme::Theme,
+    widgets::{
         legend::{LegendItem, LegendSection},
         render_helpers::render_error,
-        Direction, InteractiveComponent, KeyMouseEvent, Selection, Theme,
     },
 };
 

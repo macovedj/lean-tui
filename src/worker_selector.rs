@@ -10,8 +10,9 @@ use ratatui::{
 };
 
 use crate::{
-    shared::{theme::Theme, InteractiveStatefulWidget, KeyEvent},
+    interactive::{InteractiveStatefulWidget, KeyEvent},
     tcp_client::WorkerInfo,
+    theme::Theme,
 };
 
 /// Result of user interaction with the worker selector.

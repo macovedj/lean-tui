@@ -11,7 +11,8 @@ use super::{
 };
 use crate::{
     graph_layout::{calculate_layout, GraphViewport, LayoutConfig},
-    shared::{build_navigation_regions, Selection},
+    navigation::build_navigation_regions,
+    selection::Selection,
 };
 
 pub type GraphPaneState = GraphViewport;

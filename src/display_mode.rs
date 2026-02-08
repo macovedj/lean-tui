@@ -12,8 +12,10 @@ use crate::{
         CompleteProofDag, DeductionTreeModeInput, ProofDagConversionError, SemanticTableau,
     },
     effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode, EffectFlowModeInput},
+    interactive::{InteractiveComponent, KeyMouseEvent},
     protocol::{GenericDag, LocalBinding, RichText},
-    shared::{legend::LegendSection, InteractiveComponent, KeyMouseEvent, Selection},
+    selection::Selection,
+    widgets::legend::LegendSection,
 };
 
 /// Trait for display modes in the TUI.

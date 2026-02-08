@@ -9,10 +9,8 @@ use ratatui::{
 use super::types::{EffectFlowNode, EffectKind};
 use crate::{
     protocol::{DiagnosticInfo, DiagnosticSeverity},
-    shared::{
-        theme::{Red, Theme},
-        Region, Selection,
-    },
+    selection::{Region, Selection},
+    theme::{Red, Theme},
 };
 
 /// State for a single effect state node widget.

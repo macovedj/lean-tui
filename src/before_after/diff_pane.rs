@@ -9,10 +9,9 @@ use ratatui::{
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
-    shared::{
-        theme::{Gray, Theme},
-        AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState, Region, Selection,
-    },
+    selection::{Region, Selection},
+    theme::{Gray, Theme},
+    widgets::{AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState},
 };
 
 #[derive(Default)]

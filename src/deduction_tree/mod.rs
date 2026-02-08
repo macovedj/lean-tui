@@ -18,12 +18,14 @@ pub use types::{
 use crate::{
     deduction_tree::layout::{SemanticTableauLayout, SemanticTableauState},
     display_mode::Mode,
+    interactive::{InteractiveComponent, KeyMouseEvent},
+    navigation::{find_nearest_in_direction, key_to_direction, Direction},
     protocol::DiagnosticSeverity,
-    shared::{
-        find_nearest_in_direction, key_to_direction,
+    selection::Selection,
+    theme::Theme,
+    widgets::{
         legend::{LegendItem, LegendSection},
         render_helpers::{render_error, render_no_goals},
-        Direction, InteractiveComponent, KeyMouseEvent, Selection, Theme,
     },
 };
 

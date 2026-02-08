@@ -1,47 +1,49 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::Style,
-    widgets::{Block, Borders, StatefulWidget, Widget},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
 };
 
 use crate::{
     deduction_tree::TacticProofState,
     protocol::NodeId,
-    shared::{
+    selection::{Region, Selection},
+    theme::{Gray, Orange, Theme},
+    widgets::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::RichTextExt,
-        theme::{Blue, Gray, Theme},
-        Region, Selection,
     },
 };
 
 #[derive(Default)]
-pub struct AssumptionPaneState {
+pub struct GoalsPaneState {
     click_regions: Vec<Region>,
 }
 
-impl AssumptionPaneState {
+impl GoalsPaneState {
     pub fn click_regions(&self) -> &[Region] {
         &self.click_regions
     }
 }
 
-pub struct AssumptionPane<'a> {
+pub struct GoalsPane<'a> {
     state: &'a TacticProofState,
     selection: Option<Selection>,
     is_focused: bool,
     is_current: bool,
     node_id: Option<NodeId>,
+    active_goal_name: Option<&'a str>,
 }
 
-impl<'a> AssumptionPane<'a> {
-    pub fn new(
+impl<'a> GoalsPane<'a> {
+    pub const fn new(
         state: &'a TacticProofState,
         selection: Option<Selection>,
         is_focused: bool,
         is_current: bool,
         node_id: Option<NodeId>,
+        active_goal_name: Option<&'a str>,
     ) -> Self {
         Self {
             state,
@@ -49,32 +51,33 @@ impl<'a> AssumptionPane<'a> {
             is_focused,
             is_current,
             node_id,
+            active_goal_name,
         }
     }
 }
 
-impl StatefulWidget for AssumptionPane<'_> {
-    type State = AssumptionPaneState;
+impl StatefulWidget for GoalsPane<'_> {
+    type State = GoalsPaneState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
         let border_color = if self.is_focused {
-            Blue::BRIGHT
+            Orange::BRIGHT
         } else if self.is_current {
-            Blue::MUTED
+            Orange::MUTED
         } else {
             Gray::DIM
         };
 
         let title = if self.is_focused {
-            "▶ Assumptions "
+            "▶ Goals "
         } else {
-            " Assumptions "
+            " Goals "
         };
 
         let title_color = if self.is_current {
-            Theme::TITLE_ASSUMPTION
+            Theme::TITLE_GOAL
         } else {
             Gray::DIM
         };
@@ -88,18 +91,36 @@ impl StatefulWidget for AssumptionPane<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let visible_hyps: Vec<_> = (0..self.state.hypotheses.len())
+        if self.state.goals.is_empty() {
+            let complete_color = if self.is_current {
+                Theme::COMPLETED_GOAL_FG
+            } else {
+                Gray::DIM
+            };
+            Paragraph::new("✓ Complete")
+                .style(Style::new().fg(complete_color).add_modifier(Modifier::BOLD))
+                .render(inner, buf);
+            return;
+        }
+
+        let visible_goals: Vec<_> = self
+            .state
+            .goals
+            .iter()
+            .enumerate()
             .take(inner.height as usize)
             .collect();
 
-        let rows: Vec<AlignedRow> = visible_hyps
+        let rows: Vec<AlignedRow> = visible_goals
             .iter()
-            .map(|&hyp_idx| {
-                let h = &self.state.hypotheses[hyp_idx];
+            .map(|&(goal_idx, g)| {
                 let is_selected = matches!(
                     self.selection,
-                    Some(Selection::Hyp { hyp_idx: sel, .. }) if sel == hyp_idx
+                    Some(Selection::Goal { goal_idx: sel, .. }) if sel == goal_idx
                 );
+                let is_active = self
+                    .active_goal_name
+                    .is_some_and(|name| g.username_str() == Some(name));
 
                 let base_style = if is_selected {
                     Style::new().bg(Theme::SELECTION_BG)
@@ -107,18 +128,24 @@ impl StatefulWidget for AssumptionPane<'_> {
                     Style::default()
                 };
 
-                let name_color = if self.is_current {
-                    Theme::HYP_NAME
+                let name_style = if !self.is_current {
+                    base_style.fg(Gray::DIM)
+                } else if is_active {
+                    base_style
+                        .fg(Theme::CURRENT_NODE_BORDER)
+                        .add_modifier(Modifier::BOLD)
                 } else {
-                    Gray::DIM
+                    base_style.fg(Theme::GOAL)
                 };
 
+                let name_text = g.username_str().unwrap_or_default().to_string();
+
                 AlignedRow::with_styled_type(
-                    h.name.clone(),
-                    base_style.fg(name_color),
-                    ":",
+                    name_text,
+                    name_style,
+                    "⊢",
                     Style::new().fg(Gray::DIM),
-                    h.type_.to_spans(base_style),
+                    g.type_.to_spans(base_style),
                 )
             })
             .collect();
@@ -127,16 +154,16 @@ impl StatefulWidget for AssumptionPane<'_> {
         Widget::render(table, inner, buf);
 
         if let Some(nid) = self.node_id {
-            for (row, &hyp_idx) in visible_hyps.iter().enumerate() {
+            for (row, (goal_idx, _)) in visible_goals.iter().enumerate() {
                 let row_y = inner.y + row as u16;
                 if row_y >= inner.bottom() {
                     break;
                 }
                 state.click_regions.push(Region::from_rect(
                     Rect::new(inner.x, row_y, inner.width, 1),
-                    Selection::Hyp {
+                    Selection::Goal {
                         node_id: nid,
-                        hyp_idx,
+                        goal_idx: *goal_idx,
                     },
                 ));
             }

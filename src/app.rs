@@ -20,19 +20,18 @@ use crate::{
     display_mode::{DagState, DisplayMode},
     help_menu::{HelpMenu, HelpMenuWidget},
     input_pane::{InputPane, InputPaneState},
+    interactive::{InteractiveStatefulWidget, KeyMouseEvent},
     output_pane::{OutputPane, OutputPaneState},
     protocol::{
         ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, RichText,
         ServerToClientMessage,
     },
-    shared::{
-        legend::{Legend, LegendWidget},
-        theme::Theme,
-        InteractiveStatefulWidget, KeyMouseEvent, Selection,
-    },
+    selection::Selection,
     status_bar::StatusBar,
     tcp_client::{ConnectionPool, WorkerInfo},
+    theme::Theme,
     welcome::WelcomeScreen,
+    widgets::legend::{Legend, LegendWidget},
     worker_selector::{WorkerSelector, WorkerSelectorResult, WorkerSelectorWidget},
 };
 
@@ -443,7 +442,7 @@ impl App {
         if let Some(ref error_msg) = self.error_overlay {
             use ratatui::widgets::Clear;
 
-            use crate::shared::error_banner::ErrorBanner;
+            use crate::widgets::error_banner::ErrorBanner;
 
             let banner = ErrorBanner::new(error_msg);
             let height = banner

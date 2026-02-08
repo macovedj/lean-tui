@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
 };
 
-use crate::{protocol::DiagnosticInfo, shared::theme::Red};
+use crate::{protocol::DiagnosticInfo, theme::Red};
 
 /// State for the errors section widget.
 #[derive(Default)]
