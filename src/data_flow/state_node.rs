@@ -73,11 +73,7 @@ impl<'a> FunctionalStateNode<'a> {
         let kind = self.node_kind();
         let icon = kind.icon();
         let error_prefix = if self.node.has_error() { "⚠ " } else { "" };
-        // Use branch label if available, otherwise use expression content
-        let expr_text = self
-            .node
-            .branch_label()
-            .unwrap_or_else(|| self.node.content.to_plain_text());
+        let expr_text = self.node.content.to_plain_text();
         match self.node.edges.len() {
             n if n > 1 => format!(" {error_prefix}{icon} {expr_text} [{n}→] "),
             _ => format!(" {error_prefix}{icon} {expr_text} "),
