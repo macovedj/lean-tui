@@ -10,8 +10,9 @@ use crate::{
     },
     protocol::{
         BindingKind, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
+        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
     },
+    selection::Selection,
     theme::Theme,
 };
 
@@ -341,6 +342,36 @@ impl DataFlowDag {
             .collect();
 
         layout
+    }
+
+    /// Get the navigation location for a selection.
+    pub fn navigation_location(
+        &self,
+        selection: Selection,
+        current_uri: &str,
+    ) -> Option<(String, LineCharacterPosition)> {
+        match selection {
+            Selection::InitialHyp { hyp_idx } => self
+                .block_input
+                .get(hyp_idx)
+                .and_then(|b| b.navigation_locations.as_ref())
+                .and_then(|nav| nav.definition.as_ref())
+                .map(|loc| (loc.uri.clone(), loc.position)),
+            Selection::Hyp { node_id, hyp_idx } => self
+                .get(node_id)
+                .and_then(|node| node.bindings_after().get(hyp_idx).cloned())
+                .and_then(|b| b.navigation_locations)
+                .and_then(|nav| nav.definition)
+                .map(|loc| (loc.uri, loc.position)),
+            Selection::Goal { node_id, .. } => self
+                .get(node_id)
+                .map(|node| (current_uri.to_string(), node.position)),
+            Selection::Theorem => self
+                .root_node_id
+                .and_then(|id| self.get(id))
+                .map(|node| (current_uri.to_string(), node.position)),
+            Selection::Error { .. } => None,
+        }
     }
 }
 

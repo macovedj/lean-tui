@@ -15,13 +15,10 @@ use ratatui::{
 };
 
 use crate::{
-    data_flow::DataFlowNode,
-    deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
     interactive::InteractiveStatefulWidget,
     protocol::{
-        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, RichText,
-        ServerToClientMessage,
+        ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, ServerToClientMessage,
     },
     selection::Selection,
     tcp_client::{ConnectionPool, WorkerInfo},
@@ -312,85 +309,13 @@ impl App {
         };
 
         let fallback_pos = self.goals_position().unwrap_or(cursor.position);
-
-        let nav_location: Option<(String, LineCharacterPosition)> = match &self.display_mode.dag {
-            DagState::Proof(dag) => selection.and_then(|sel| match sel {
-                Selection::InitialHyp { hyp_idx } => dag
-                    .block_input
-                    .get(hyp_idx)
-                    .and_then(|b| b.navigation_locations.as_ref())
-                    .and_then(|nav| nav.definition.as_ref())
-                    .map(|loc| (loc.uri.clone(), loc.position)),
-                Selection::Hyp { node_id, hyp_idx } => dag
-                    .get(node_id)
-                    .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
-                    .and_then(|h: &ProofContextHypothesis| h.navigation_locations().definition)
-                    .map(|loc| (loc.uri, loc.position)),
-                Selection::Goal { node_id, .. } => dag
-                    .get(node_id)
-                    .map(|node| (cursor.uri.clone(), node.position)),
-                Selection::Theorem | Selection::Error { .. } => None,
-            }),
-            DagState::Dataflow(dag) => selection.and_then(|sel| match sel {
-                Selection::InitialHyp { hyp_idx } => dag
-                    .block_input
-                    .get(hyp_idx)
-                    .and_then(|b| b.navigation_locations.as_ref())
-                    .and_then(|nav| nav.definition.as_ref())
-                    .map(|loc| (loc.uri.clone(), loc.position)),
-                Selection::Hyp { node_id, hyp_idx } => dag
-                    .get(node_id)
-                    .and_then(|node: &DataFlowNode| node.bindings_after().get(hyp_idx).cloned())
-                    .and_then(|b| b.navigation_locations)
-                    .and_then(|nav| nav.definition)
-                    .map(|loc| (loc.uri, loc.position)),
-                Selection::Goal { node_id, .. } => dag
-                    .get(node_id)
-                    .map(|node| (cursor.uri.clone(), node.position)),
-                Selection::Theorem => dag
-                    .root_node_id
-                    .and_then(|id| dag.get(id))
-                    .map(|node| (cursor.uri.clone(), node.position)),
-                Selection::Error { .. } => None,
-            }),
-            DagState::Effectflow(_) | DagState::None => None,
-        };
+        let nav_location = self
+            .display_mode
+            .dag
+            .navigation_location(selection, &cursor.uri);
 
         let (uri, position) = nav_location.unwrap_or_else(|| (cursor.uri.clone(), fallback_pos));
         self.queue_command(ClientToServerCommand::Navigate { uri, position });
-    }
-
-    /// Get the text of the currently selected item (hypothesis or goal).
-    fn get_selection_text(&self, selection: Option<Selection>) -> Option<String> {
-        let DagState::Proof(dag) = &self.display_mode.dag else {
-            return None;
-        };
-
-        match selection? {
-            Selection::InitialHyp { hyp_idx } => dag
-                .block_input
-                .get(hyp_idx)
-                .map(|b| format!("{} : {}", b.name, b.type_.to_plain_text())),
-            Selection::Hyp { node_id, hyp_idx } => dag
-                .get(node_id)
-                .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
-                .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
-            Selection::Goal { node_id, goal_idx } => dag
-                .get(node_id)
-                .and_then(|node| node.proof_state.goals.get(goal_idx))
-                .map(|g| g.type_.to_plain_text()),
-            Selection::Theorem => dag.block_output.as_ref().map(RichText::to_plain_text),
-            Selection::Error { node_id, error_idx } => {
-                use crate::protocol::DiagnosticSeverity;
-                dag.get(node_id).and_then(|node| {
-                    node.diagnostics
-                        .iter()
-                        .filter(|d| d.severity == DiagnosticSeverity::Error)
-                        .nth(error_idx)
-                        .map(|d| d.message.clone())
-                })
-            }
-        }
     }
 
     /// Copy the selected item's text (or error message) to the clipboard.
@@ -400,9 +325,15 @@ impl App {
             return;
         }
 
+        let DagState::Proof(dag) = &self.display_mode.dag else {
+            return;
+        };
+
         let selection = self.display_mode.current_selection();
-        if let Some(text) = self.get_selection_text(selection) {
-            let _ = stdout().execute(CopyToClipboard::to_clipboard_from(text));
+        if let Some(sel) = selection {
+            if let Some(text) = dag.get_selection_text(sel) {
+                let _ = stdout().execute(CopyToClipboard::to_clipboard_from(text));
+            }
         }
     }
 
@@ -602,8 +533,6 @@ impl App {
 
     /// Update `error_overlay` based on current selection.
     fn update_error_overlay_from_selection(&mut self) {
-        use crate::protocol::DiagnosticSeverity;
-
         let Some(Selection::Error { node_id, error_idx }) = self.display_mode.current_selection()
         else {
             return;
@@ -613,15 +542,7 @@ impl App {
             return;
         };
 
-        self.error_overlay = dag
-            .get(node_id)
-            .and_then(|node| {
-                node.diagnostics
-                    .iter()
-                    .filter(|d| d.severity == DiagnosticSeverity::Error)
-                    .nth(error_idx)
-            })
-            .map(|d| d.message.clone());
+        self.error_overlay = dag.get_error_message(node_id, error_idx);
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {

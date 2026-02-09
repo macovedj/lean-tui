@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget},
 };
 
-use super::{graph::DagGraph, layout::DagLayout, viewport};
+use super::{dag::DagGraph, layered_layout::DagLayout};
 
 struct HorizontalSegment {
     mid_y: i32,
@@ -84,7 +84,7 @@ pub fn render_scrollbars(
     scroll_x: i32,
     scroll_y: i32,
 ) {
-    if viewport::needs_vertical_scroll(content_height, area) && area.height > 2 {
+    if content_height > i32::from(area.height) && area.height > 2 {
         let sb_area = Rect::new(
             area.x + area.width.saturating_sub(1),
             area.y,
@@ -100,7 +100,7 @@ pub fn render_scrollbars(
             .render(sb_area, buf, &mut sb_state);
     }
 
-    if viewport::needs_horizontal_scroll(content_width, area) && area.width > 2 {
+    if content_width > i32::from(area.width) && area.width > 2 {
         let sb_area = Rect::new(
             area.x,
             area.y + area.height.saturating_sub(1),

@@ -14,8 +14,6 @@ mod generated {
 }
 pub use generated::*;
 
-use crate::graph_layout::{Dag, DagNode, NavNode};
-
 /// Type alias for node IDs.
 pub type NodeId = u64;
 
@@ -52,12 +50,6 @@ impl RichText {
     }
 }
 
-impl GenericDag {
-    /// Get a node by ID.
-    pub fn get(&self, id: NodeId) -> Option<&GraphNode> {
-        self.nodes.iter().find(|n| n.id == id)
-    }
-}
 impl EditorCursorPosition {
     /// Extract filename from URI.
     pub fn filename(&self) -> Option<&str> {
@@ -76,38 +68,3 @@ impl Default for LineCharacterPosition {
 }
 
 impl Copy for LineCharacterPosition {}
-
-impl DagNode for GraphNode {
-    fn id(&self) -> NodeId {
-        self.id
-    }
-
-    fn children(&self) -> Vec<NodeId> {
-        self.edges.iter().map(|e| e.target).collect()
-    }
-}
-
-impl Dag for GenericDag {
-    type Node = GraphNode;
-
-    fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
-        self.get(id)
-    }
-}
-
-impl NavNode for GraphNode {
-    fn new_hyp_indices(&self) -> Vec<u64> {
-        self.metadata
-            .get("new_binding_indices")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default()
-    }
-
-    fn goal_count(&self) -> usize {
-        usize::from(self.edges.is_empty())
-    }
-
-    fn has_selectable_goals(&self) -> bool {
-        self.edges.is_empty()
-    }
-}
