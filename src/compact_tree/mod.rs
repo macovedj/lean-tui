@@ -13,8 +13,7 @@ use crate::{
         types::{CompleteProofDag, ProofDagTacticNode},
         TacticProofState,
     },
-    display_mode::Mode,
-    interactive::{InteractiveComponent, InteractiveStatefulWidget, KeyMouseEvent, ModeInput},
+    interactive::{InteractiveStatefulWidget, Mode},
     protocol::NodeId,
     selection::{ListSelection, Selection},
     theme::Theme,
@@ -66,6 +65,63 @@ impl CompactTree {
 
         hyp_items.chain(goal_items).collect()
     }
+}
+
+impl Mode for CompactTree {
+    type Dag = CompleteProofDag;
+
+    fn name(&self) -> &'static str {
+        "Compact Tree"
+    }
+
+    fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
+        &[("jk", "select"), ("hl", "scroll")]
+    }
+
+    fn current_selection(&self) -> Option<Selection> {
+        let items = self.selectable_items();
+        self.selection.current_selection(&items).copied()
+    }
+
+    fn take_clicked_error(&mut self) -> Option<String> {
+        self.errors_section_state.take_clicked_error()
+    }
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![LegendSection::new(
+            "Compact Tree",
+            Color::Yellow,
+            vec![
+                LegendItem::new("▶", Theme::CURRENT_NODE_BORDER, "current step"),
+                LegendItem::new("⊢", Theme::GOAL, "open goal"),
+            ],
+        )]
+    }
+
+    fn update(&mut self, dag: Option<&Self::Dag>, error: Option<String>) {
+        self.current_node_id = dag.and_then(|dag| dag.current_node_id);
+        let current_node = self
+            .current_node_id
+            .and_then(|id| dag?.get(id));
+
+        let new_state = current_node
+            .map(|node| node.proof_state.clone())
+            .unwrap_or_default();
+
+        let state_changed = self.state.goals.len() != new_state.goals.len()
+            || self.state.hypotheses.len() != new_state.hypotheses.len();
+
+        self.state = new_state;
+        self.active_goal_name = current_node
+            .and_then(|node| node.proof_state.goals.first())
+            .and_then(|g| g.username_str().map(String::from));
+        self.error = error;
+        self.proof_dag = dag.cloned();
+
+        if state_changed {
+            self.selection.reset(self.selectable_items().len());
+        }
+    }
 
     fn handle_key(&mut self, key: KeyEvent) -> bool {
         let items = self.selectable_items();
@@ -104,43 +160,6 @@ impl CompactTree {
 
         let items = self.selectable_items();
         self.selection.handle_click(mouse.column, mouse.row, &items)
-    }
-}
-
-impl InteractiveComponent for CompactTree {
-    type Input = ModeInput<CompleteProofDag>;
-    type Event = KeyMouseEvent;
-
-    fn update(&mut self, input: Self::Input) {
-        self.current_node_id = input.dag.as_ref().and_then(|dag| dag.current_node_id);
-        let current_node = self
-            .current_node_id
-            .and_then(|id| input.dag.as_ref()?.get(id));
-
-        let new_state = current_node
-            .map(|node| node.proof_state.clone())
-            .unwrap_or_default();
-
-        let state_changed = self.state.goals.len() != new_state.goals.len()
-            || self.state.hypotheses.len() != new_state.hypotheses.len();
-
-        self.state = new_state;
-        self.active_goal_name = current_node
-            .and_then(|node| node.proof_state.goals.first())
-            .and_then(|g| g.username_str().map(String::from));
-        self.error = input.error;
-        self.proof_dag = input.dag;
-
-        if state_changed {
-            self.selection.reset(self.selectable_items().len());
-        }
-    }
-
-    fn handle_event(&mut self, event: Self::Event) -> bool {
-        match event {
-            KeyMouseEvent::Key(key) => self.handle_key(key),
-            KeyMouseEvent::Mouse(mouse) => self.handle_mouse(mouse),
-        }
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
@@ -256,37 +275,5 @@ impl InteractiveComponent for CompactTree {
                 &mut self.errors_section_state,
             );
         }
-    }
-}
-
-impl Mode for CompactTree {
-    type Model = ModeInput<CompleteProofDag>;
-
-    fn name(&self) -> &'static str {
-        "Compact Tree"
-    }
-
-    fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
-        &[("jk", "select"), ("hl", "scroll")]
-    }
-
-    fn current_selection(&self) -> Option<Selection> {
-        let items = self.selectable_items();
-        self.selection.current_selection(&items).copied()
-    }
-
-    fn take_clicked_error(&mut self) -> Option<String> {
-        self.errors_section_state.take_clicked_error()
-    }
-
-    fn legend_sections(&self) -> Vec<LegendSection> {
-        vec![LegendSection::new(
-            "Compact Tree",
-            Color::Yellow,
-            vec![
-                LegendItem::new("▶", Theme::CURRENT_NODE_BORDER, "current step"),
-                LegendItem::new("⊢", Theme::GOAL, "open goal"),
-            ],
-        )]
     }
 }

@@ -2,6 +2,7 @@
 
 use std::{error::Error, fmt, mem::take};
 
+use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{layout::Rect, Frame};
 
 use crate::{
@@ -10,28 +11,11 @@ use crate::{
     data_flow::{DataFlowConversionError, DataFlowDag, DataFlowMode},
     deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
     effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode},
-    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
+    interactive::Mode,
     protocol::{GenericDag, LocalBinding, RichText},
     selection::Selection,
     widgets::legend::LegendSection,
 };
-
-/// Trait for display modes in the TUI.
-pub trait Mode: InteractiveComponent<Input = Self::Model, Event = KeyMouseEvent> {
-    type Model;
-
-    fn name(&self) -> &'static str;
-    fn keybindings(&self) -> &'static [(&'static str, &'static str)];
-    fn current_selection(&self) -> Option<Selection>;
-
-    fn legend_sections(&self) -> Vec<LegendSection> {
-        Vec::new()
-    }
-
-    fn take_clicked_error(&mut self) -> Option<String> {
-        None
-    }
-}
 
 #[derive(Clone, Default)]
 pub enum DagState {
@@ -260,14 +244,25 @@ impl DisplayMode {
         }
     }
 
-    /// Handle event for active mode.
-    pub fn handle_event(&mut self, event: KeyMouseEvent) -> bool {
+    /// Handle key event for active mode.
+    pub fn handle_key(&mut self, key: KeyEvent) -> bool {
         match &mut self.mode {
-            ModeVariant::Compact(m) => m.handle_event(event),
-            ModeVariant::CompactTree(m) => m.handle_event(event),
-            ModeVariant::DeductionTree(m) => m.handle_event(event),
-            ModeVariant::DataFlow(m) => m.handle_event(event),
-            ModeVariant::EffectFlow(m) => m.handle_event(event),
+            ModeVariant::Compact(m) => m.handle_key(key),
+            ModeVariant::CompactTree(m) => m.handle_key(key),
+            ModeVariant::DeductionTree(m) => m.handle_key(key),
+            ModeVariant::DataFlow(m) => m.handle_key(key),
+            ModeVariant::EffectFlow(m) => m.handle_key(key),
+        }
+    }
+
+    /// Handle mouse event for active mode.
+    pub fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
+        match &mut self.mode {
+            ModeVariant::Compact(m) => m.handle_mouse(mouse),
+            ModeVariant::CompactTree(m) => m.handle_mouse(mouse),
+            ModeVariant::DeductionTree(m) => m.handle_mouse(mouse),
+            ModeVariant::DataFlow(m) => m.handle_mouse(mouse),
+            ModeVariant::EffectFlow(m) => m.handle_mouse(mouse),
         }
     }
 
@@ -288,53 +283,38 @@ impl DisplayMode {
 
         match (&mut self.mode, &self.dag) {
             (ModeVariant::Compact(m), DagState::Proof(dag)) => {
-                m.update(ModeInput {
-                    dag: Some(dag.clone()),
-                    error,
-                });
+                m.update(Some(dag), error);
             }
             (ModeVariant::Compact(m), _) => {
-                m.update(ModeInput { dag: None, error });
+                m.update(None, error);
             }
 
             (ModeVariant::CompactTree(m), DagState::Proof(dag)) => {
-                m.update(ModeInput {
-                    dag: Some(dag.clone()),
-                    error,
-                });
+                m.update(Some(dag), error);
             }
             (ModeVariant::CompactTree(m), _) => {
-                m.update(ModeInput { dag: None, error });
+                m.update(None, error);
             }
 
             (ModeVariant::DeductionTree(m), DagState::Proof(dag)) => {
-                m.update(ModeInput {
-                    dag: Some(dag.clone()),
-                    error,
-                });
+                m.update(Some(dag), error);
             }
             (ModeVariant::DeductionTree(m), _) => {
-                m.update(ModeInput { dag: None, error });
+                m.update(None, error);
             }
 
             (ModeVariant::DataFlow(m), DagState::Dataflow(dag)) => {
-                m.update(ModeInput {
-                    dag: Some(dag.clone()),
-                    error,
-                });
+                m.update(Some(dag), error);
             }
             (ModeVariant::DataFlow(m), _) => {
-                m.update(ModeInput { dag: None, error });
+                m.update(None, error);
             }
 
             (ModeVariant::EffectFlow(m), DagState::Effectflow(dag)) => {
-                m.update(ModeInput {
-                    dag: Some(dag.clone()),
-                    error,
-                });
+                m.update(Some(dag), error);
             }
             (ModeVariant::EffectFlow(m), _) => {
-                m.update(ModeInput { dag: None, error });
+                m.update(None, error);
             }
         }
     }

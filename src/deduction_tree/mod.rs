@@ -3,7 +3,7 @@ mod proof_pane;
 mod state_node;
 pub mod types;
 
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::Rect,
     style::{Color, Style},
@@ -17,8 +17,7 @@ pub use types::{
 
 use crate::{
     deduction_tree::layout::{SemanticTableauLayout, SemanticTableauState},
-    display_mode::Mode,
-    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
+    interactive::Mode,
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     protocol::DiagnosticSeverity,
     selection::Selection,
@@ -154,96 +153,8 @@ impl SemanticTableau {
     }
 }
 
-impl InteractiveComponent for SemanticTableau {
-    type Input = ModeInput<CompleteProofDag>;
-    type Event = KeyMouseEvent;
-
-    fn update(&mut self, input: Self::Input) {
-        let old_proof_count = self.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
-        let new_proof_count = input.dag.as_ref().map_or(0, CompleteProofDag::len);
-
-        let old_current = self.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
-        let new_current = input.dag.as_ref().and_then(|dag| dag.current_node_id);
-
-        let new_state = new_current
-            .and_then(|id| input.dag.as_ref()?.get(id))
-            .map(|node| node.proof_state.clone())
-            .unwrap_or_default();
-
-        let tree_changed = old_proof_count != new_proof_count || old_current != new_current;
-        let state_changed = self.state.goals.len() != new_state.goals.len()
-            || self.state.hypotheses.len() != new_state.hypotheses.len();
-
-        self.tableau_state.update_current_node(new_current);
-
-        self.state = new_state;
-        self.error = input.error;
-        self.proof_dag = input.dag;
-
-        if tree_changed || state_changed {
-            if let Some(sel) = self.active_goal_selection() {
-                self.select_by_selection(sel);
-            } else {
-                self.selected_idx = None;
-            }
-        }
-    }
-
-    fn handle_event(&mut self, event: Self::Event) -> bool {
-        match event {
-            KeyMouseEvent::Key(key) => {
-                if let Some(dir) = key_to_direction(key.code) {
-                    return self.move_in_direction(dir);
-                }
-                match key.code {
-                    KeyCode::Char('t') => {
-                        self.tree_top_down = !self.tree_top_down;
-                        true
-                    }
-                    _ => false,
-                }
-            }
-            KeyMouseEvent::Mouse(mouse) => {
-                if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-                    return false;
-                }
-
-                if let Some(sel) = self.tableau_state.find_click_at(mouse.column, mouse.row) {
-                    self.select_by_selection(sel);
-                    return true;
-                }
-                false
-            }
-        }
-    }
-
-    fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let content_area = render_error(frame, area, self.error.as_deref());
-
-        if self.state.goals.is_empty() && self.proof_dag.is_none() {
-            render_no_goals(frame, content_area);
-            return;
-        }
-
-        if let Some(ref dag) = self.proof_dag {
-            let widget = SemanticTableauLayout::new(
-                dag,
-                self.tree_top_down,
-                self.current_tree_selection(),
-                &self.state,
-            );
-            frame.render_stateful_widget(widget, content_area, &mut self.tableau_state);
-        } else {
-            frame.render_widget(
-                Paragraph::new("No proof steps available").style(Style::new().fg(Color::DarkGray)),
-                content_area,
-            );
-        }
-    }
-}
-
 impl Mode for SemanticTableau {
-    type Model = ModeInput<CompleteProofDag>;
+    type Dag = CompleteProofDag;
 
     fn name(&self) -> &'static str {
         "Semantic tableau"
@@ -282,5 +193,85 @@ impl Mode for SemanticTableau {
                 ],
             ),
         ]
+    }
+
+    fn update(&mut self, dag: Option<&Self::Dag>, error: Option<String>) {
+        let old_proof_count = self.proof_dag.as_ref().map_or(0, CompleteProofDag::len);
+        let new_proof_count = dag.map_or(0, CompleteProofDag::len);
+
+        let old_current = self.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
+        let new_current = dag.and_then(|dag| dag.current_node_id);
+
+        let new_state = new_current
+            .and_then(|id| dag?.get(id))
+            .map(|node| node.proof_state.clone())
+            .unwrap_or_default();
+
+        let tree_changed = old_proof_count != new_proof_count || old_current != new_current;
+        let state_changed = self.state.goals.len() != new_state.goals.len()
+            || self.state.hypotheses.len() != new_state.hypotheses.len();
+
+        self.tableau_state.update_current_node(new_current);
+
+        self.state = new_state;
+        self.error = error;
+        self.proof_dag = dag.cloned();
+
+        if tree_changed || state_changed {
+            if let Some(sel) = self.active_goal_selection() {
+                self.select_by_selection(sel);
+            } else {
+                self.selected_idx = None;
+            }
+        }
+    }
+
+    fn handle_key(&mut self, key: KeyEvent) -> bool {
+        if let Some(dir) = key_to_direction(key.code) {
+            return self.move_in_direction(dir);
+        }
+        match key.code {
+            KeyCode::Char('t') => {
+                self.tree_top_down = !self.tree_top_down;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return false;
+        }
+
+        if let Some(sel) = self.tableau_state.find_click_at(mouse.column, mouse.row) {
+            self.select_by_selection(sel);
+            return true;
+        }
+        false
+    }
+
+    fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let content_area = render_error(frame, area, self.error.as_deref());
+
+        if self.state.goals.is_empty() && self.proof_dag.is_none() {
+            render_no_goals(frame, content_area);
+            return;
+        }
+
+        if let Some(ref dag) = self.proof_dag {
+            let widget = SemanticTableauLayout::new(
+                dag,
+                self.tree_top_down,
+                self.current_tree_selection(),
+                &self.state,
+            );
+            frame.render_stateful_widget(widget, content_area, &mut self.tableau_state);
+        } else {
+            frame.render_widget(
+                Paragraph::new("No proof steps available").style(Style::new().fg(Color::DarkGray)),
+                content_area,
+            );
+        }
     }
 }

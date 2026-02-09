@@ -3,7 +3,7 @@ mod layout;
 mod state_node;
 pub mod types;
 
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -15,9 +15,8 @@ use tracing::trace;
 pub use types::{EdgeKind, EffectFlowConversionError, EffectFlowDag, EffectKind};
 
 use crate::{
-    display_mode::Mode,
     effect_flow::layout::{EffectTableauLayout, EffectTableauState},
-    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
+    interactive::Mode,
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     selection::Selection,
     theme::Theme,
@@ -154,104 +153,8 @@ impl EffectFlowMode {
     }
 }
 
-impl InteractiveComponent for EffectFlowMode {
-    type Input = ModeInput<EffectFlowDag>;
-    type Event = KeyMouseEvent;
-
-    fn update(&mut self, input: Self::Input) {
-        let old_count = self.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
-        let new_count = input.dag.as_ref().map_or(0, EffectFlowDag::len);
-
-        if let Some(ref dag) = input.dag {
-            trace!(
-                node_count = dag.len(),
-                root_id = ?dag.root_node_id,
-                current_id = ?dag.current_node_id,
-                "EffectFlowMode received DAG"
-            );
-            for node in dag.dfs_iter() {
-                trace!(
-                    node_id = node.id,
-                    kind = ?node.effect_kind,
-                    edges = node.edges.len(),
-                    content = %node.content.to_plain_text(),
-                    "  Node"
-                );
-            }
-        }
-
-        let old_current = self.effect_dag.as_ref().and_then(|dag| dag.current_node_id);
-        let new_current = input.dag.as_ref().and_then(|dag| dag.current_node_id);
-
-        let tree_changed = old_count != new_count || old_current != new_current;
-
-        self.effect_tableau_state
-            .update_current_node(input.dag.as_ref().and_then(|dag| dag.current_node_id));
-
-        self.error = input.error;
-        self.effect_dag = input.dag;
-
-        if tree_changed {
-            if let Some(sel) = self.active_goal_selection() {
-                self.select_by_selection(sel);
-            } else {
-                self.selected_idx = None;
-            }
-        }
-    }
-
-    fn handle_event(&mut self, event: Self::Event) -> bool {
-        match event {
-            KeyMouseEvent::Key(key) => {
-                if let Some(dir) = key_to_direction(key.code) {
-                    return self.move_in_direction(dir);
-                }
-                match key.code {
-                    KeyCode::Char('e') => {
-                        self.expanded = !self.expanded;
-                        true
-                    }
-                    _ => false,
-                }
-            }
-            KeyMouseEvent::Mouse(mouse) => {
-                if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-                    return false;
-                }
-
-                let clicked = self
-                    .effect_tableau_state
-                    .find_click_at(mouse.column, mouse.row);
-
-                if let Some(sel) = clicked {
-                    self.select_by_selection(sel);
-                    return true;
-                }
-                false
-            }
-        }
-    }
-
-    fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let content_area = render_error(frame, area, self.error.as_deref());
-
-        if let Some(ref dag) = self.effect_dag {
-            let remaining = self.render_monad_stack(frame, content_area);
-            let widget =
-                EffectTableauLayout::new(dag, self.current_tree_selection(), self.expanded);
-            frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
-            return;
-        }
-
-        frame.render_widget(
-            Paragraph::new("No effect flow DAG available").style(Style::new().fg(Color::DarkGray)),
-            content_area,
-        );
-    }
-}
-
 impl Mode for EffectFlowMode {
-    type Model = ModeInput<EffectFlowDag>;
+    type Dag = EffectFlowDag;
 
     fn name(&self) -> &'static str {
         "Effect Flow"
@@ -310,5 +213,93 @@ impl Mode for EffectFlowMode {
                 ],
             ),
         ]
+    }
+
+    fn update(&mut self, dag: Option<&Self::Dag>, error: Option<String>) {
+        let old_count = self.effect_dag.as_ref().map_or(0, EffectFlowDag::len);
+        let new_count = dag.map_or(0, EffectFlowDag::len);
+
+        if let Some(dag) = dag {
+            trace!(
+                node_count = dag.len(),
+                root_id = ?dag.root_node_id,
+                current_id = ?dag.current_node_id,
+                "EffectFlowMode received DAG"
+            );
+            for node in dag.dfs_iter() {
+                trace!(
+                    node_id = node.id,
+                    kind = ?node.effect_kind,
+                    edges = node.edges.len(),
+                    content = %node.content.to_plain_text(),
+                    "  Node"
+                );
+            }
+        }
+
+        let old_current = self.effect_dag.as_ref().and_then(|dag| dag.current_node_id);
+        let new_current = dag.and_then(|dag| dag.current_node_id);
+
+        let tree_changed = old_count != new_count || old_current != new_current;
+
+        self.effect_tableau_state
+            .update_current_node(dag.and_then(|dag| dag.current_node_id));
+
+        self.error = error;
+        self.effect_dag = dag.cloned();
+
+        if tree_changed {
+            if let Some(sel) = self.active_goal_selection() {
+                self.select_by_selection(sel);
+            } else {
+                self.selected_idx = None;
+            }
+        }
+    }
+
+    fn handle_key(&mut self, key: KeyEvent) -> bool {
+        if let Some(dir) = key_to_direction(key.code) {
+            return self.move_in_direction(dir);
+        }
+        match key.code {
+            KeyCode::Char('e') => {
+                self.expanded = !self.expanded;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return false;
+        }
+
+        let clicked = self
+            .effect_tableau_state
+            .find_click_at(mouse.column, mouse.row);
+
+        if let Some(sel) = clicked {
+            self.select_by_selection(sel);
+            return true;
+        }
+        false
+    }
+
+    fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let content_area = render_error(frame, area, self.error.as_deref());
+
+        if let Some(ref dag) = self.effect_dag {
+            let remaining = self.render_monad_stack(frame, content_area);
+            let widget =
+                EffectTableauLayout::new(dag, self.current_tree_selection(), self.expanded);
+            frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
+            return;
+        }
+
+        frame.render_widget(
+            Paragraph::new("No effect flow DAG available").style(Style::new().fg(Color::DarkGray)),
+            content_area,
+        );
     }
 }
