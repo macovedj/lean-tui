@@ -3,18 +3,7 @@
 pub use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{layout::Rect, widgets::StatefulWidget, Frame};
 
-/// Key or mouse event for interactive components.
-#[derive(Clone)]
-pub enum KeyMouseEvent {
-    Key(KeyEvent),
-    Mouse(MouseEvent),
-}
-
-/// Generic input for display mode components.
-pub struct ModeInput<D> {
-    pub dag: Option<D>,
-    pub error: Option<String>,
-}
+use crate::{selection::Selection, widgets::legend::LegendSection};
 
 /// Extension trait for `StatefulWidget` that adds state management and event
 /// handling.
@@ -62,25 +51,34 @@ pub trait InteractiveStatefulWidget: StatefulWidget {
     }
 }
 
-/// Trait for self-contained interactive components that render directly to
-/// Frame.
+/// Trait for display modes in the TUI.
 ///
-/// Use this for higher-level app components like display modes that manage
-/// their own state and render using Frame (not Buffer).
-pub trait InteractiveComponent {
-    /// Input data type for updating state.
-    type Input;
-    /// Event type for handling (use `()` for non-interactive components).
-    type Event;
+/// Each mode manages its own state, handles key/mouse events, and renders
+/// directly to a Frame.
+pub trait Mode {
+    type Dag;
 
-    /// Update state with new input data.
-    fn update(&mut self, input: Self::Input);
+    fn name(&self) -> &'static str;
+    fn keybindings(&self) -> &'static [(&'static str, &'static str)];
+    fn current_selection(&self) -> Option<Selection>;
 
-    /// Handle an event. Returns true if the event was consumed.
-    fn handle_event(&mut self, _event: Self::Event) -> bool {
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        Vec::new()
+    }
+
+    fn take_clicked_error(&mut self) -> Option<String> {
+        None
+    }
+
+    fn update(&mut self, dag: Option<&Self::Dag>, error: Option<String>);
+
+    fn handle_key(&mut self, _key: KeyEvent) -> bool {
         false
     }
 
-    /// Render the component to a Frame.
+    fn handle_mouse(&mut self, _mouse: MouseEvent) -> bool {
+        false
+    }
+
     fn render(&mut self, frame: &mut Frame, area: Rect);
 }

@@ -4,7 +4,7 @@ pub mod types;
 
 use std::{collections::HashSet, iter::once};
 
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::Rect,
     style::{Color, Style},
@@ -16,8 +16,7 @@ pub use types::{DataFlowConversionError, DataFlowDag, DataFlowNode};
 
 use crate::{
     data_flow::layout::{FunctionalTableauLayout, FunctionalTableauState},
-    display_mode::Mode,
-    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
+    interactive::Mode,
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     selection::Selection,
     theme::Theme,
@@ -177,94 +176,8 @@ impl DataFlowMode {
     }
 }
 
-impl InteractiveComponent for DataFlowMode {
-    type Input = ModeInput<DataFlowDag>;
-    type Event = KeyMouseEvent;
-
-    fn update(&mut self, input: Self::Input) {
-        let old_count = self.dag.as_ref().map_or(0, DataFlowDag::len);
-        let new_count = input.dag.as_ref().map_or(0, DataFlowDag::len);
-
-        let old_current = self.dag.as_ref().and_then(|dag| dag.current_node_id);
-        let new_current = input.dag.as_ref().and_then(|dag| dag.current_node_id);
-
-        let tree_changed = old_count != new_count || old_current != new_current;
-
-        self.functional_tableau_state
-            .update_current_node(input.dag.as_ref().and_then(|dag| dag.current_node_id));
-
-        self.error = input.error;
-        self.dag = input.dag;
-
-        if tree_changed {
-            if let Some(sel) = self.active_goal_selection() {
-                self.select_by_selection(sel);
-            } else {
-                self.selected_idx = None;
-            }
-        }
-    }
-
-    fn handle_event(&mut self, event: Self::Event) -> bool {
-        match event {
-            KeyMouseEvent::Key(key) => {
-                if let Some(dir) = key_to_direction(key.code) {
-                    return self.move_in_direction(dir);
-                }
-                match key.code {
-                    KeyCode::Char('t') => {
-                        self.tree_top_down = !self.tree_top_down;
-                        true
-                    }
-                    _ => false,
-                }
-            }
-            KeyMouseEvent::Mouse(mouse) => {
-                if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-                    return false;
-                }
-
-                let clicked = self
-                    .functional_tableau_state
-                    .find_click_at(mouse.column, mouse.row);
-
-                let Some(sel) = clicked else {
-                    return false;
-                };
-
-                if self.handle_error_click(sel) {
-                    return true;
-                }
-
-                self.select_by_selection(sel);
-                true
-            }
-        }
-    }
-
-    fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let content_area = render_error(frame, area, self.error.as_deref());
-
-        if let Some(ref dag) = self.dag {
-            let widget = FunctionalTableauLayout::new(
-                dag,
-                self.tree_top_down,
-                self.current_tree_selection(),
-            );
-            frame.render_stateful_widget(widget, content_area, &mut self.functional_tableau_state);
-            return;
-        }
-
-        frame.render_widget(
-            Paragraph::new("No data flow available (term mode only)")
-                .style(Style::new().fg(Color::DarkGray)),
-            content_area,
-        );
-    }
-}
-
 impl Mode for DataFlowMode {
-    type Model = ModeInput<DataFlowDag>;
+    type Dag = DataFlowDag;
 
     fn name(&self) -> &'static str {
         "Data Flow"
@@ -297,5 +210,83 @@ impl Mode for DataFlowMode {
                 ],
             ),
         ]
+    }
+
+    fn update(&mut self, dag: Option<&Self::Dag>, error: Option<String>) {
+        let old_count = self.dag.as_ref().map_or(0, DataFlowDag::len);
+        let new_count = dag.map_or(0, DataFlowDag::len);
+
+        let old_current = self.dag.as_ref().and_then(|dag| dag.current_node_id);
+        let new_current = dag.and_then(|dag| dag.current_node_id);
+
+        let tree_changed = old_count != new_count || old_current != new_current;
+
+        self.functional_tableau_state
+            .update_current_node(dag.and_then(|dag| dag.current_node_id));
+
+        self.error = error;
+        self.dag = dag.cloned();
+
+        if tree_changed {
+            if let Some(sel) = self.active_goal_selection() {
+                self.select_by_selection(sel);
+            } else {
+                self.selected_idx = None;
+            }
+        }
+    }
+
+    fn handle_key(&mut self, key: KeyEvent) -> bool {
+        if let Some(dir) = key_to_direction(key.code) {
+            return self.move_in_direction(dir);
+        }
+        match key.code {
+            KeyCode::Char('t') => {
+                self.tree_top_down = !self.tree_top_down;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return false;
+        }
+
+        let clicked = self
+            .functional_tableau_state
+            .find_click_at(mouse.column, mouse.row);
+
+        let Some(sel) = clicked else {
+            return false;
+        };
+
+        if self.handle_error_click(sel) {
+            return true;
+        }
+
+        self.select_by_selection(sel);
+        true
+    }
+
+    fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let content_area = render_error(frame, area, self.error.as_deref());
+
+        if let Some(ref dag) = self.dag {
+            let widget = FunctionalTableauLayout::new(
+                dag,
+                self.tree_top_down,
+                self.current_tree_selection(),
+            );
+            frame.render_stateful_widget(widget, content_area, &mut self.functional_tableau_state);
+            return;
+        }
+
+        frame.render_widget(
+            Paragraph::new("No data flow available (term mode only)")
+                .style(Style::new().fg(Color::DarkGray)),
+            content_area,
+        );
     }
 }

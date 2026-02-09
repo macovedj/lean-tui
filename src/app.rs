@@ -18,7 +18,7 @@ use crate::{
     data_flow::DataFlowNode,
     deduction_tree::ProofContextHypothesis,
     display_mode::{DagState, DisplayMode},
-    interactive::{InteractiveStatefulWidget, KeyMouseEvent},
+    interactive::InteractiveStatefulWidget,
     protocol::{
         ClientToServerCommand, EditorCursorPosition, LineCharacterPosition, RichText,
         ServerToClientMessage,
@@ -588,7 +588,7 @@ impl App {
         use crossterm::event::{MouseButton, MouseEventKind};
 
         let is_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
-        self.display_mode.handle_event(KeyMouseEvent::Mouse(mouse));
+        self.display_mode.handle_mouse(mouse);
 
         if !is_click {
             return;
@@ -637,7 +637,7 @@ impl App {
             return;
         }
         if !self.handle_global_key(key.code) {
-            self.display_mode.handle_event(KeyMouseEvent::Key(key));
+            self.display_mode.handle_key(key);
         }
     }
 

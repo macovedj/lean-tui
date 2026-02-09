@@ -1,6 +1,6 @@
 mod diff_pane;
 
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use diff_pane::{DiffPane, DiffPaneKind, DiffPaneState};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -10,8 +10,7 @@ use ratatui::{
 
 use crate::{
     deduction_tree::{types::CompleteProofDag, TacticProofState},
-    display_mode::Mode,
-    interactive::{InteractiveComponent, KeyMouseEvent, ModeInput},
+    interactive::Mode,
     protocol::{DiagnosticInfo, NodeId},
     selection::{ListSelection, Selection},
     theme::Theme,
@@ -76,13 +75,53 @@ impl BeforeAfterMode {
     }
 }
 
-impl InteractiveComponent for BeforeAfterMode {
-    type Input = ModeInput<CompleteProofDag>;
-    type Event = KeyMouseEvent;
+impl Mode for BeforeAfterMode {
+    type Dag = CompleteProofDag;
 
-    fn update(&mut self, input: Self::Input) {
-        let current_node_id = input.dag.as_ref().and_then(|dag| dag.current_node_id);
-        let current_node = current_node_id.and_then(|id| input.dag.as_ref()?.get(id));
+    fn name(&self) -> &'static str {
+        "Compact"
+    }
+
+    fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
+        &[("p", "prev"), ("n", "next")]
+    }
+
+    fn current_selection(&self) -> Option<Selection> {
+        self.selection
+            .current_selection(&self.selectable_items())
+            .copied()
+    }
+
+    fn take_clicked_error(&mut self) -> Option<String> {
+        self.errors_section_state.take_clicked_error()
+    }
+
+    fn legend_sections(&self) -> Vec<LegendSection> {
+        vec![
+            LegendSection::new(
+                "Diff markers",
+                Color::White,
+                vec![
+                    LegendItem::new("x", Theme::UNCHANGED, "unchanged"),
+                    LegendItem::new("+", Theme::ADDED, "added"),
+                    LegendItem::new("~", Theme::CHANGED, "changed"),
+                    LegendItem::new("-", Theme::REMOVED, "removed"),
+                ],
+            ),
+            LegendSection::new(
+                "Elements",
+                Color::White,
+                vec![
+                    LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
+                    LegendItem::new("⊢", Theme::GOAL, "goal"),
+                ],
+            ),
+        ]
+    }
+
+    fn update(&mut self, dag: Option<&Self::Dag>, error: Option<String>) {
+        let current_node_id = dag.and_then(|dag| dag.current_node_id);
+        let current_node = current_node_id.and_then(|id| dag?.get(id));
 
         let new_current_state = current_node
             .map(|n| n.proof_state.clone())
@@ -96,7 +135,7 @@ impl InteractiveComponent for BeforeAfterMode {
             .then(|| {
                 current_node
                     .and_then(|n| n.parent)
-                    .and_then(|parent_id| input.dag.as_ref()?.get(parent_id))
+                    .and_then(|parent_id| dag?.get(parent_id))
                     .map(|parent| parent.proof_state.clone())
             })
             .flatten();
@@ -108,12 +147,12 @@ impl InteractiveComponent for BeforeAfterMode {
             .then(|| {
                 current_node
                     .and_then(|n| n.children.first())
-                    .and_then(|&child_id| input.dag.as_ref()?.get(child_id))
+                    .and_then(|&child_id| dag?.get(child_id))
                     .map(|child| child.proof_state.clone())
             })
             .flatten();
 
-        self.error = input.error;
+        self.error = error;
         self.current_node_id = current_node_id;
         self.active_goal_name = current_node
             .and_then(|node| node.proof_state.goals.first())
@@ -127,43 +166,43 @@ impl InteractiveComponent for BeforeAfterMode {
         }
     }
 
-    fn handle_event(&mut self, event: Self::Event) -> bool {
+    fn handle_key(&mut self, key: KeyEvent) -> bool {
         let items = self.selectable_items();
-        match event {
-            KeyMouseEvent::Key(key) => match key.code {
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.selection.select_next(items.len());
-                    true
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.selection.select_previous(items.len());
-                    true
-                }
-                KeyCode::Char('p') => {
-                    self.show_previous = !self.show_previous;
-                    true
-                }
-                KeyCode::Char('n') => {
-                    self.show_next = !self.show_next;
-                    true
-                }
-                _ => false,
-            },
-            KeyMouseEvent::Mouse(mouse) => {
-                if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-                    return false;
-                }
-
-                if self
-                    .errors_section_state
-                    .handle_click(mouse.column, mouse.row)
-                {
-                    return true;
-                }
-
-                self.selection.handle_click(mouse.column, mouse.row, &items)
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.selection.select_next(items.len());
+                true
             }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.selection.select_previous(items.len());
+                true
+            }
+            KeyCode::Char('p') => {
+                self.show_previous = !self.show_previous;
+                true
+            }
+            KeyCode::Char('n') => {
+                self.show_next = !self.show_next;
+                true
+            }
+            _ => false,
         }
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return false;
+        }
+
+        if self
+            .errors_section_state
+            .handle_click(mouse.column, mouse.row)
+        {
+            return true;
+        }
+
+        let items = self.selectable_items();
+        self.selection.handle_click(mouse.column, mouse.row, &items)
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
@@ -274,50 +313,5 @@ impl InteractiveComponent for BeforeAfterMode {
                 &mut self.errors_section_state,
             );
         }
-    }
-}
-
-impl Mode for BeforeAfterMode {
-    type Model = ModeInput<CompleteProofDag>;
-
-    fn name(&self) -> &'static str {
-        "Compact"
-    }
-
-    fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
-        &[("p", "prev"), ("n", "next")]
-    }
-
-    fn current_selection(&self) -> Option<Selection> {
-        self.selection
-            .current_selection(&self.selectable_items())
-            .copied()
-    }
-
-    fn take_clicked_error(&mut self) -> Option<String> {
-        self.errors_section_state.take_clicked_error()
-    }
-
-    fn legend_sections(&self) -> Vec<LegendSection> {
-        vec![
-            LegendSection::new(
-                "Diff markers",
-                Color::White,
-                vec![
-                    LegendItem::new("x", Theme::UNCHANGED, "unchanged"),
-                    LegendItem::new("+", Theme::ADDED, "added"),
-                    LegendItem::new("~", Theme::CHANGED, "changed"),
-                    LegendItem::new("-", Theme::REMOVED, "removed"),
-                ],
-            ),
-            LegendSection::new(
-                "Elements",
-                Color::White,
-                vec![
-                    LegendItem::new("h", Theme::HYP_NAME, "hypothesis"),
-                    LegendItem::new("⊢", Theme::GOAL, "goal"),
-                ],
-            ),
-        ]
     }
 }
