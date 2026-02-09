@@ -13,6 +13,7 @@ use crate::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
         LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
     },
+    selection::Selection,
     theme::Theme,
 };
 
@@ -153,6 +154,62 @@ impl CompleteProofDag {
     /// Check if a node is the current node (closest to cursor).
     pub fn is_current(&self, node_id: NodeId) -> bool {
         self.current_node_id == Some(node_id)
+    }
+
+    /// Get the error message at the given index for a node.
+    pub fn get_error_message(&self, node_id: NodeId, error_idx: usize) -> Option<String> {
+        self.get(node_id).and_then(|node| {
+            node.diagnostics
+                .iter()
+                .filter(|d| d.severity == DiagnosticSeverity::Error)
+                .nth(error_idx)
+                .map(|d| d.message.clone())
+        })
+    }
+
+    /// Get the text content for a given selection.
+    pub fn get_selection_text(&self, selection: Selection) -> Option<String> {
+        match selection {
+            Selection::InitialHyp { hyp_idx } => self
+                .block_input
+                .get(hyp_idx)
+                .map(|b| format!("{} : {}", b.name, b.type_.to_plain_text())),
+            Selection::Hyp { node_id, hyp_idx } => self
+                .get(node_id)
+                .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
+                .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text())),
+            Selection::Goal { node_id, goal_idx } => self
+                .get(node_id)
+                .and_then(|node| node.proof_state.goals.get(goal_idx))
+                .map(|g| g.type_.to_plain_text()),
+            Selection::Theorem => self.block_output.as_ref().map(RichText::to_plain_text),
+            Selection::Error { node_id, error_idx } => self.get_error_message(node_id, error_idx),
+        }
+    }
+
+    /// Get the navigation location for a selection.
+    pub fn navigation_location(
+        &self,
+        selection: Selection,
+        current_uri: &str,
+    ) -> Option<(String, LineCharacterPosition)> {
+        match selection {
+            Selection::InitialHyp { hyp_idx } => self
+                .block_input
+                .get(hyp_idx)
+                .and_then(|b| b.navigation_locations.as_ref())
+                .and_then(|nav| nav.definition.as_ref())
+                .map(|loc| (loc.uri.clone(), loc.position)),
+            Selection::Hyp { node_id, hyp_idx } => self
+                .get(node_id)
+                .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
+                .and_then(|h| h.navigation_locations().definition)
+                .map(|loc| (loc.uri, loc.position)),
+            Selection::Goal { node_id, .. } => self
+                .get(node_id)
+                .map(|node| (current_uri.to_string(), node.position)),
+            Selection::Theorem | Selection::Error { .. } => None,
+        }
     }
 
     /// Convert to petgraph-based `DagGraph` for rendering.

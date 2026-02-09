@@ -1,15 +1,11 @@
 mod dag;
-mod graph;
-mod layout;
-mod pane;
-mod render;
-mod viewport;
+mod edge_render;
+mod layered_layout;
+mod viewport_state;
 
-pub use dag::{Dag, DagNode, NavNode};
-pub use graph::{DagGraph, EdgeData, LayoutSize};
-pub use layout::{
+pub use dag::{Dag, DagGraph, DagNode, EdgeData, LayoutSize, NavNode};
+pub use edge_render::{render_edges, render_scrollbars};
+pub use layered_layout::{
     calculate_layout, calculate_node_size, DagLayout, LayoutGraph, NodePosition, NodeTextContent,
 };
-pub use pane::GraphViewport;
-pub use render::{render_edges, render_scrollbars};
-pub use viewport::{center_on, clip_to_viewport, scroll_target};
+pub use viewport_state::GraphViewport;

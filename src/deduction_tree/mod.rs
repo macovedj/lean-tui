@@ -11,9 +11,7 @@ use ratatui::{
     Frame,
 };
 use tracing::trace;
-pub use types::{
-    CompleteProofDag, ProofContextHypothesis, ProofDagConversionError, TacticProofState,
-};
+pub use types::{CompleteProofDag, ProofDagConversionError, TacticProofState};
 
 use crate::{
     deduction_tree::layout::{SemanticTableauLayout, SemanticTableauState},

@@ -100,9 +100,7 @@ impl Mode for CompactTree {
 
     fn update(&mut self, dag: Option<&Self::Dag>, error: Option<String>) {
         self.current_node_id = dag.and_then(|dag| dag.current_node_id);
-        let current_node = self
-            .current_node_id
-            .and_then(|id| dag?.get(id));
+        let current_node = self.current_node_id.and_then(|id| dag?.get(id));
 
         let new_state = current_node
             .map(|node| node.proof_state.clone())

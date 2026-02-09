@@ -12,7 +12,7 @@ use crate::{
     deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
     effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode},
     interactive::Mode,
-    protocol::{GenericDag, LocalBinding, RichText},
+    protocol::{GenericDag, LineCharacterPosition, LocalBinding, RichText},
     selection::Selection,
     widgets::legend::LegendSection,
 };
@@ -75,6 +75,21 @@ impl DagState {
             DisplayStyle::Effectflow => EffectFlowDag::try_from(dag)
                 .map(Self::Effectflow)
                 .map_err(DagConversionError::Effectflow),
+        }
+    }
+
+    /// Get the navigation location for a selection.
+    /// Returns the URI and position to navigate to, if available.
+    pub fn navigation_location(
+        &self,
+        selection: Option<Selection>,
+        current_uri: &str,
+    ) -> Option<(String, LineCharacterPosition)> {
+        let sel = selection?;
+        match self {
+            Self::Proof(dag) => dag.navigation_location(sel, current_uri),
+            Self::Dataflow(dag) => dag.navigation_location(sel, current_uri),
+            Self::Effectflow(_) | Self::None => None,
         }
     }
 }

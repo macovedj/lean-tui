@@ -12,7 +12,7 @@ use ratatui::{
     Frame,
 };
 use tracing::trace;
-pub use types::{DataFlowConversionError, DataFlowDag, DataFlowNode};
+pub use types::{DataFlowConversionError, DataFlowDag};
 
 use crate::{
     data_flow::layout::{FunctionalTableauLayout, FunctionalTableauState},
