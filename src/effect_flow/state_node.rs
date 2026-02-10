@@ -27,11 +27,27 @@ pub struct EffectStateNodeState {
 pub struct EffectStateNode<'a> {
     node: &'a EffectFlowNode,
     is_current: bool,
+    selection: Option<Selection>,
 }
 
 impl<'a> EffectStateNode<'a> {
-    pub const fn new(node: &'a EffectFlowNode, is_current: bool) -> Self {
-        Self { node, is_current }
+    pub const fn new(
+        node: &'a EffectFlowNode,
+        is_current: bool,
+        selection: Option<Selection>,
+    ) -> Self {
+        Self {
+            node,
+            is_current,
+            selection,
+        }
+    }
+
+    fn is_hyp_selected(&self, hyp_idx: usize) -> bool {
+        matches!(
+            self.selection,
+            Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx
+        )
     }
 
     fn effect_kind(&self) -> &EffectKind {
@@ -114,16 +130,23 @@ impl<'a> EffectStateNode<'a> {
 
     fn build_binding_rows(&self) -> Vec<AlignedRow> {
         self.node
-            .bindings
-            .iter()
-            .filter(|b| !b.is_implicit && !b.is_instance)
-            .map(|b| {
+            .visible_bindings()
+            .into_iter()
+            .enumerate()
+            .map(|(idx, b)| {
+                let underline = if self.is_hyp_selected(idx) {
+                    Modifier::UNDERLINED
+                } else {
+                    Modifier::empty()
+                };
+                let name_style = Style::new().fg(Theme::HYP_NAME).add_modifier(underline);
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
                 AlignedRow::with_styled_type(
                     b.name.clone(),
-                    Style::new().fg(Theme::HYP_NAME),
+                    name_style,
                     ":",
                     Style::new().fg(Color::DarkGray),
-                    b.type_.to_spans(Style::new().fg(Color::White)),
+                    b.type_.to_spans(type_style),
                 )
             })
             .collect()
@@ -132,24 +155,24 @@ impl<'a> EffectStateNode<'a> {
     fn build_effect_rows(&self) -> Vec<AlignedRow> {
         let mut rows = Vec::new();
 
-        if let Some(fwd) = &self.node.forward {
+        for fwd in &self.node.forwards {
             rows.push(AlignedRow::new(
                 "",
                 Style::default(),
                 "→",
                 Style::new().fg(Color::Green),
-                fwd.clone(),
+                fwd.value.clone(),
                 Style::new().fg(Color::White),
             ));
         }
 
-        if let Some(bwd) = &self.node.backward {
+        for bwd in &self.node.backwards {
             rows.push(AlignedRow::new(
                 "",
                 Style::default(),
                 "←",
                 Style::new().fg(Color::Magenta),
-                bwd.clone(),
+                bwd.value.clone(),
                 Style::new().fg(Color::White),
             ));
         }
@@ -172,15 +195,47 @@ impl<'a> EffectStateNode<'a> {
         rows
     }
 
-    fn click_regions(&self, area: Rect) -> Vec<Region> {
-        // Click region is just the header row (top border with title)
-        vec![Region::from_rect(
-            Rect::new(area.x, area.y, area.width, 1),
-            Selection::Goal {
-                node_id: self.node.id,
-                goal_idx: 0,
-            },
-        )]
+    fn click_regions(&self, inner: Rect, error_count: usize) -> Vec<Region> {
+        let mut regions = Vec::new();
+        let binding_count = self.node.visible_bindings().len();
+        let effect_count = self.node.forwards.len() + self.node.backwards.len();
+        let mut current_y = inner.y;
+
+        // Bindings
+        for hyp_idx in 0..binding_count {
+            if current_y < inner.y + inner.height {
+                regions.push(Region::from_rect(
+                    Rect::new(inner.x, current_y, inner.width, 1),
+                    Selection::Hyp { node_id: self.node.id, hyp_idx },
+                ));
+            }
+            current_y += 1;
+        }
+
+        // Expression (Goal)
+        if current_y < inner.y + inner.height {
+            regions.push(Region::from_rect(
+                Rect::new(inner.x, current_y, inner.width, 1),
+                Selection::Goal { node_id: self.node.id, goal_idx: 0 },
+            ));
+        }
+        current_y += 1;
+
+        // Skip effect rows
+        current_y += effect_count as u16;
+
+        // Errors
+        for error_idx in 0..error_count {
+            if current_y < inner.y + inner.height {
+                regions.push(Region::from_rect(
+                    Rect::new(inner.x, current_y, inner.width, 1),
+                    Selection::Error { node_id: self.node.id, error_idx },
+                ));
+            }
+            current_y += 1;
+        }
+
+        regions
     }
 }
 
@@ -218,10 +273,10 @@ impl StatefulWidget for EffectStateNode<'_> {
         // 1. Render bindings table
         let binding_rows = self.build_binding_rows();
         if !binding_rows.is_empty() {
-            let bindings_height = (binding_rows.len() as u16).min(inner.height);
-            let bindings_area = Rect::new(inner.x, y, inner.width, bindings_height);
+            let height = (binding_rows.len() as u16).min(inner.height);
+            let bindings_area = Rect::new(inner.x, y, inner.width, height);
             Widget::render(AlignedTable::new(binding_rows), bindings_area, buf);
-            y += bindings_height;
+            y += height;
         }
 
         // 2. Render expression line
@@ -240,6 +295,12 @@ impl StatefulWidget for EffectStateNode<'_> {
         }
 
         // 4. Render error diagnostics below
+        let error_count = self
+            .node
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .count();
         let error_lines = format_diagnostic_lines(&self.node.diagnostics);
         for line in error_lines {
             if y >= inner.y + inner.height {
@@ -249,7 +310,7 @@ impl StatefulWidget for EffectStateNode<'_> {
             y += 1;
         }
 
-        state.click_regions = self.click_regions(area);
+        state.click_regions = self.click_regions(inner, error_count);
     }
 }
 

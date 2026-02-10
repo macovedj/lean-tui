@@ -68,3 +68,44 @@ impl Default for LineCharacterPosition {
 }
 
 impl Copy for LineCharacterPosition {}
+
+/// Check if a source range contains the cursor position.
+/// Uses range containment: start <= cursor < end.
+pub fn range_contains_cursor(
+    start: LineCharacterPosition,
+    end: Option<LineCharacterPosition>,
+    cursor: LineCharacterPosition,
+) -> bool {
+    match end {
+        Some(end) => {
+            (start.line < cursor.line
+                || (start.line == cursor.line && start.character <= cursor.character))
+                && (cursor.line < end.line
+                    || (cursor.line == end.line && cursor.character < end.character))
+        }
+        None => start.line == cursor.line && start.character <= cursor.character,
+    }
+}
+
+/// Compute rough size of a source range for preferring more specific nodes.
+pub fn range_size(start: LineCharacterPosition, end: Option<LineCharacterPosition>) -> u64 {
+    match end {
+        Some(end) => {
+            (end.line.saturating_sub(start.line)) * 10000
+                + end.character.saturating_sub(start.character)
+        }
+        None => 0,
+    }
+}
+
+impl GraphNode {
+    /// Check if this node's source range contains the cursor position.
+    pub fn contains_cursor(&self, cursor: LineCharacterPosition) -> bool {
+        range_contains_cursor(self.position, self.end_position, cursor)
+    }
+
+    /// Compute rough size of this node's range.
+    pub fn range_size(&self) -> u64 {
+        range_size(self.position, self.end_position)
+    }
+}

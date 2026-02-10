@@ -81,6 +81,8 @@ pub struct ProofDagTacticNode {
     pub id: NodeId,
     pub tactic_text: String,
     pub position: LineCharacterPosition,
+    #[serde(default)]
+    pub end_position: Option<LineCharacterPosition>,
     pub proof_state: TacticProofState,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
@@ -111,6 +113,16 @@ impl ProofDagTacticNode {
         self.diagnostics
             .iter()
             .any(|d| d.severity == DiagnosticSeverity::Error)
+    }
+
+    /// Check if this node's source range contains the cursor position.
+    pub fn contains_cursor(&self, cursor: LineCharacterPosition) -> bool {
+        crate::protocol::range_contains_cursor(self.position, self.end_position, cursor)
+    }
+
+    /// Compute rough size of this node's range.
+    pub fn range_size(&self) -> u64 {
+        crate::protocol::range_size(self.position, self.end_position)
     }
 }
 
@@ -154,6 +166,23 @@ impl CompleteProofDag {
     /// Check if a node is the current node (closest to cursor).
     pub fn is_current(&self, node_id: NodeId) -> bool {
         self.current_node_id == Some(node_id)
+    }
+
+    /// Update current_node_id based on cursor position using range containment.
+    /// Returns true if the current node changed.
+    pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
+        let old = self.current_node_id;
+        self.current_node_id = self.find_node_at_cursor(cursor);
+        old != self.current_node_id
+    }
+
+    /// Find the node whose range contains the cursor position.
+    fn find_node_at_cursor(&self, cursor: LineCharacterPosition) -> Option<NodeId> {
+        self.nodes
+            .iter()
+            .filter(|n| n.contains_cursor(cursor))
+            .min_by_key(|n| n.range_size())
+            .map(|n| n.id)
     }
 
     /// Get the error message at the given index for a node.
@@ -398,6 +427,7 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         id: node.id,
         tactic_text: node.content.to_plain_text(),
         position: node.position,
+        end_position: node.end_position,
         proof_state,
         children,
         parent: node.parent,

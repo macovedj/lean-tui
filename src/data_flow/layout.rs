@@ -88,7 +88,7 @@ fn render_proof_pane(
 
     let graph = dag.to_graph();
 
-    let layout_changed = state.update_layout_if_needed(dag.len(), || {
+    let layout_changed = state.update_layout(|| {
         let layout_graph = dag.to_layout_graph();
         calculate_layout(&layout_graph, top_down)
     });
