@@ -78,6 +78,17 @@ impl DagState {
         }
     }
 
+    /// Update current_node_id based on cursor position using range containment.
+    /// Returns true if the current node changed.
+    pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
+        match self {
+            Self::Proof(dag) => dag.update_current_from_cursor(cursor),
+            Self::Dataflow(dag) => dag.update_current_from_cursor(cursor),
+            Self::Effectflow(dag) => dag.update_current_from_cursor(cursor),
+            Self::None => false,
+        }
+    }
+
     /// Get the navigation location for a selection.
     /// Returns the URI and position to navigate to, if available.
     pub fn navigation_location(

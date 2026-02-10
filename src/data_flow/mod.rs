@@ -85,7 +85,11 @@ impl DataFlowMode {
         dag.dfs_iter()
             .flat_map(|node| {
                 let node_id = node.id;
-                let binding_count = node.bindings_after().len();
+                let binding_count = node
+                    .bindings()
+                    .iter()
+                    .filter(|b| !b.is_implicit && !b.is_instance)
+                    .count();
                 let hyp_selections =
                     (0..binding_count).map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
                 let goal_selection = once(Selection::Goal {

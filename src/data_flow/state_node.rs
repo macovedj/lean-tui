@@ -8,12 +8,15 @@ use ratatui::{
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
-use super::types::{DataFlowKind, DataFlowNode, SimpleBinding};
+use super::types::{DataFlowKind, DataFlowNode};
 use crate::{
-    protocol::{BindingKind, DiagnosticSeverity},
+    protocol::{DiagnosticSeverity, LocalBinding},
     selection::{Region, Selection},
     theme::{Red, Theme},
-    widgets::aligned_table::{AlignedRow, AlignedTable},
+    widgets::{
+        aligned_table::{AlignedRow, AlignedTable},
+        diff_text::RichTextExt,
+    },
 };
 
 /// State for a single functional state node widget.
@@ -78,13 +81,6 @@ impl<'a> FunctionalStateNode<'a> {
         }
     }
 
-    fn is_binding_selected(&self, binding_idx: usize) -> bool {
-        matches!(
-            self.selection,
-            Some(Selection::Hyp { node_id, hyp_idx }) if node_id == self.node.id && hyp_idx == binding_idx
-        )
-    }
-
     fn is_goal_selected(&self) -> bool {
         matches!(
             self.selection,
@@ -92,23 +88,39 @@ impl<'a> FunctionalStateNode<'a> {
         )
     }
 
+    fn is_hyp_selected(&self, hyp_idx: usize) -> bool {
+        matches!(
+            self.selection,
+            Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx
+        )
+    }
+
+    fn visible_bindings(&self) -> Vec<LocalBinding> {
+        self.node
+            .bindings()
+            .into_iter()
+            .filter(|b| !b.is_implicit && !b.is_instance)
+            .collect()
+    }
+
     fn bindings_rows(&self) -> Vec<AlignedRow> {
-        let bindings = self.node.bindings_after();
-        bindings
+        self.visible_bindings()
             .iter()
             .enumerate()
             .map(|(idx, b)| {
-                let is_new = self.node.is_new_binding(idx);
-                let is_selected = self.is_binding_selected(idx);
-                let style = binding_style(b, is_new, is_selected);
-
-                AlignedRow::new(
+                let underline = if self.is_hyp_selected(idx) {
+                    Modifier::UNDERLINED
+                } else {
+                    Modifier::empty()
+                };
+                let name_style = Style::new().fg(Theme::HYP_NAME).add_modifier(underline);
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
+                AlignedRow::with_styled_type(
                     b.name.clone(),
-                    style,
+                    name_style,
                     ":",
                     Style::new().fg(Color::DarkGray),
-                    b.type_str.clone(),
-                    style,
+                    b.type_.to_spans(type_style),
                 )
             })
             .collect()
@@ -166,61 +178,61 @@ impl<'a> FunctionalStateNode<'a> {
     }
 
     fn click_regions(&self, inner: Rect, table_height: u16, error_count: usize) -> Vec<Region> {
-        let bindings = self.node.bindings_after();
-        let num_bindings = bindings.len() as u16;
+        let mut regions = Vec::new();
+        let binding_count = self.visible_bindings().len();
+        let mut current_y = inner.y;
 
-        let (type_y, bindings_start_y) = if self.top_down {
-            (inner.y + num_bindings, inner.y)
+        // Layout depends on direction
+        if self.top_down {
+            // Bindings first, then goal
+            for hyp_idx in 0..binding_count {
+                if current_y < inner.y + inner.height {
+                    regions.push(Region::from_rect(
+                        Rect::new(inner.x, current_y, inner.width, 1),
+                        Selection::Hyp { node_id: self.node.id, hyp_idx },
+                    ));
+                }
+                current_y += 1;
+            }
+            if current_y < inner.y + inner.height {
+                regions.push(Region::from_rect(
+                    Rect::new(inner.x, current_y, inner.width, 1),
+                    Selection::Goal { node_id: self.node.id, goal_idx: 0 },
+                ));
+            }
         } else {
-            (inner.y, inner.y + 1)
-        };
+            // Goal first, then bindings
+            if current_y < inner.y + inner.height {
+                regions.push(Region::from_rect(
+                    Rect::new(inner.x, current_y, inner.width, 1),
+                    Selection::Goal { node_id: self.node.id, goal_idx: 0 },
+                ));
+            }
+            current_y += 1;
+            for hyp_idx in 0..binding_count {
+                if current_y < inner.y + inner.height {
+                    regions.push(Region::from_rect(
+                        Rect::new(inner.x, current_y, inner.width, 1),
+                        Selection::Hyp { node_id: self.node.id, hyp_idx },
+                    ));
+                }
+                current_y += 1;
+            }
+        }
 
-        let goal_region = Region::from_rect(
-            Rect::new(inner.x, type_y, inner.width, 1),
-            Selection::Goal {
-                node_id: self.node.id,
-                goal_idx: 0,
-            },
-        );
+        // Error regions below the table
+        current_y = inner.y + table_height;
+        for error_idx in 0..error_count {
+            if current_y < inner.y + inner.height {
+                regions.push(Region::from_rect(
+                    Rect::new(inner.x, current_y, inner.width, 1),
+                    Selection::Error { node_id: self.node.id, error_idx },
+                ));
+            }
+            current_y += 1;
+        }
 
-        let binding_regions: Vec<Region> = bindings
-            .iter()
-            .enumerate()
-            .map(|(idx, b)| {
-                let binding_width = (b.name.len() + b.type_str.len() + 2) as u16; // "name: type"
-                Region::from_rect(
-                    Rect::new(
-                        inner.x,
-                        bindings_start_y + idx as u16,
-                        binding_width.min(inner.width),
-                        1,
-                    ),
-                    Selection::Hyp {
-                        node_id: self.node.id,
-                        hyp_idx: idx,
-                    },
-                )
-            })
-            .collect();
-
-        // Error click regions (below the table)
-        let error_y = inner.y + table_height;
-        let error_regions: Vec<Region> = (0..error_count)
-            .map(|error_idx| {
-                Region::from_rect(
-                    Rect::new(inner.x, error_y + error_idx as u16, inner.width, 1),
-                    Selection::Error {
-                        node_id: self.node.id,
-                        error_idx,
-                    },
-                )
-            })
-            .collect();
-
-        once(goal_region)
-            .chain(binding_regions)
-            .chain(error_regions)
-            .collect()
+        regions
     }
 }
 
@@ -303,27 +315,5 @@ impl StatefulWidget for FunctionalStateNode<'_> {
         }
 
         state.click_regions = self.click_regions(inner, table_height, error_count);
-    }
-}
-
-fn binding_style(binding: &SimpleBinding, is_new: bool, is_selected: bool) -> Style {
-    let (fg, bg) = binding_colors(binding.kind(), is_new);
-    let mut style = Style::new().fg(fg).bg(bg);
-    if is_selected {
-        style = style.add_modifier(Modifier::UNDERLINED);
-    }
-    if is_new {
-        style = style.add_modifier(Modifier::BOLD);
-    }
-    style
-}
-
-fn binding_colors(_kind: BindingKind, is_new: bool) -> (Color, Color) {
-    if is_new {
-        // New bindings: bright blue with background (same as proof hypotheses)
-        (Theme::DATA_HYP_FG, Theme::DATA_HYP_BG)
-    } else {
-        // Existing bindings: dimmer blue, no background
-        (Color::Rgb(100, 130, 170), Color::Reset)
     }
 }

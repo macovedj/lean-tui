@@ -14,7 +14,7 @@ use crate::{
     },
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphEdge, GraphNode,
-        LocalBinding, NodeId, RichText,
+        LineCharacterPosition, LocalBinding, NodeId, RichText,
     },
     theme::Theme,
 };
@@ -24,6 +24,33 @@ fn parse_bindings(metadata: &serde_json::Map<String, serde_json::Value>) -> Vec<
     metadata
         .get("bindings")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default()
+}
+
+/// An effect value with kind and value.
+#[derive(Debug, Clone)]
+pub struct EffectValue {
+    pub kind: EffectKind,
+    pub value: String,
+}
+
+fn parse_effect_values(
+    metadata: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Vec<EffectValue> {
+    metadata
+        .get(key)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| {
+                    let obj = v.as_object()?;
+                    let kind = obj.get("kind")?.as_str().map(EffectKind::from_str)?;
+                    let value = obj.get("value")?.as_str()?.to_string();
+                    Some(EffectValue { kind, value })
+                })
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -140,10 +167,12 @@ impl EdgeKind {
 pub struct EffectFlowNode {
     pub id: NodeId,
     pub content: RichText,
+    pub position: LineCharacterPosition,
+    pub end_position: Option<LineCharacterPosition>,
     pub edges: Vec<GraphEdge>,
     pub effect_kind: EffectKind,
-    pub forward: Option<String>,
-    pub backward: Option<String>,
+    pub forwards: Vec<EffectValue>,
+    pub backwards: Vec<EffectValue>,
     pub bindings: Vec<LocalBinding>,
     pub diagnostics: Vec<DiagnosticInfo>,
 }
@@ -152,27 +181,27 @@ impl EffectFlowNode {
     pub fn from_graph_node(node: GraphNode) -> Option<Self> {
         let effect_kind = node.kind.as_deref().map(EffectKind::from_str)?;
 
-        let extract_str = |key: &str| -> Option<String> {
-            node.metadata
-                .get(key)
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(String::from)
-        };
-
         let bindings = parse_bindings(&node.metadata);
+        let forwards = parse_effect_values(&node.metadata, "forwards");
+        let backwards = parse_effect_values(&node.metadata, "backwards");
         let diagnostics = node.diagnostics.clone();
 
         Some(Self {
             id: node.id,
             content: node.content,
+            position: node.position,
+            end_position: node.end_position,
             edges: node.edges,
             effect_kind,
-            forward: extract_str("forward"),
-            backward: extract_str("backward"),
+            forwards,
+            backwards,
             bindings,
             diagnostics,
         })
+    }
+
+    pub fn has_effects(&self) -> bool {
+        !self.backwards.is_empty()
     }
 
     pub fn is_leaf(&self) -> bool {
@@ -184,6 +213,16 @@ impl EffectFlowNode {
         self.diagnostics
             .iter()
             .any(|d| d.severity == DiagnosticSeverity::Error)
+    }
+
+    /// Check if this node's source range contains the cursor position.
+    pub fn contains_cursor(&self, cursor: LineCharacterPosition) -> bool {
+        crate::protocol::range_contains_cursor(self.position, self.end_position, cursor)
+    }
+
+    /// Compute rough size of this node's range.
+    pub fn range_size(&self) -> u64 {
+        crate::protocol::range_size(self.position, self.end_position)
     }
 }
 
@@ -229,18 +268,19 @@ impl NodeTextContent for EffectFlowNode {
         // Add expression line - always present
         lines.push(self.content.to_plain_text());
 
-        // Add forward/backward effect lines
-        if let Some(fwd) = &self.forward {
-            lines.push(format!("→ {fwd}"));
+        // Add forward effect lines
+        for fwd in &self.forwards {
+            lines.push(format!("→ {}", fwd.value));
         }
-        if let Some(bwd) = &self.backward {
-            lines.push(format!("← {bwd}"));
+
+        // Add backward effect lines
+        for bwd in &self.backwards {
+            lines.push(format!("← {}", bwd.value));
         }
 
         lines.extend(format_error_diagnostics(&self.diagnostics));
 
-        if self.is_leaf() && !self.has_error() && self.forward.is_none() && self.backward.is_none()
-        {
+        if self.is_leaf() && !self.has_error() && !self.has_effects() {
             lines.push("✓".to_string());
         }
 
@@ -272,8 +312,8 @@ impl LayoutSize for EffectFlowNode {
 
         let line_count = visible_bindings.len()
             + 1 // expression
-            + usize::from(self.forward.is_some())
-            + usize::from(self.backward.is_some())
+            + self.forwards.len()
+            + self.backwards.len()
             + usize::from(shows_completed);
 
         let width = (content_width + BORDER_AND_PADDING) as u16;
@@ -284,7 +324,7 @@ impl LayoutSize for EffectFlowNode {
 }
 
 impl EffectFlowNode {
-    fn visible_bindings(&self) -> Vec<&LocalBinding> {
+    pub fn visible_bindings(&self) -> Vec<&LocalBinding> {
         self.bindings
             .iter()
             .filter(|b| !b.is_implicit && !b.is_instance)
@@ -305,16 +345,13 @@ impl EffectFlowNode {
     }
 
     fn effect_width(&self) -> usize {
-        [&self.forward, &self.backward]
-            .into_iter()
-            .flatten()
-            .map(|s| 2 + s.chars().count())
-            .max()
-            .unwrap_or(0)
+        let forward_widths = self.forwards.iter().map(|e| 2 + e.value.chars().count());
+        let backward_widths = self.backwards.iter().map(|e| 2 + e.value.chars().count());
+        forward_widths.chain(backward_widths).max().unwrap_or(0)
     }
 
     fn shows_completed_marker(&self) -> bool {
-        self.is_leaf() && !self.has_error() && self.forward.is_none() && self.backward.is_none()
+        self.is_leaf() && !self.has_error() && !self.has_effects()
     }
 }
 
@@ -394,6 +431,25 @@ impl EffectFlowDag {
     /// Check if empty.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+
+    /// Update current_node_id based on cursor position using range containment.
+    /// Returns true if the current node changed.
+    pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
+        let old = self.current_node_id;
+
+        let containing: Vec<_> = self
+            .nodes
+            .iter()
+            .filter(|n| n.contains_cursor(cursor))
+            .collect();
+
+        self.current_node_id = containing
+            .into_iter()
+            .min_by_key(|n| n.range_size())
+            .map(|n| n.id);
+
+        old != self.current_node_id
     }
 
     /// Get the monad stack from DAG metadata.
@@ -512,19 +568,6 @@ impl EffectFlowDag {
         }
 
         visited
-    }
-
-    /// Get the number of nodes, optionally excluding expand targets.
-    pub fn node_count_filtered(&self, include_expand: bool) -> usize {
-        if include_expand {
-            self.nodes.len()
-        } else {
-            let excluded = self.expand_target_ids();
-            self.nodes
-                .iter()
-                .filter(|n| !excluded.contains(&n.id))
-                .count()
-        }
     }
 }
 

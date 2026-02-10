@@ -35,7 +35,7 @@ pub fn render_graph_pane(
 
     let graph = dag.to_graph_filtered(expanded);
 
-    let layout_changed = state.update_layout_if_needed(dag.node_count_filtered(expanded), || {
+    let layout_changed = state.update_layout(|| {
         let layout_graph = dag.to_layout_graph_filtered(expanded);
         calculate_layout(&layout_graph, top_down)
     });
@@ -69,7 +69,7 @@ pub fn render_graph_pane(
         .flat_map(|(render_area, node, pos)| {
             let is_current = graph.is_current(pos.index);
             let mut node_state = EffectStateNodeState::default();
-            EffectStateNode::new(node, is_current).render(render_area, buf, &mut node_state);
+            EffectStateNode::new(node, is_current, selection).render(render_area, buf, &mut node_state);
             node_state.click_regions
         })
         .collect();

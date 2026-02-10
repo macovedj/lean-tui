@@ -7,7 +7,7 @@ use petgraph::graph::NodeIndex;
 
 use crate::protocol::NodeId;
 
-pub const ORPHAN_GAP: i32 = 4;
+pub const ORPHAN_GAP: i32 = 3;
 const VERTICAL_GAP: i32 = 2;
 const HORIZONTAL_GAP: i32 = 2;
 
@@ -39,7 +39,7 @@ pub fn calculate_node_size<T: NodeTextContent>(node: &T) -> (u16, u16) {
     (width, height)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodePosition {
     pub index: NodeIndex,
     pub node_id: NodeId,
@@ -49,7 +49,7 @@ pub struct NodePosition {
     pub height: u16,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct DagLayout {
     pub nodes: Vec<NodePosition>,
     pub content_width: i32,

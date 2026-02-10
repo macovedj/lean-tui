@@ -227,6 +227,11 @@ impl App {
                     uri,
                 });
                 self.connected = true;
+
+                // Update current node based on cursor position
+                if self.display_mode.dag.update_current_from_cursor(position) {
+                    self.display_mode.update(None);
+                }
             }
             ServerToClientMessage::Dag { uri, position, dag } => {
                 tracing::debug!(

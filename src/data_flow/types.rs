@@ -9,12 +9,19 @@ use crate::{
         NodeTextContent,
     },
     protocol::{
-        BindingKind, DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
+        DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
+        LineCharacterPosition, LocalBinding, NodeId, RichText,
     },
     selection::Selection,
     theme::Theme,
 };
+
+fn parse_bindings(metadata: &serde_json::Map<String, serde_json::Value>) -> Vec<LocalBinding> {
+    metadata
+        .get("bindings")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default()
+}
 
 /// Data flow node kinds from the lean-prism backend.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,7 +56,7 @@ impl DataFlowKind {
             Self::Lambda => "λ",
             Self::Branch => "⎇",
             Self::Condition => "?",
-            Self::ConditionPart => "∧",
+            Self::ConditionPart => "if",
             Self::MatchScrutinee => "⊳",
             Self::Result => "●",
             Self::Custom(_) => "◆",
@@ -81,27 +88,6 @@ impl DataFlowKind {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct SimpleBinding {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub type_str: String,
-    pub binding_kind: String,
-    #[serde(default)]
-    pub navigation_locations: Option<PreresolvedNavigationTargets>,
-}
-
-impl SimpleBinding {
-    pub fn kind(&self) -> BindingKind {
-        match self.binding_kind.as_str() {
-            "let_bind" => BindingKind::LetBind,
-            "match_var" => BindingKind::MatchVar,
-            "for_var" => BindingKind::ForVar,
-            _ => BindingKind::FunParam,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct DataFlowNode {
     pub inner: GraphNode,
@@ -121,27 +107,9 @@ impl DataFlowNode {
         )
     }
 
-    /// Get all bindings in scope after this node.
-    pub fn bindings_after(&self) -> Vec<SimpleBinding> {
-        self.inner
-            .metadata
-            .get("bindings_after")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default()
-    }
-
-    /// Get indices of newly introduced bindings.
-    pub fn new_binding_indices(&self) -> Vec<u64> {
-        self.inner
-            .metadata
-            .get("new_binding_indices")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default()
-    }
-
-    /// Check if a binding at the given index is new (introduced by this node).
-    pub fn is_new_binding(&self, idx: usize) -> bool {
-        self.new_binding_indices().contains(&(idx as u64))
+    /// Get bindings with diff information (added/removed/changed).
+    pub fn bindings(&self) -> Vec<LocalBinding> {
+        parse_bindings(&self.inner.metadata)
     }
 
     /// Get the expected type as a plain string (from metadata).
@@ -198,7 +166,7 @@ impl NavNode for DataFlowNode {
     fn new_hyp_indices(&self) -> Vec<u64> {
         // Return all binding indices for navigation (not just newly introduced ones)
         // This allows keyboard navigation to select any binding in the node
-        (0..self.bindings_after().len() as u64).collect()
+        (0..self.bindings().len() as u64).collect()
     }
 
     fn goal_count(&self) -> usize {
@@ -217,9 +185,10 @@ impl NodeTextContent for DataFlowNode {
 
     fn content_lines(&self) -> Vec<String> {
         let mut lines: Vec<String> = self
-            .bindings_after()
+            .bindings()
             .iter()
-            .map(|b| format!("{}: {}", b.name, b.type_str))
+            .filter(|b| !b.is_implicit && !b.is_instance)
+            .map(|b| format!("{}: {}", b.name, b.type_.to_plain_text()))
             .collect();
 
         lines.push(
@@ -284,6 +253,25 @@ impl DataFlowDag {
 
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+
+    /// Update current_node_id based on cursor position using range containment.
+    /// Returns true if the current node changed.
+    pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
+        let old = self.current_node_id;
+
+        let containing: Vec<_> = self
+            .nodes
+            .iter()
+            .filter(|n| n.contains_cursor(cursor))
+            .collect();
+
+        self.current_node_id = containing
+            .into_iter()
+            .min_by_key(|n| n.range_size())
+            .map(|n| n.id());
+
+        old != self.current_node_id
     }
 
     /// Iterate nodes in depth-first order.
@@ -359,7 +347,7 @@ impl DataFlowDag {
                 .map(|loc| (loc.uri.clone(), loc.position)),
             Selection::Hyp { node_id, hyp_idx } => self
                 .get(node_id)
-                .and_then(|node| node.bindings_after().get(hyp_idx).cloned())
+                .and_then(|node| node.bindings().get(hyp_idx).cloned())
                 .and_then(|b| b.navigation_locations)
                 .and_then(|nav| nav.definition)
                 .map(|loc| (loc.uri, loc.position)),

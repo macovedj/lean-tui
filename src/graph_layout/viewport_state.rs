@@ -12,7 +12,6 @@ pub struct GraphViewport {
     pub manual_scroll: bool,
     prev_current_node: Option<NodeId>,
     pub layout: DagLayout,
-    layout_node_count: usize,
     /// Click regions with screen coordinates (for mouse clicks).
     pub click_regions: Vec<Region>,
     /// Navigation regions with virtual coordinates (for keyboard nav).
@@ -31,18 +30,15 @@ impl GraphViewport {
         &self.navigation_regions
     }
 
-    /// Returns true if layout was recalculated.
-    pub fn update_layout_if_needed<F>(&mut self, node_count: usize, compute_layout: F) -> bool
+    /// Recalculates layout and returns true if it changed.
+    pub fn update_layout<F>(&mut self, compute_layout: F) -> bool
     where
         F: FnOnce() -> DagLayout,
     {
-        if self.layout_node_count == node_count {
-            false
-        } else {
-            self.layout = compute_layout();
-            self.layout_node_count = node_count;
-            true
-        }
+        let new_layout = compute_layout();
+        let changed = self.layout != new_layout;
+        self.layout = new_layout;
+        changed
     }
 
     pub fn compute_scroll(
