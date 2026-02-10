@@ -188,7 +188,7 @@ impl Mode for DataFlowMode {
     }
 
     fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
-        &[("hjkl", "nav"), ("t", "flip"), ("s", "stretch")]
+        &[("hjkl", "nav"), ("t", "flip")]
     }
 
     fn current_selection(&self) -> Option<Selection> {

@@ -60,9 +60,6 @@ pub fn ranges_overlap(a_start: i32, a_len: u16, b_start: i32, b_len: u16) -> boo
     a_start < b_end && b_start < a_end
 }
 
-/// Width of hypothesis/binding regions.
-const HYP_WIDTH: u16 = 15;
-
 /// Build navigation regions for all nodes in a layout.
 pub fn build_navigation_regions<D>(dag: &D, layout: &DagLayout) -> Vec<Region>
 where
@@ -86,8 +83,11 @@ where
                 "Processing node"
             );
 
-            let hyp_regions = build_hyp_regions(pos, node);
-            let goal_regions = build_goal_regions(pos, node);
+            let hyp_indices = node.new_hyp_indices();
+            let hyp_count = hyp_indices.len();
+
+            let hyp_regions = build_hyp_regions(pos, &hyp_indices);
+            let goal_regions = build_goal_regions(pos, node, hyp_count);
 
             hyp_regions.into_iter().chain(goal_regions)
         })
@@ -97,29 +97,27 @@ where
     regions
 }
 
-/// Build navigation regions for hypotheses/bindings in a node.
-fn build_hyp_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Region> {
-    node.new_hyp_indices()
+/// Build navigation regions for hypotheses/bindings in a node (stacked
+/// vertically).
+fn build_hyp_regions(pos: &NodePosition, hyp_indices: &[u64]) -> Vec<Region> {
+    hyp_indices
         .iter()
         .enumerate()
-        .map(|(i, &hyp_idx)| {
-            let hyp_offset = (i as i32) * (i32::from(HYP_WIDTH) + 1);
-            Region {
-                x: pos.x + hyp_offset,
-                y: pos.y,
-                width: HYP_WIDTH,
-                height: 1,
-                selection: Selection::Hyp {
-                    node_id: pos.node_id,
-                    hyp_idx: hyp_idx as usize,
-                },
-            }
+        .map(|(i, &hyp_idx)| Region {
+            x: pos.x + 1,
+            y: pos.y + 1 + i as i32,
+            width: pos.width.saturating_sub(2),
+            height: 1,
+            selection: Selection::Hyp {
+                node_id: pos.node_id,
+                hyp_idx: hyp_idx as usize,
+            },
         })
         .collect()
 }
 
-/// Build navigation regions for goals in a node.
-fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Region> {
+/// Build navigation regions for goals in a node (below the bindings).
+fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N, hyp_count: usize) -> Vec<Region> {
     if !node.has_selectable_goals() {
         return Vec::new();
     }
@@ -129,25 +127,19 @@ fn build_goal_regions<N: NavNode>(pos: &NodePosition, node: &N) -> Vec<Region> {
         return Vec::new();
     }
 
-    let goal_width = if goal_count > 1 {
-        (pos.width.saturating_sub(2) / goal_count as u16).max(15)
-    } else {
-        pos.width.saturating_sub(2)
-    };
+    let goal_y = pos.y + 1 + hyp_count as i32;
+    let goal_width = pos.width.saturating_sub(2);
 
     (0..goal_count)
-        .map(|i| {
-            let goal_offset = (i as i32) * (i32::from(goal_width) + 1);
-            Region {
-                x: pos.x + 1 + goal_offset,
-                y: pos.y + i32::from(pos.height.saturating_sub(2)),
-                width: goal_width,
-                height: 1,
-                selection: Selection::Goal {
-                    node_id: pos.node_id,
-                    goal_idx: i,
-                },
-            }
+        .map(|i| Region {
+            x: pos.x + 1,
+            y: goal_y + i as i32,
+            width: goal_width,
+            height: 1,
+            selection: Selection::Goal {
+                node_id: pos.node_id,
+                goal_idx: i,
+            },
         })
         .collect()
 }

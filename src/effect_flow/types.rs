@@ -238,11 +238,11 @@ impl DagNode for EffectFlowNode {
 
 impl NavNode for EffectFlowNode {
     fn new_hyp_indices(&self) -> Vec<u64> {
-        Vec::new()
+        (0..self.visible_bindings().len() as u64).collect()
     }
 
     fn goal_count(&self) -> usize {
-        usize::from(!self.is_leaf())
+        1 // Always have the expression line as a goal
     }
 
     fn has_selectable_goals(&self) -> bool {

@@ -3,6 +3,8 @@ mod layout;
 mod state_node;
 pub mod types;
 
+use std::iter::once;
+
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::Rect,
@@ -45,11 +47,17 @@ impl EffectFlowMode {
             return Vec::new();
         }
 
-        // Input/output panes are now global - only include node-specific selections
         dag.dfs_iter()
-            .map(|node| Selection::Goal {
-                node_id: node.id,
-                goal_idx: 0,
+            .flat_map(|node| {
+                let node_id = node.id;
+                let binding_count = node.visible_bindings().len();
+                let hyp_selections =
+                    (0..binding_count).map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
+                let goal_selection = once(Selection::Goal {
+                    node_id,
+                    goal_idx: 0,
+                });
+                hyp_selections.chain(goal_selection)
             })
             .collect()
     }
@@ -91,16 +99,7 @@ impl EffectFlowMode {
         };
 
         let items = self.tree_selectable_items();
-
-        // When in graph pane, only navigate within graph regions
-        let navigation_regions: Vec<_> = if matches!(current_sel, Selection::Goal { .. }) {
-            self.effect_tableau_state
-                .graph
-                .navigation_regions()
-                .to_vec()
-        } else {
-            self.effect_tableau_state.navigation_regions()
-        };
+        let navigation_regions = self.effect_tableau_state.navigation_regions();
 
         trace!(
             ?current_sel,
