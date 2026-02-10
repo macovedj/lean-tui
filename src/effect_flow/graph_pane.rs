@@ -69,7 +69,11 @@ pub fn render_graph_pane(
         .flat_map(|(render_area, node, pos)| {
             let is_current = graph.is_current(pos.index);
             let mut node_state = EffectStateNodeState::default();
-            EffectStateNode::new(node, is_current, selection).render(render_area, buf, &mut node_state);
+            EffectStateNode::new(node, is_current, selection).render(
+                render_area,
+                buf,
+                &mut node_state,
+            );
             node_state.click_regions
         })
         .collect();

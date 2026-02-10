@@ -189,7 +189,10 @@ impl<'a> FunctionalStateNode<'a> {
                 if current_y < inner.y + inner.height {
                     regions.push(Region::from_rect(
                         Rect::new(inner.x, current_y, inner.width, 1),
-                        Selection::Hyp { node_id: self.node.id, hyp_idx },
+                        Selection::Hyp {
+                            node_id: self.node.id,
+                            hyp_idx,
+                        },
                     ));
                 }
                 current_y += 1;
@@ -197,7 +200,10 @@ impl<'a> FunctionalStateNode<'a> {
             if current_y < inner.y + inner.height {
                 regions.push(Region::from_rect(
                     Rect::new(inner.x, current_y, inner.width, 1),
-                    Selection::Goal { node_id: self.node.id, goal_idx: 0 },
+                    Selection::Goal {
+                        node_id: self.node.id,
+                        goal_idx: 0,
+                    },
                 ));
             }
         } else {
@@ -205,7 +211,10 @@ impl<'a> FunctionalStateNode<'a> {
             if current_y < inner.y + inner.height {
                 regions.push(Region::from_rect(
                     Rect::new(inner.x, current_y, inner.width, 1),
-                    Selection::Goal { node_id: self.node.id, goal_idx: 0 },
+                    Selection::Goal {
+                        node_id: self.node.id,
+                        goal_idx: 0,
+                    },
                 ));
             }
             current_y += 1;
@@ -213,7 +222,10 @@ impl<'a> FunctionalStateNode<'a> {
                 if current_y < inner.y + inner.height {
                     regions.push(Region::from_rect(
                         Rect::new(inner.x, current_y, inner.width, 1),
-                        Selection::Hyp { node_id: self.node.id, hyp_idx },
+                        Selection::Hyp {
+                            node_id: self.node.id,
+                            hyp_idx,
+                        },
                     ));
                 }
                 current_y += 1;
@@ -226,7 +238,10 @@ impl<'a> FunctionalStateNode<'a> {
             if current_y < inner.y + inner.height {
                 regions.push(Region::from_rect(
                     Rect::new(inner.x, current_y, inner.width, 1),
-                    Selection::Error { node_id: self.node.id, error_idx },
+                    Selection::Error {
+                        node_id: self.node.id,
+                        error_idx,
+                    },
                 ));
             }
             current_y += 1;
