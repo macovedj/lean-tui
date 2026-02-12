@@ -52,4 +52,4 @@ theorem InfinitudeOfPrimes : ∀ n, ∃ p > n, IsPrime p := by
   have : 1 < p := hp.1
   have : p ∣ n ! := dvd_factorial n p ‹p ≤ n› (by grind)
   have := Nat.dvd_sub ‹p ∣ n ! + 1› ‹p ∣ n !›
-  -- grind [Nat.add_sub_cancel_left, Nat.dvd_one]
+  grind [Nat.add_sub_cancel_left, Nat.dvd_one]

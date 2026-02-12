@@ -70,6 +70,8 @@ If you encounter issues, restart your LSP client using your editor's command. Yo
 
 ## Quickstart
 
+![(Video of basic usage)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/workflow.gif)
+
 ### 1. Split Your Terminal
 
 You can choose between:
