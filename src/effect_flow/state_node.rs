@@ -68,42 +68,18 @@ impl<'a> EffectStateNode<'a> {
             return Theme::CURRENT_NODE_BORDER;
         }
 
-        let kind = self.effect_kind();
-
-        // Use effect-specific colors for borders
-        match kind {
-            EffectKind::EffectThrow => Theme::EFFECT_THROW,
-            EffectKind::EffectCatch => Theme::EFFECT_CATCH,
-            EffectKind::StateRead | EffectKind::StateWrite | EffectKind::StateModify => {
-                if self.is_leaf() {
-                    Theme::COMPLETED_NODE_BORDER
-                } else {
-                    kind.color()
-                }
-            }
-            _ => {
-                if self.is_leaf() {
-                    Theme::COMPLETED_NODE_BORDER
-                } else {
-                    Theme::INACTIVE_NODE_BORDER
-                }
-            }
+        if self.is_leaf() {
+            Theme::COMPLETED_NODE_BORDER
+        } else {
+            Theme::INACTIVE_NODE_BORDER
         }
     }
 
     fn title(&self) -> Vec<Span<'static>> {
-        let kind = self.effect_kind();
         let has_error = self.node.has_error();
 
         let mut spans = Vec::new();
 
-        // Icon in the title (top-left corner)
-        let icon_style = if has_error {
-            Style::new().fg(Red::BRIGHT)
-        } else {
-            Style::new().fg(kind.color())
-        };
-        spans.push(Span::styled(format!(" {}", kind.icon()), icon_style));
 
         if has_error {
             spans.push(Span::styled(" ⚠", Style::new().fg(Red::BRIGHT)));
@@ -170,7 +146,7 @@ impl<'a> EffectStateNode<'a> {
             rows.push(AlignedRow::new(
                 "",
                 Style::default(),
-                "←",
+                bwd.kind.icon(),
                 Style::new().fg(Color::Magenta),
                 bwd.value.clone(),
                 Style::new().fg(Color::White),

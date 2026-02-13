@@ -92,13 +92,8 @@ impl StatefulWidget for ProofPane<'_> {
             }
 
             let is_current = graph.is_current(pos.index);
-            let override_state = if is_current && !self.current_state.goals.is_empty() {
-                Some(self.current_state)
-            } else {
-                None
-            };
 
-            let node_widget = StateNode::new(node, is_current, self.selection, override_state);
+            let node_widget = StateNode::new(node, is_current, self.selection, self.current_state);
             let mut node_state = StateNodeState::default();
             node_widget.render(render_area, buf, &mut node_state);
             state.click_regions.extend(node_state.click_regions);

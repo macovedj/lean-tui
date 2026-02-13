@@ -255,21 +255,16 @@ impl DataFlowDag {
         self.nodes.is_empty()
     }
 
-    /// Update current_node_id based on cursor position using range containment.
     /// Returns true if the current node changed.
     pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
         let old = self.current_node_id;
 
-        let containing: Vec<_> = self
+        self.current_node_id = self
             .nodes
             .iter()
             .filter(|n| n.contains_cursor(cursor))
-            .collect();
-
-        self.current_node_id = containing
-            .into_iter()
             .min_by_key(|n| n.range_size())
-            .map(|n| n.id());
+            .map(DagNode::id);
 
         old != self.current_node_id
     }

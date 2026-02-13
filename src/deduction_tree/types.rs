@@ -46,10 +46,10 @@ impl ProofContextHypothesis {
     }
 }
 
-/// A proof obligation (goal) to be proven.
+/// A goal to be proven.
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProofObligation {
+pub struct GoalState {
     #[serde(rename = "type")]
     pub type_: RichText,
     #[serde(default)]
@@ -59,7 +59,7 @@ pub struct ProofObligation {
     pub navigation_locations: Option<PreresolvedNavigationTargets>,
 }
 
-impl ProofObligation {
+impl GoalState {
     /// Get username as string slice.
     pub fn username_str(&self) -> Option<&str> {
         self.username.as_deref()
@@ -70,7 +70,7 @@ impl ProofObligation {
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct TacticProofState {
     #[serde(default)]
-    pub goals: Vec<ProofObligation>,
+    pub goals: Vec<GoalState>,
     #[serde(default)]
     pub hypotheses: Vec<ProofContextHypothesis>,
 }
@@ -94,15 +94,11 @@ pub struct ProofDagTacticNode {
     #[serde(default)]
     pub referenced_theorems: Vec<String>,
     #[serde(default)]
+    pub is_complete: bool,
     pub diagnostics: Vec<DiagnosticInfo>,
 }
 
 impl ProofDagTacticNode {
-    /// All sub-goals solved (no goals remaining).
-    pub fn is_complete(&self) -> bool {
-        self.proof_state.goals.is_empty()
-    }
-
     /// No children in tree.
     pub fn is_leaf(&self) -> bool {
         self.children.is_empty()
@@ -421,6 +417,12 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
 
+    let is_complete: bool = node
+        .metadata
+        .get("is_complete")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+
     let children: Vec<NodeId> = node.edges.iter().map(|e| e.target).collect();
 
     Ok(ProofDagTacticNode {
@@ -435,6 +437,7 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         new_hypothesis_indices,
         hypothesis_dependencies,
         referenced_theorems,
+        is_complete,
         diagnostics: node.diagnostics.clone(),
     })
 }
@@ -502,10 +505,8 @@ impl NodeTextContent for ProofDagTacticNode {
     fn content_lines(&self) -> Vec<String> {
         let mut lines = Vec::new();
 
-        for &idx in &self.new_hypothesis_indices {
-            if let Some(h) = self.proof_state.hypotheses.get(idx as usize) {
-                lines.push(format!("{} : {}", h.name, h.type_.to_plain_text()));
-            }
+        for h in &self.proof_state.hypotheses {
+            lines.push(format!("{} : {}", h.name, h.type_.to_plain_text()));
         }
 
         if self.proof_state.goals.is_empty() {
