@@ -28,7 +28,7 @@ pub struct StateNode<'a> {
     node: &'a ProofDagTacticNode,
     is_current: bool,
     selection: Option<Selection>,
-    override_state: Option<&'a TacticProofState>,
+    current_state: &'a TacticProofState,
 }
 
 impl<'a> StateNode<'a> {
@@ -36,19 +36,18 @@ impl<'a> StateNode<'a> {
         node: &'a ProofDagTacticNode,
         is_current: bool,
         selection: Option<Selection>,
-        override_state: Option<&'a TacticProofState>,
+        current_state: &'a TacticProofState,
     ) -> Self {
         Self {
             node,
             is_current,
             selection,
-            override_state,
+            current_state,
         }
     }
 
     fn is_effective_complete(&self) -> bool {
-        self.override_state
-            .map_or_else(|| self.node.is_complete(), |s| s.goals.is_empty())
+        self.node.is_complete
     }
 
     fn border_color(&self) -> Color {
@@ -85,13 +84,14 @@ impl<'a> StateNode<'a> {
 
     fn build_hyp_rows(&self) -> Vec<AlignedRow> {
         self.node
-            .new_hypothesis_indices
+            .proof_state
+            .hypotheses
             .iter()
-            .filter_map(|&hyp_idx| {
-                let h = self.node.proof_state.hypotheses.get(hyp_idx as usize)?;
+            .enumerate()
+            .map(|(hyp_idx, h)| {
                 let selected = matches!(
                     self.selection,
-                    Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx as usize
+                    Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.node.id && hi == hyp_idx
                 );
                 let underline = if selected {
                     Modifier::UNDERLINED
@@ -102,13 +102,13 @@ impl<'a> StateNode<'a> {
                 let name_style = Style::new().fg(Theme::HYP_NAME).add_modifier(underline);
                 let type_style = Style::new().fg(Color::White).add_modifier(underline);
 
-                Some(AlignedRow::with_styled_type(
+                AlignedRow::with_styled_type(
                     h.name.clone(),
                     name_style,
                     ":",
                     Style::new().fg(Color::DarkGray),
                     h.type_.to_spans(type_style),
-                ))
+                )
             })
             .collect()
     }
@@ -128,9 +128,7 @@ impl<'a> StateNode<'a> {
             )];
         }
 
-        let goals = self
-            .override_state
-            .map_or(&self.node.proof_state.goals, |s| &s.goals);
+        let goals = &self.current_state.goals;
 
         if goals.is_empty() {
             return vec![AlignedRow::new(
@@ -198,11 +196,9 @@ impl<'a> StateNode<'a> {
         use crate::protocol::DiagnosticSeverity;
 
         let mut regions = Vec::new();
-        let hyp_count = self.node.new_hypothesis_indices.len();
+        let hyp_count = self.node.proof_state.hypotheses.len();
 
-        let goal_count = self
-            .override_state
-            .map_or(self.node.proof_state.goals.len(), |s| s.goals.len());
+        let goal_count = self.current_state.goals.len();
 
         let error_count = self
             .node
@@ -213,14 +209,14 @@ impl<'a> StateNode<'a> {
 
         let mut current_y = inner.y;
 
-        for (i, &hyp_idx) in self.node.new_hypothesis_indices.iter().enumerate() {
-            let row_y = current_y + i as u16;
+        for hyp_idx in 0..hyp_count {
+            let row_y = current_y + hyp_idx as u16;
             if row_y < inner.y + inner.height {
                 regions.push(Region::from_rect(
                     Rect::new(inner.x, row_y, inner.width, 1),
                     Selection::Hyp {
                         node_id: self.node.id,
-                        hyp_idx: hyp_idx as usize,
+                        hyp_idx,
                     },
                 ));
             }

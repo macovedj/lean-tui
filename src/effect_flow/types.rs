@@ -13,8 +13,8 @@ use crate::{
         Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode, NodeTextContent,
     },
     protocol::{
-        DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphEdge, GraphNode,
-        LineCharacterPosition, LocalBinding, NodeId, RichText,
+        range_contains_cursor, range_size, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
+        GenericDag, GraphEdge, GraphNode, LineCharacterPosition, LocalBinding, NodeId, RichText,
     },
     theme::Theme,
 };
@@ -217,12 +217,12 @@ impl EffectFlowNode {
 
     /// Check if this node's source range contains the cursor position.
     pub fn contains_cursor(&self, cursor: LineCharacterPosition) -> bool {
-        crate::protocol::range_contains_cursor(self.position, self.end_position, cursor)
+        range_contains_cursor(self.position, self.end_position, cursor)
     }
 
     /// Compute rough size of this node's range.
     pub fn range_size(&self) -> u64 {
-        crate::protocol::range_size(self.position, self.end_position)
+        range_size(self.position, self.end_position)
     }
 }
 
@@ -438,14 +438,10 @@ impl EffectFlowDag {
     pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
         let old = self.current_node_id;
 
-        let containing: Vec<_> = self
+        self.current_node_id = self
             .nodes
             .iter()
             .filter(|n| n.contains_cursor(cursor))
-            .collect();
-
-        self.current_node_id = containing
-            .into_iter()
             .min_by_key(|n| n.range_size())
             .map(|n| n.id);
 
