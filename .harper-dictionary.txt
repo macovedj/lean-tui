@@ -2,4 +2,6 @@ Kakoune
 LeanPrism
 Paperproof
 effectful
+metaprogramming
+metavariable
 monadic
