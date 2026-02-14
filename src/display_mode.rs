@@ -78,7 +78,6 @@ impl DagState {
         }
     }
 
-    /// Update current_node_id based on cursor position using range containment.
     /// Returns true if the current node changed.
     pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
         match self {

@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
-use super::types::{EffectFlowNode, EffectKind};
+use super::types::EffectFlowNode;
 use crate::{
     protocol::{DiagnosticInfo, DiagnosticSeverity},
     selection::{Region, Selection},
@@ -50,9 +50,6 @@ impl<'a> EffectStateNode<'a> {
         )
     }
 
-    fn effect_kind(&self) -> &EffectKind {
-        &self.node.effect_kind
-    }
 
     fn is_leaf(&self) -> bool {
         self.node.is_leaf()
@@ -203,7 +200,7 @@ impl<'a> EffectStateNode<'a> {
         }
         current_y += 1;
 
-        // Skip effect rows
+        // Skip `effect` rows
         current_y += effect_count as u16;
 
         // Errors

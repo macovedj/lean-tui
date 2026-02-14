@@ -76,26 +76,23 @@ pub fn range_contains_cursor(
     end: Option<LineCharacterPosition>,
     cursor: LineCharacterPosition,
 ) -> bool {
-    match end {
-        Some(end) => {
+    end.map_or(
+        start.line == cursor.line && start.character <= cursor.character,
+        |end| {
             (start.line < cursor.line
                 || (start.line == cursor.line && start.character <= cursor.character))
                 && (cursor.line < end.line
                     || (cursor.line == end.line && cursor.character < end.character))
-        }
-        None => start.line == cursor.line && start.character <= cursor.character,
-    }
+        },
+    )
 }
 
 /// Compute rough size of a source range for preferring more specific nodes.
 pub fn range_size(start: LineCharacterPosition, end: Option<LineCharacterPosition>) -> u64 {
-    match end {
-        Some(end) => {
-            (end.line.saturating_sub(start.line)) * 10000
-                + end.character.saturating_sub(start.character)
-        }
-        None => 0,
-    }
+    end.map_or(0, |end| {
+        (end.line.saturating_sub(start.line)) * 10000
+            + end.character.saturating_sub(start.character)
+    })
 }
 
 impl GraphNode {
