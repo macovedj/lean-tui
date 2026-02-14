@@ -100,20 +100,6 @@ impl EffectKind {
         }
     }
 
-    pub fn color(&self) -> Color {
-        match self {
-            Self::EffectBind => Theme::EFFECT_BIND,
-            Self::EffectBranch => Theme::EDGE_CONTROL_FLOW,
-            Self::StateRead => Theme::EFFECT_STATE_READ,
-            Self::StateWrite => Theme::EFFECT_STATE_WRITE,
-            Self::StateModify => Theme::EFFECT_STATE_MODIFY,
-            Self::EffectReturn => Theme::EFFECT_RETURN,
-            Self::EffectThrow => Theme::EFFECT_THROW,
-            Self::EffectCatch => Theme::EFFECT_CATCH,
-            Self::Pure => Theme::EFFECT_PURE,
-            Self::Custom(_) => Color::Gray,
-        }
-    }
 }
 
 /// Edge kinds for effect flow edges.
@@ -268,12 +254,10 @@ impl NodeTextContent for EffectFlowNode {
         // Add expression line - always present
         lines.push(self.content.to_plain_text());
 
-        // Add forward effect lines
         for fwd in &self.forwards {
             lines.push(format!("→ {}", fwd.value));
         }
 
-        // Add backward effect lines
         for bwd in &self.backwards {
             lines.push(format!("← {}", bwd.value));
         }
@@ -433,7 +417,6 @@ impl EffectFlowDag {
         self.nodes.is_empty()
     }
 
-    /// Update current_node_id based on cursor position using range containment.
     /// Returns true if the current node changed.
     pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
         let old = self.current_node_id;
@@ -495,7 +478,6 @@ impl EffectFlowDag {
         graph
     }
 
-    /// Convert to layout graph, optionally filtering out expand edges.
     pub fn to_layout_graph_filtered(&self, include_expand: bool) -> LayoutGraph {
         let excluded_node_ids = self.expand_target_ids();
         let mut layout = LayoutGraph::new();

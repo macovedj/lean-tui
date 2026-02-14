@@ -98,7 +98,6 @@ impl Theme {
     pub const EFFECT_STATE_MODIFY: Color = Color::Magenta;
     pub const EFFECT_RETURN: Color = Color::Rgb(100, 140, 200); // Blue
     pub const EFFECT_THROW: Color = Red::BRIGHT;
-    pub const EFFECT_CATCH: Color = Color::Rgb(255, 140, 140); // Light red
     pub const EFFECT_PURE: Color = Color::White;
 
     // === Edge Colors (Graph rendering) ===

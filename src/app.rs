@@ -385,7 +385,8 @@ impl App {
 
     fn render_main(&mut self, frame: &mut Frame, area: Rect) {
         let has_dag = self.display_mode.dag.is_some();
-        let show_welcome = self.connected && self.cursor.is_none() && !has_dag;
+        let show_welcome =
+            self.connected && self.cursor.is_none() && !has_dag && self.error.is_none();
 
         if show_welcome {
             frame.render_widget(WelcomeScreen, area);

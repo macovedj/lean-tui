@@ -182,7 +182,6 @@ impl<'a> FunctionalStateNode<'a> {
         let binding_count = self.visible_bindings().len();
         let mut current_y = inner.y;
 
-        // Layout depends on direction
         if self.top_down {
             // Bindings first, then goal
             for hyp_idx in 0..binding_count {

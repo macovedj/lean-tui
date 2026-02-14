@@ -6,12 +6,11 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     graph_layout::{
-        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode,
-        NodeTextContent,
+        Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode, NodeTextContent, calculate_node_size
     },
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
+        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText, range_contains_cursor, range_size,
     },
     selection::Selection,
     theme::Theme,
@@ -113,12 +112,12 @@ impl ProofDagTacticNode {
 
     /// Check if this node's source range contains the cursor position.
     pub fn contains_cursor(&self, cursor: LineCharacterPosition) -> bool {
-        crate::protocol::range_contains_cursor(self.position, self.end_position, cursor)
+        range_contains_cursor(self.position, self.end_position, cursor)
     }
 
     /// Compute rough size of this node's range.
     pub fn range_size(&self) -> u64 {
-        crate::protocol::range_size(self.position, self.end_position)
+        range_size(self.position, self.end_position)
     }
 }
 
@@ -164,7 +163,6 @@ impl CompleteProofDag {
         self.current_node_id == Some(node_id)
     }
 
-    /// Update current_node_id based on cursor position using range containment.
     /// Returns true if the current node changed.
     pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
         let old = self.current_node_id;
