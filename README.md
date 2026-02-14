@@ -2,11 +2,12 @@
 
 Standalone interactive view for detailed visualization of programs and proofs that are written in [Lean](https://lean-lang.org/).
 
-![](./screenshots/semantic_tableau.png)
+![](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png)
 
 Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bottom of this page for a usage guide.
 
 <!--toc:start-->
+
 - [Lean-TUI](#lean-tui)
   - [Installation](#installation)
     - [1. Install `lean-tui` from Crates.io](#1-install-lean-tui-from-cratesio)
@@ -34,6 +35,7 @@ Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bo
     - [Data Flow](#data-flow)
     - [Effect Flow](#effect-flow)
   - [Development](#development)
+
 <!--toc:end-->
 
 ## Installation
@@ -69,19 +71,26 @@ git = "https://codeberg.org/wvhulle/lean-prism.git"
 rev = "main"
 ```
 
-Fetch the source code of the latest version (Lean only hosts on Git, does not provide prebuilt dependencies):
+Alternatively, in `lakefile.lean`:
+
+```lean
+require LeanPrism from "https://codeberg.org/wvhulle/lean-prism.git" @ "main"
+```
+
+Optionally, pre-fetch the source of this library and build it:
 
 ```bash
 lake update LeanPrism
+lake build LeanPrism
 ```
 
 ## Configuration
 
 You need a working code editor with an LSP client.
 
-### Helix (recommended)
+### Helix
 
-You should not need to do any setup since Helix already has Lean configured out of the box.
+This is the recommended editor and used by the author. You should not need to do any setup since Helix already has Lean configured out of the box.
 
 If you are using an older version, configure Helix to use `lake serve` as the Lean LSP server like this
 
@@ -102,14 +111,14 @@ Configure the command `lake serve` as a language server for `.lean` files. See [
 
 ### VS Code
 
-Install the Lean4 extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4). (Not thoroughly tested, but should work)
+Install the Lean extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4).
 
 ### Zed
 
 You can choose:
 
 - Configure `lake serve` as LSP server, see [official docs](https://zed.dev/docs/configuring-languages) (recommended)
-- Install the [Lean4 extension](https://zed.dev/extensions/lean4)
+- Install the [Lean extension](https://zed.dev/extensions/lean4)
 
 ## Quickstart
 
@@ -120,13 +129,13 @@ You can choose between:
 - Using multiple terminals (emulator windows) side-by-side (a terminal app is typically provided on Windows/Linux/Mac)
 - Using a single terminal window with a terminal multiplexer (you'll need to install `zellij` or `tmux` with your system package manager)
 
-### 2. Open your editor
+### 2. Open Your Editor
 
-Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one). Lean will start up an LSP client hooked up to the default Lean LSP server, which might take a while. Normally, any diagnostics should appear in your editor as the LSP client finishes startup.
+Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one). Lean will start up an LSP client hooked up to the default Lean LSP server, which might take awhile. Normally, any diagnostics should appear in your editor as the LSP client finishes start up.
 
 If you encounter problems, it is usually because of stale build artifacts or incorrect `lakefile.toml`.
 
-### 3. Add Back-end Import
+### 3. Add Back-End Import
 
 Add this to the top of your Lean file (or build target):
 
@@ -136,11 +145,11 @@ import LeanPrism
 
 The Lake LSP server now needs to be restarted. You can do this as follows:
 
-- VS Code: Click on the forall symbol at the corner and select "restart server"
+- VS Code: Click on the `\forall` symbol at the corner and select "restart server"
 - Helix: type command `:lsp-restart`
 - Neovim / others: restart your LSP client using your editor's command
 
-You should now see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take a while at the beginning.
+You should now see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take awhile at the beginning.
 
 ### 4. Open `lean-tui`
 
@@ -158,9 +167,9 @@ Now you can switch back to your editor. Move your cursor somewhere in a proof or
 
 Depending on your editor, the Lean-TUI view will update after specific events:
 
-- Helix:
-  - open the completion menu in insert mode: `ctrl+x`
-  - open documentation popup in normal mode: `space,k`
+- Helix, one of the following:
+  - Open the completion menu in insert mode: `ctrl+x`
+  - Open documentation popup in normal mode: `space,k`
 - VS Code: any cursor movement or change should update the TUI
 - Neovim: same as Helix, but you may configure more frequent updates using Lua
 
@@ -201,7 +210,7 @@ All views have the following key bindings for common operations:
 | `i` | Toggle input pane               |
 | `o` | Toggle output pane              |
 
-The input pane's content depends on your program's style. For functional programs, it contains function parameters. For proofs, it contains the hypotheses. The output pane is expected type or the proposition to be proven.
+The input pane's content depends on your program's style. For functional programs, it contains function parameters. For proofs, it contains the hypotheses. The output pane is the expected type or the proposition to be proven.
 
 ### Node State Colors
 
@@ -251,7 +260,7 @@ Different types of Lean programs or proof may require different visualization ty
 - Data flow graph
 - Effect flow graph
 
-Switching between them happens automatically when you change between different parts of your program. If the auto-detection does not work properly, you can also use:
+Switching between them happens automatically when you change between different parts of your program. If the autodetection does not work properly, you can also use:
 
 | Key   | Action              |
 | ----- | ------------------- |
