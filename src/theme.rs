@@ -79,7 +79,7 @@ impl Theme {
     pub const UNCHANGED: Color = Color::White;
     // === Graph Node Border Colors ===
     pub const INACTIVE_NODE_BORDER: Color = Gray::DIM;
-    pub const CURRENT_NODE_BORDER: Color = Color::White;
+    pub const CURRENT_NODE_BORDER: Color = Color::Reset;
     pub const COMPLETED_NODE_BORDER: Color = Purple::BRIGHT;
     pub const INCOMPLETE_NODE_BORDER: Color = Yellow::VIVID;
     pub const COMPLETED_GOAL_FG: Color = Purple::BRIGHT;

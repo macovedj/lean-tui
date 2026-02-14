@@ -2,9 +2,39 @@
 
 Standalone interactive view for detailed visualization of programs and proofs that are written in [Lean](https://lean-lang.org/).
 
-Watch a demo of some of the features: ![YouTube](https://youtu.be/whekHs2P1Ew).
+![](./screenshots/semantic_tableau.png)
 
-(See the end of this page for a walkthrough.)
+Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bottom of this page for a usage guide.
+
+<!--toc:start-->
+- [Lean-TUI](#lean-tui)
+  - [Installation](#installation)
+    - [1. Install `lean-tui` from Crates.io](#1-install-lean-tui-from-cratesio)
+    - [2. Add `LeanPrism` Dependency](#2-add-leanprism-dependency)
+  - [Configuration](#configuration)
+    - [Helix (recommended)](#helix-recommended)
+    - [Neovim](#neovim)
+    - [VS Code](#vs-code)
+    - [Zed](#zed)
+  - [Quickstart](#quickstart)
+    - [1. Split Your Terminal](#1-split-your-terminal)
+    - [2. Open your editor](#2-open-your-editor)
+    - [3. Add Back-end Import](#3-add-back-end-import)
+    - [4. Open `lean-tui`](#4-open-lean-tui)
+    - [5. Start Writing Lean](#5-start-writing-lean)
+  - [User Guide](#user-guide)
+    - [Keyboard](#keyboard)
+    - [Node State Colors](#node-state-colors)
+    - [Label Colors](#label-colors)
+    - [Diff Colors for Types](#diff-colors-for-types)
+  - [Display Styles](#display-styles)
+    - [Compact View](#compact-view)
+    - [Semantic Tableau View](#semantic-tableau-view)
+    - [Compact Tree View](#compact-tree-view)
+    - [Data Flow](#data-flow)
+    - [Effect Flow](#effect-flow)
+  - [Development](#development)
+<!--toc:end-->
 
 ## Installation
 
@@ -76,7 +106,10 @@ Install the Lean4 extension from [VS Code Marketplace](https://marketplace.visua
 
 ### Zed
 
-Either install the [Lean4 extension](https://zed.dev/extensions/lean4) or configure `lake serve` as LSP server.
+You can choose:
+
+- Configure `lake serve` as LSP server, see [official docs](https://zed.dev/docs/configuring-languages) (recommended)
+- Install the [Lean4 extension](https://zed.dev/extensions/lean4)
 
 ## Quickstart
 
@@ -101,7 +134,13 @@ Add this to the top of your Lean file (or build target):
 import LeanPrism
 ```
 
-If you encounter issues, restart your LSP client using your editor's command. You should see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take a while at the beginning.
+The Lake LSP server now needs to be restarted. You can do this as follows:
+
+- VS Code: Click on the forall symbol at the corner and select "restart server"
+- Helix: type command `:lsp-restart`
+- Neovim / others: restart your LSP client using your editor's command
+
+You should now see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take a while at the beginning.
 
 ### 4. Open `lean-tui`
 
@@ -111,48 +150,116 @@ Make sure you have followed the installation steps and added `~/.cargo/bin` to y
 lean-tui
 ```
 
-This will launch the TUI in the second terminal, listening on a TCP port. Now you can switch back to your editor:
+This will launch the TUI in the second terminal, listening on a TCP port.
 
-1. Move your cursor somewhere in a proof or function
-2. Type in a proof or hover over tactics (`space,k` in Helix)
+### 5. Start Writing Lean
 
-You might need to wait a bit the first time, because Lean needs to analyze the proof. Subsequent updates should be faster. I am open for improvements to make this faster.
+Now you can switch back to your editor. Move your cursor somewhere in a proof or function using keyboard or mouse.
 
-### Key Bindings and Color Legend
+Depending on your editor, the Lean-TUI view will update after specific events:
 
-Coloring is according to role.
+- Helix:
+  - open the completion menu in insert mode: `ctrl+x`
+  - open documentation popup in normal mode: `space,k`
+- VS Code: any cursor movement or change should update the TUI
+- Neovim: same as Helix, but you may configure more frequent updates using Lua
 
-- The cursor location is highlighted with bright foreground (white on black background).
-- Inactive proof states are dimmed gray.
+The first rendering of a proof or function in a new project might be a bit slow, since the initialization happens lazily. Subsequent updates should be much faster.
+
+## User Guide
+
+### Keyboard
+
+Normally, the view should follow your changes in the editor. Otherwise, you can also navigate with single-letter keyboard shortcuts:
+
+| Key       | Action                        |
+| --------- | ----------------------------- |
+| `←/↑/↓/→` | Navigate hypotheses and goals |
+| `h/j/k/l` | Navigate hypotheses and goals |
+| `[/]`     | Switch display mode           |
+| `?`       | Help menu                     |
+| `q`       | Quit                          |
+| `L`       | Color legend                  |
+
+The TUI follows your cursor in the editor automatically (called "follow mode") and will automatically open the view with the right file and display style.
+
+You can disable this behavior with `F` or you can manually select an open analyzed file with the file picker menu `f`.
+Errors are often too long and would not fit in a node alone, so you can click on an error in to expand it in a popup at the top of the screen. Press `escape` to close the popup or select another node.
+
+| Key   | Action             |
+| ----- | ------------------ |
+| `f`   | File selection     |
+| `F`   | Toggle follow mode |
+| `esc` | Dismiss error      |
+
+All views have the following key bindings for common operations:
+
+| Key | Action                          |
+| --- | ------------------------------- |
+| `g` | Go to where item was introduced |
+| `y` | Copy to clipboard               |
+| `i` | Toggle input pane               |
+| `o` | Toggle output pane              |
+
+The input pane's content depends on your program's style. For functional programs, it contains function parameters. For proofs, it contains the hypotheses. The output pane is expected type or the proposition to be proven.
+
+### Node State Colors
+
+The most important are the colors of the borders of the nodes and panes:
+
 - Assumptions, parameters, and theorem hypotheses are blue
-- The expected output type, theorem statements and all intermediate proof goals are orange.
+- Theorem statements, goals, and output types have an orange border.
+
+The border colors of the nodes also change dynamically:
+
+- The border the node under cursor will be emphasized depending on your terminal's color scheme (brighter or lighter).
+- Nodes with unsolved goals have a yellow border.
 - Completed nodes and proof states with no remaining open goals are purple.
-- Errors are red.
 
-If you don't like the colors or you are confused, please open a pull request or issue with the colors that you want.
+Furthermore:
 
-Key bindings:
+- Inactive proof states are dimmed gray.
+- Nodes containing an error are red.
 
-| Key   | Action                          |
-| ----- | ------------------------------- |
-| `↑/↓` | Navigate hypotheses and goals   |
-| `g`   | Go to where item was introduced |
-| `y`   | Copy to clipboard (OSC 52)      |
-| `[/]` | Switch display mode             |
-| `i`   | Toggle input pane               |
-| `o`   | Toggle output pane              |
-| `?`   | Help menu                       |
-| `q`   | Quit                            |
-| `f`   | File selection                  |
-| `esc` | Close error banner              |
-| `F`   | Toggle follow mode              |
-| `L`   | Color legend                    |
+### Label Colors
 
-The TUI follows your cursor in the editor automatically. It will automatically open the right display style. You can disable this behavior with `F` or you can manually select an open analyzed file with the file picker menu `f`. See below for a longer overview of each style.
+For tactic based proofs:
 
-## Graphs of Proof
+| Label      | Color  |
+| ---------- | ------ |
+| Hypothesis | Blue   |
+| Goal       | Orange |
 
-### Example Proof
+In term-based proofs, the colors are analogous
+
+| Label         | Color  |
+| ------------- | ------ |
+| Variable      | Blue   |
+| Expected type | Orange |
+
+### Diff Colors for Types
+
+Hypotheses types that are added are highlighted in green, removed ones in red. Goal types that will be closed in the next step are red.
+
+(Thanks to the expressive metaprogramming facilities of Lean, it easy to diff metavariable type values across state boundaries)
+
+## Display Styles
+
+Different types of Lean programs or proof may require different visualization types. The categories currently supported:
+
+- Tactics graph
+- Data flow graph
+- Effect flow graph
+
+Switching between them happens automatically when you change between different parts of your program. If the auto-detection does not work properly, you can also use:
+
+| Key   | Action              |
+| ----- | ------------------- |
+| `[/]` | Switch display mode |
+
+### Compact View
+
+Shows the proof as a list of hypotheses and goals. By default, displays the current state with the previous state (before the current tactic) side by side.
 
 Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof:
 
@@ -176,70 +283,81 @@ theorem commutativityOfIntersections
   exact h2
 ```
 
-I use the above code fragment in the screenshots below. Notice that there is a deliberate type error. See how the rewrite is not sufficient to solve the proof goal and fails.
+Notice that there is a deliberate type error. See how the rewrite is not sufficient to solve the proof goal and fails. The deliberate error is there to show how errors are displayed by this program. As errors are an important part of proof development, they are attached to every display style.
 
-The deliberate error is there to show how errors are displayed by this program. As errors are an important part of proof development, they are attached to every display style.
-
-### Compact View
-
-Shows the proof as a list of hypotheses and goals. By default, displays the current state with the previous state (before the current tactic) side by side. You can hide the previous state pane with `p` and show the next state pane with `n` (disabled by default).
-
-Select a hypothesis or goal and press `g` to move your cursor in your editor to the location where it was introduced. Press `y` to copy it to your clipboard for pasting elsewhere. When an error is active around the cursor position, it is also shown.
-
-Hypotheses are blue. Goals are orange. Errors are red. Hypotheses that are added are highlighted in green, removed ones in red.
+Lean-TUI will visualize the proof as follows:
 
 ![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/before_after.png)
 
-For the **VS Code users**: Yes, the official info view endorsed by the Lean organization is written for VS Code. However, I don't like VS Code and vendor lock-in. We should all try to move away from any Microsoft-owned product as soon as possible. Why? Take a look at for example ["Embrace, extend, and extinguish"](https://en.wikipedia.org/wiki/Embrace,_extend,_and_extinguish) but also the recent news.
+By default the previous state is shown as well. Things that didn't change will have the default color (white or black). Things added in the current state are green. Goals that will be closed or hypotheses removed are red.
 
-For the **Neovim users**, yes there existed an info view [Lean plugin for Neovim](https://github.com/Julian/lean.nvim) already, but not yet for the other terminal editors (Zed, Kakoune, Helix, ...) since the Lean plugin relies on Neovim specific features. It is not a generic one.
+| Key | Action              |
+| --- | ------------------- |
+| `p` | Show previous state |
+| `n` | Show next state     |
+| `y` | Copy to clipboard   |
 
 ### Semantic Tableau View
 
-Visualizes your active proof as a semantic tableau. This is based on how logicians traditionally render their deductions. Errors are often too long and would not fit in a node alone, so you can click on it to expand it in a popup at the top of the screen. Press `escape` to close the popup or select another node.
+Intuitively, your proof consists of steps and each step is a node in this tree diagram. The tree follows the cursor position in your editor.
 
-Again, press `g` to jump to the selected hypothesis or goal. Use the arrow keys or `hjkl` to jump with keyboard only.
+![Semantic tableau screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png)
 
-![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png)
+You can click on the goals and hypotheses of each node. You can also jump between clickable items with your keyboard:
 
-For **[Paperproof](https://github.com/Paper-Proof/paperproof) users**: Paperproof was a big inspiration for this view. However, it is Web-based. I used their approach to move most of the logic into Lean and add an RPC method there.
+| Key       | Action                        |
+| --------- | ----------------------------- |
+| `←/↑/↓/→` | Navigate hypotheses and goals |
+| `h/j/k/l` | Navigate hypotheses and goals |
+
+This view is similar to how computer scientists and logicians talk about type theories, see [Natural Deduction](https://en.wikipedia.org/wiki/Natural_deduction). The implementation is based on **[Paperproof](https://github.com/Paper-Proof/paperproof).
 
 ### Compact Tree View
 
-Shows the proof as a compact Unicode tree on the left. On the right, you can see active hypotheses and goals. The tree follows the cursor position in your editor.
+This is a more compact version of the semantic tableau with the tree on its side on the left.
 
-The same key bindings and colors apply as other views.
+On the right, you can see active hypotheses and goals, but only the ones currently active.
 
-![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/tactic_tree.png)
+![Compact tree screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/tactic_tree.png)
 
-## Graphs of Functional Programs
+Not all proofs are written using tactics. Lean has support for both tactic-based and term-based proofs. Tactic-based proofs work backwards. Term-based proofs work forwards and are almost indistinguishable from normal functional programs.
 
-There are display modes focused on everything that is not a tactic proof. These modes should be useful for functional or monadic programming. You can test them out with some test files in [`./Samples`](./Samples)
+### Data Flow
 
-### Data Flow (Experimental)
+If you are not using monads, and a simple pure functional programming style, you use this. It does a decomposition of your program into different related sub-states. The decomposition is built using a combination of CST and AST traversal. Each node contains the expected type at the focused part of the program and all active variables.
 
-Use this for term-style proofs (without `by` or tactics). You can also use it for normal pure functional programs. It shows a graph of the local bindings and expected types throughout the program
+The following screenshot is a visualization of the [`./Samples/sorting.lean`](./Samples/sorting.lean) file:
 
-The decomposition is based on a few built-in rules. However, not all Lean control flow has an accompanying rule. Please be patient as I add more rules or contribute yourself them to [`lean-prism`](https://codeberg.org/wvhulle/lean-prism). Rules can also be provided in user code and are picked up by `LeanPrism` (not tested yet).
+```lean
+def insert (x : Nat) : List Nat → List Nat
+  | [] => [x]
+  | y :: ys => if x ≤ y then x :: y :: ys else  y :: insert x ys
+```
 
-Open the legend with `L` to see what all symbols and colors mean.
+![Data flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/data_flow.png)
 
-![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/data_flow.png)
+The decomposition is based on a few built-in rules. However, not all Lean control flow has an accompanying rule.
 
-### Effect Flow (Experimental)
+### Effect Flow
 
-When working doing programming in a monad, you are doing some kind of effectful computations. Every monadic assignment in `Lean` written as `let <- COMPUTATION` can be composed in two parts:
+When working doing programming in a monad, you are doing some kind of effectful computations. Every monadic assignment in `Lean` written as `let <- COMPUTATION` can be viewed as a combination of:
 
-- What the computation produces, shown with a forward arrow
-- What state changes are given back components (the effect), shown with a backward arrow
+- **Return value**: What the computation **returns** (if any), shown with a forward arrow.
+- **Effect**: How the call-site is affected, such as state changes, shown with an icon below the return value. Effects may be hidden in nested monadic calls, these are bubbled up and shown in a list.
 
-This decomposition is not implemented yet for all monads. Please contribute if you have time. You just need to specify how to compute the forward and backward expressions and have to label edges. You can also provide rules in user code (not tested yet).
+As example, here is a visualization of
 
-The purple edges in the diagram are definition expansions (will be hide-able in future) and the blue ones are the monadic binds. Displaying errors is not implemented yet.
+```lean
+def counterSequence : StateM Counter Nat := do
+  let v1 ← increment
+  let v2 ← double
+  let v3 ← increment
+  pure (v1 + v2 + v3)
+```
 
-Open the legend with `L` to see what all symbols mean.
+![Effect flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/effect_flow.png)
 
-![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/effect_flow.png)
+If you want to see the leaf nodes, use the key binding `e` (expand). By default, nested calls and function definitions are hidden.
 
 ## Development
 
