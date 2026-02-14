@@ -2,6 +2,8 @@
 
 Standalone interactive view for detailed visualization of programs and proofs that are written in [Lean](https://lean-lang.org/).
 
+Watch a demo of some of the features: ![YouTube](https://youtu.be/whekHs2P1Ew).
+
 (See the end of this page for a walkthrough.)
 
 ## Installation
@@ -45,9 +47,13 @@ lake update LeanPrism
 
 ## Configuration
 
-Configure your editor to use `lake serve` as the Lean LSP server. This connects to lean-prism which provides the extended RPC methods.
+You need a working code editor with an LSP client.
 
-For example, for Helix:
+### Helix (recommended)
+
+You should not need to do any setup since Helix already has Lean configured out of the box.
+
+If you are using an older version, configure Helix to use `lake serve` as the Lean LSP server like this
 
 ```toml
 # .helix/languages.toml
@@ -60,17 +66,19 @@ language-servers = ["lean"]
 name = "lean"
 ```
 
-Add this to the top of your Lean file (or build target):
+### Neovim
 
-```lean
-import LeanPrism
-```
+Configure the command `lake serve` as a language server for `.lean` files. See [official Neovim LSP docs](https://neovim.io/doc/user/lsp.html).
 
-If you encounter issues, restart your LSP client using your editor's command. You should see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take a while at the beginning.
+### VS Code
+
+Install the Lean4 extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4). (Not thoroughly tested, but should work)
+
+### Zed
+
+Either install the [Lean4 extension](https://zed.dev/extensions/lean4) or configure `lake serve` as LSP server.
 
 ## Quickstart
-
-![(Video of basic usage)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/workflow.gif)
 
 ### 1. Split Your Terminal
 
@@ -85,7 +93,17 @@ Open your Lean file in your favorite (modal) editor that has a built-in LSP clie
 
 If you encounter problems, it is usually because of stale build artifacts or incorrect `lakefile.toml`.
 
-### 3. Open `lean-tui`
+### 3. Add Back-end Import
+
+Add this to the top of your Lean file (or build target):
+
+```lean
+import LeanPrism
+```
+
+If you encounter issues, restart your LSP client using your editor's command. You should see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take a while at the beginning.
+
+### 4. Open `lean-tui`
 
 Make sure you have followed the installation steps and added `~/.cargo/bin` to your path. Focus the other terminal (in any directory) and run this TUI (stands for terminal user interface):
 

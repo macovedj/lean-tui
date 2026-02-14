@@ -14,7 +14,7 @@ theorem exists_prime_factor :
   · obtain ⟨k, _⟩ : ∃ k, 1 < k ∧ k < n ∧ k ∣ n := by
 
        simp_all [IsPrime]
-    -- obtain ⟨p, _, _⟩ := exists_prime_factor k (by grind);
+    obtain ⟨p, _, _⟩ := exists_prime_factor k (by grind);
     grind [Nat.dvd_trans]
 
 /-- The factorial, defined recursively, with custom notation -/
@@ -42,6 +42,7 @@ and showing that `n! + 1` has a prime factor larger than `n`.
 theorem InfinitudeOfPrimes : ∀ n, ∃ p > n, IsPrime p := by
   intro n
   have : 1 < n ! + 1 := by grind [factorial_pos]
+
 
   obtain ⟨p, hp, _⟩ := exists_prime_factor (n ! + 1) this
 
