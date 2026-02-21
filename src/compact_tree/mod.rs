@@ -10,7 +10,7 @@ use ratatui::{
 use crate::{
     compact_tree::proof_steps_sidebar::{ProofStepsSidebar, ProofStepsSidebarState},
     deduction_tree::{
-        types::{CompleteProofDag, ProofDagTacticNode},
+        graph::{CompleteProofDag, ProofDagTacticNode},
         TacticProofState,
     },
     interactive::{InteractiveStatefulWidget, Mode},

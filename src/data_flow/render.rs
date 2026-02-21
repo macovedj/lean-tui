@@ -5,29 +5,22 @@ use ratatui::{
     widgets::{Paragraph, StatefulWidget, Widget},
 };
 
-use super::{
-    state_node::{StateNode, StateNodeState},
-    types::CompleteProofDag,
-};
+use super::graph::DataFlowDag;
 use crate::{
     graph_layout::{calculate_layout, GraphViewport},
     navigation::build_navigation_regions,
     selection::Selection,
+    widgets::node_content::{NodeContentWidget, NodeWidgetState},
 };
 
-/// Proof pane widget.
-pub struct ProofPane<'a> {
-    dag: &'a CompleteProofDag,
+pub struct DataFlowLayout<'a> {
+    dag: &'a DataFlowDag,
     top_down: bool,
     selection: Option<Selection>,
 }
 
-impl<'a> ProofPane<'a> {
-    pub const fn new(
-        dag: &'a CompleteProofDag,
-        top_down: bool,
-        selection: Option<Selection>,
-    ) -> Self {
+impl<'a> DataFlowLayout<'a> {
+    pub fn new(dag: &'a DataFlowDag, top_down: bool, selection: Option<Selection>) -> Self {
         Self {
             dag,
             top_down,
@@ -36,14 +29,14 @@ impl<'a> ProofPane<'a> {
     }
 }
 
-impl StatefulWidget for ProofPane<'_> {
+impl StatefulWidget for DataFlowLayout<'_> {
     type State = GraphViewport;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.clear_click_regions();
 
         if self.dag.is_empty() || self.dag.root_node_id.is_none() {
-            Paragraph::new("No proof steps")
+            Paragraph::new("No expression steps")
                 .style(Style::new().fg(Color::DarkGray))
                 .render(area, buf);
             return;
@@ -88,10 +81,10 @@ impl StatefulWidget for ProofPane<'_> {
             }
 
             let is_current = graph.is_current(pos.index);
-
-            let node_widget = StateNode::new(node, is_current, self.selection);
-            let mut node_state = StateNodeState::default();
-            node_widget.render(render_area, buf, &mut node_state);
+            let content = node.build_content(self.selection, is_current, self.top_down);
+            let style = node.build_node_style(is_current);
+            let mut node_state = NodeWidgetState::default();
+            NodeContentWidget { content, style }.render(render_area, buf, &mut node_state);
             state.click_regions.extend(node_state.click_regions);
         }
 

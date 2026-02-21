@@ -8,7 +8,10 @@ use ratatui::{
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
-use crate::selection::{Region, Selection};
+use crate::{
+    selection::{Region, Selection},
+    theme::{Red, Theme},
+};
 
 use super::aligned_table::{AlignedRow, AlignedTable};
 
@@ -32,11 +35,43 @@ pub struct ErrorLine {
     pub selection: Option<Selection>,
 }
 
+pub enum NodeVisualState {
+    Error,
+    Current,
+    CompletedLeaf,
+    IncompleteLeaf,
+    Inactive,
+}
+
 pub struct NodeStyle {
     pub border_color: Color,
     pub border_bold: bool,
     pub title_color: Color,
     pub title_bold: bool,
+}
+
+impl From<NodeVisualState> for NodeStyle {
+    fn from(state: NodeVisualState) -> Self {
+        let bold = matches!(state, NodeVisualState::Error | NodeVisualState::Current);
+        let border_color = match state {
+            NodeVisualState::Error => Red::BRIGHT,
+            NodeVisualState::Current => Theme::CURRENT_NODE_BORDER,
+            NodeVisualState::CompletedLeaf => Theme::COMPLETED_NODE_BORDER,
+            NodeVisualState::IncompleteLeaf => Theme::INCOMPLETE_NODE_BORDER,
+            NodeVisualState::Inactive => Theme::INACTIVE_NODE_BORDER,
+        };
+        let title_color = match state {
+            NodeVisualState::Error => Red::BRIGHT,
+            NodeVisualState::Current => Theme::CURRENT_NODE_BORDER,
+            _ => Color::Gray,
+        };
+        Self {
+            border_color,
+            border_bold: bold,
+            title_color,
+            title_bold: bold,
+        }
+    }
 }
 
 pub struct NodeContent {

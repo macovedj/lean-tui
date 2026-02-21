@@ -1,6 +1,5 @@
-pub mod layout;
-mod state_node;
-pub mod types;
+pub mod graph;
+pub mod render;
 
 use std::{collections::HashSet, iter::once};
 
@@ -12,10 +11,11 @@ use ratatui::{
     Frame,
 };
 use tracing::trace;
-pub use types::{DataFlowConversionError, DataFlowDag};
+pub use graph::{DataFlowConversionError, DataFlowDag};
 
 use crate::{
-    data_flow::layout::{FunctionalTableauLayout, FunctionalTableauState},
+    data_flow::render::DataFlowLayout,
+    graph_layout::GraphViewport,
     interactive::Mode,
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     selection::Selection,
@@ -34,8 +34,7 @@ pub struct DataFlowMode {
     selected_idx: Option<usize>,
     /// When true, tree renders top-down (parent above children).
     tree_top_down: bool,
-    /// State for the functional tableau widget.
-    functional_tableau_state: FunctionalTableauState,
+    viewport: GraphViewport,
     /// Clicked error message to display in banner.
     clicked_error: Option<String>,
 }
@@ -47,7 +46,7 @@ impl Default for DataFlowMode {
             dag: None,
             selected_idx: None,
             tree_top_down: true,
-            functional_tableau_state: FunctionalTableauState::default(),
+            viewport: GraphViewport::default(),
             clicked_error: None,
         }
     }
@@ -157,7 +156,7 @@ impl DataFlowMode {
         };
 
         let items = self.tree_selectable_items();
-        let navigation_regions = self.functional_tableau_state.navigation_regions();
+        let navigation_regions = self.viewport.navigation_regions();
 
         trace!(
             ?current_sel,
@@ -167,7 +166,7 @@ impl DataFlowMode {
             "move_in_direction called"
         );
 
-        let result = find_nearest_in_direction(&navigation_regions, current_sel, direction);
+        let result = find_nearest_in_direction(navigation_regions, current_sel, direction);
 
         trace!(?result, "Navigation result in move_in_direction");
 
@@ -225,7 +224,7 @@ impl Mode for DataFlowMode {
 
         let tree_changed = old_count != new_count || old_current != new_current;
 
-        self.functional_tableau_state
+        self.viewport
             .update_current_node(dag.and_then(|dag| dag.current_node_id));
 
         self.error = error;
@@ -258,9 +257,7 @@ impl Mode for DataFlowMode {
             return false;
         }
 
-        let clicked = self
-            .functional_tableau_state
-            .find_click_at(mouse.column, mouse.row);
+        let clicked = self.viewport.find_click_at(mouse.column, mouse.row);
 
         let Some(sel) = clicked else {
             return false;
@@ -278,12 +275,9 @@ impl Mode for DataFlowMode {
         let content_area = render_error(frame, area, self.error.as_deref());
 
         if let Some(ref dag) = self.dag {
-            let widget = FunctionalTableauLayout::new(
-                dag,
-                self.tree_top_down,
-                self.current_tree_selection(),
-            );
-            frame.render_stateful_widget(widget, content_area, &mut self.functional_tableau_state);
+            let widget =
+                DataFlowLayout::new(dag, self.tree_top_down, self.current_tree_selection());
+            frame.render_stateful_widget(widget, content_area, &mut self.viewport);
             return;
         }
 

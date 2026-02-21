@@ -1,7 +1,5 @@
-mod graph_pane;
-mod layout;
-mod state_node;
-pub mod types;
+mod render;
+pub mod graph;
 
 use std::iter::once;
 
@@ -14,10 +12,11 @@ use ratatui::{
     Frame,
 };
 use tracing::trace;
-pub use types::{EdgeKind, EffectFlowConversionError, EffectFlowDag, EffectKind};
+pub use graph::{EdgeKind, EffectFlowConversionError, EffectFlowDag, EffectKind};
 
 use crate::{
-    effect_flow::layout::{EffectTableauLayout, EffectTableauState},
+    effect_flow::render::EffectFlowLayout,
+    graph_layout::GraphViewport,
     interactive::Mode,
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     selection::Selection,
@@ -33,7 +32,7 @@ pub struct EffectFlowMode {
     error: Option<String>,
     effect_dag: Option<EffectFlowDag>,
     selected_idx: Option<usize>,
-    effect_tableau_state: EffectTableauState,
+    viewport: GraphViewport,
     expanded: bool,
 }
 
@@ -99,7 +98,7 @@ impl EffectFlowMode {
         };
 
         let items = self.tree_selectable_items();
-        let navigation_regions = self.effect_tableau_state.navigation_regions();
+        let navigation_regions = self.viewport.navigation_regions();
 
         trace!(
             ?current_sel,
@@ -109,7 +108,7 @@ impl EffectFlowMode {
             "move_in_direction called"
         );
 
-        let result = find_nearest_in_direction(&navigation_regions, current_sel, direction);
+        let result = find_nearest_in_direction(navigation_regions, current_sel, direction);
 
         trace!(?result, "Navigation result in move_in_direction");
 
@@ -241,7 +240,7 @@ impl Mode for EffectFlowMode {
 
         let tree_changed = old_count != new_count || old_current != new_current;
 
-        self.effect_tableau_state
+        self.viewport
             .update_current_node(dag.and_then(|dag| dag.current_node_id));
 
         self.error = error;
@@ -274,9 +273,7 @@ impl Mode for EffectFlowMode {
             return false;
         }
 
-        let clicked = self
-            .effect_tableau_state
-            .find_click_at(mouse.column, mouse.row);
+        let clicked = self.viewport.find_click_at(mouse.column, mouse.row);
 
         if let Some(sel) = clicked {
             self.select_by_selection(sel);
@@ -291,8 +288,8 @@ impl Mode for EffectFlowMode {
         if let Some(ref dag) = self.effect_dag {
             let remaining = self.render_monad_stack(frame, content_area);
             let widget =
-                EffectTableauLayout::new(dag, self.current_tree_selection(), self.expanded);
-            frame.render_stateful_widget(widget, remaining, &mut self.effect_tableau_state);
+                EffectFlowLayout::new(dag, self.current_tree_selection(), self.expanded);
+            frame.render_stateful_widget(widget, remaining, &mut self.viewport);
             return;
         }
 

@@ -1,7 +1,5 @@
-pub mod layout;
-mod proof_pane;
-mod state_node;
-pub mod types;
+pub mod graph;
+pub mod render;
 
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
@@ -10,10 +8,11 @@ use ratatui::{
     Frame,
 };
 use tracing::trace;
-pub use types::{CompleteProofDag, ProofDagConversionError, TacticProofState};
+pub use graph::{CompleteProofDag, ProofDagConversionError, TacticProofState};
 
 use crate::{
-    deduction_tree::layout::{SemanticTableauLayout, SemanticTableauState},
+    deduction_tree::render::SemanticTableauLayout,
+    graph_layout::GraphViewport,
     interactive::Mode,
     navigation::{find_nearest_in_direction, key_to_direction, Direction},
     protocol::DiagnosticSeverity,
@@ -33,8 +32,7 @@ pub struct SemanticTableau {
     selected_idx: Option<usize>,
     /// When true, tree renders top-down (parent above children).
     tree_top_down: bool,
-    /// State for the semantic tableau widget.
-    tableau_state: SemanticTableauState,
+    viewport: GraphViewport,
 }
 
 impl Default for SemanticTableau {
@@ -44,7 +42,7 @@ impl Default for SemanticTableau {
             proof_dag: None,
             selected_idx: None,
             tree_top_down: true,
-            tableau_state: SemanticTableauState::default(),
+            viewport: GraphViewport::default(),
         }
     }
 }
@@ -121,7 +119,7 @@ impl SemanticTableau {
 
         let items = self.tree_selectable_items();
 
-        let navigation_regions = self.tableau_state.navigation_regions();
+        let navigation_regions = self.viewport.navigation_regions();
 
         trace!(
             ?current_sel,
@@ -131,7 +129,7 @@ impl SemanticTableau {
             "move_in_direction called"
         );
 
-        let result = find_nearest_in_direction(&navigation_regions, current_sel, direction);
+        let result = find_nearest_in_direction(navigation_regions, current_sel, direction);
 
         trace!(?result, "Navigation result in move_in_direction");
 
@@ -195,7 +193,7 @@ impl Mode for SemanticTableau {
 
         let tree_changed = old_proof_count != new_proof_count || old_current != new_current;
 
-        self.tableau_state.update_current_node(new_current);
+        self.viewport.update_current_node(new_current);
 
         self.error = error;
         self.proof_dag = dag.cloned();
@@ -227,7 +225,7 @@ impl Mode for SemanticTableau {
             return false;
         }
 
-        if let Some(sel) = self.tableau_state.find_click_at(mouse.column, mouse.row) {
+        if let Some(sel) = self.viewport.find_click_at(mouse.column, mouse.row) {
             self.select_by_selection(sel);
             return true;
         }
@@ -240,7 +238,7 @@ impl Mode for SemanticTableau {
         if let Some(ref dag) = self.proof_dag {
             let widget =
                 SemanticTableauLayout::new(dag, self.tree_top_down, self.current_tree_selection());
-            frame.render_stateful_widget(widget, content_area, &mut self.tableau_state);
+            frame.render_stateful_widget(widget, content_area, &mut self.viewport);
         } else {
             render_no_goals(frame, content_area);
         }
