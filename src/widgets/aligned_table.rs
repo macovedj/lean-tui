@@ -24,6 +24,13 @@ impl CellContent {
         Self::Styled(spans)
     }
 
+    pub fn width(&self) -> usize {
+        match self {
+            Self::Plain { text, .. } => text.chars().count(),
+            Self::Styled(spans) => spans.iter().map(|s| s.content.chars().count()).sum(),
+        }
+    }
+
     fn into_cell(self) -> Cell<'static> {
         match self {
             Self::Plain { text, style } => Cell::from(text).style(style),
@@ -77,6 +84,10 @@ impl AlignedRow {
 
     pub fn name_width(&self) -> usize {
         self.name.chars().count()
+    }
+
+    pub fn type_width(&self) -> usize {
+        self.type_content.width()
     }
 
     fn into_row(self) -> Row<'static> {

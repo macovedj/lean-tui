@@ -1,19 +1,21 @@
 use std::{collections::HashMap, error::Error, fmt, num::NonZero, ops::Deref};
 
 use petgraph::graph::NodeIndex;
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 
 use crate::{
-    graph_layout::{
-        calculate_node_size, Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode,
-        NodeTextContent,
-    },
+    graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
         LineCharacterPosition, LocalBinding, NodeId, RichText,
     },
     selection::Selection,
-    theme::Theme,
+    theme::{Red, Theme},
+    widgets::{
+        aligned_table::AlignedRow,
+        diff_text::RichTextExt,
+        node_content::{ContentItem, ErrorLine, NodeContent, NodeStyle},
+    },
 };
 
 fn parse_bindings(metadata: &serde_json::Map<String, serde_json::Value>) -> Vec<LocalBinding> {
@@ -142,6 +144,151 @@ impl DataFlowNode {
             .iter()
             .any(|d| d.severity == DiagnosticSeverity::Error)
     }
+
+    pub fn visible_bindings(&self) -> Vec<LocalBinding> {
+        self.bindings()
+            .into_iter()
+            .filter(|b| !b.is_implicit && !b.is_instance)
+            .collect()
+    }
+
+    pub fn build_content(
+        &self,
+        selection: Option<Selection>,
+        _is_current: bool,
+        top_down: bool,
+    ) -> NodeContent {
+        let kind = self.data_flow_kind();
+        let icon = kind.icon();
+        let error_prefix = if self.has_error() { "⚠ " } else { "" };
+        let expr_text = self.inner.content.to_plain_text();
+        let title = match self.inner.edges.len() {
+            n if n > 1 => format!(" {error_prefix}{icon} {expr_text} [{n}→] "),
+            _ => format!(" {error_prefix}{icon} {expr_text} "),
+        };
+
+        let binding_items = self.build_binding_items(selection);
+        let type_item = self.build_type_item(selection);
+
+        let items = if top_down {
+            let mut v = binding_items;
+            v.push(type_item);
+            v
+        } else {
+            let mut v = vec![type_item];
+            v.extend(binding_items);
+            v
+        };
+
+        NodeContent {
+            title,
+            items,
+            errors: self.build_error_items(),
+        }
+    }
+
+    fn build_binding_items(&self, selection: Option<Selection>) -> Vec<ContentItem> {
+        self.visible_bindings()
+            .iter()
+            .enumerate()
+            .map(|(idx, b)| {
+                let selected = matches!(
+                    selection,
+                    Some(Selection::Hyp { node_id, hyp_idx }) if node_id == self.id() && hyp_idx == idx
+                );
+                let underline = if selected { Modifier::UNDERLINED } else { Modifier::empty() };
+                let name_style = Style::new().fg(Theme::HYP_NAME).add_modifier(underline);
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
+                ContentItem::Row {
+                    row: AlignedRow::with_styled_type(
+                        b.name.clone(),
+                        name_style,
+                        ":",
+                        Style::new().fg(Color::DarkGray),
+                        b.type_.to_spans(type_style),
+                    ),
+                    selection: Some(Selection::Hyp { node_id: self.id(), hyp_idx: idx }),
+                }
+            })
+            .collect()
+    }
+
+    fn build_type_item(&self, selection: Option<Selection>) -> ContentItem {
+        let goal_selected = matches!(
+            selection,
+            Some(Selection::Goal { node_id, goal_idx: 0 }) if node_id == self.id()
+        );
+        let underline = if goal_selected { Modifier::UNDERLINED } else { Modifier::empty() };
+        let goal_sel = Some(Selection::Goal { node_id: self.id(), goal_idx: 0 });
+
+        match (self.expected_type(), self.is_complete()) {
+            (Some(ty), _) => ContentItem::Row {
+                row: AlignedRow::new(
+                    "", Style::default(), "⊢", Style::new().fg(Color::DarkGray),
+                    ty, Style::new().fg(Theme::GOAL).add_modifier(underline),
+                ),
+                selection: goal_sel,
+            },
+            (None, true) => {
+                let s = Style::new().fg(Theme::COMPLETED_GOAL_FG).add_modifier(Modifier::BOLD);
+                ContentItem::Row {
+                    row: AlignedRow::new("", Style::default(), "✓", s, "Complete", s),
+                    selection: goal_sel,
+                }
+            }
+            (None, false) => ContentItem::Row {
+                row: AlignedRow::new(
+                    "", Style::default(), "⊢", Style::new().fg(Color::DarkGray),
+                    "...", Style::new().fg(Theme::GOAL).add_modifier(underline),
+                ),
+                selection: goal_sel,
+            },
+        }
+    }
+
+    fn build_error_items(&self) -> Vec<ErrorLine> {
+        self.diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .enumerate()
+            .map(|(error_idx, d)| {
+                let msg = d.message.lines().next().unwrap_or(&d.message).to_string();
+                ErrorLine {
+                    text: msg,
+                    style: Style::new().fg(Red::BRIGHT),
+                    selection: Some(Selection::Error { node_id: self.id(), error_idx }),
+                }
+            })
+            .collect()
+    }
+
+    pub fn build_node_style(&self, is_current: bool) -> NodeStyle {
+        let border_color = if self.has_error() {
+            Red::BRIGHT
+        } else {
+            match (is_current, self.is_leaf(), self.is_complete()) {
+                (true, _, _) => Theme::CURRENT_NODE_BORDER,
+                (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
+                (_, true, true) => Theme::COMPLETED_NODE_BORDER,
+                _ => Theme::INACTIVE_NODE_BORDER,
+            }
+        };
+
+        let title_color = if self.has_error() {
+            Red::BRIGHT
+        } else if is_current {
+            Theme::CURRENT_NODE_BORDER
+        } else {
+            Color::Gray
+        };
+
+        NodeStyle {
+            border_color,
+            border_bold: is_current || self.has_error(),
+            title_color,
+            title_bold: is_current || self.has_error(),
+        }
+    }
 }
 
 impl Deref for DataFlowNode {
@@ -173,40 +320,6 @@ impl NavNode for DataFlowNode {
 
     fn has_selectable_goals(&self) -> bool {
         self.expected_type().is_some()
-    }
-}
-
-impl NodeTextContent for DataFlowNode {
-    fn title(&self) -> String {
-        self.inner.content.to_plain_text()
-    }
-
-    fn content_lines(&self) -> Vec<String> {
-        let mut lines: Vec<String> = self
-            .bindings()
-            .iter()
-            .filter(|b| !b.is_implicit && !b.is_instance)
-            .map(|b| format!("{}: {}", b.name, b.type_.to_plain_text()))
-            .collect();
-
-        lines.push(
-            self.expected_type()
-                .map_or_else(|| "✓".to_string(), |t| format!("⊢ {t}")),
-        );
-        for d in &self.diagnostics {
-            if d.severity == DiagnosticSeverity::Error {
-                let msg = d.message.lines().next().unwrap_or(&d.message);
-                lines.push(format!("✗ {msg}"));
-            }
-        }
-
-        lines
-    }
-}
-
-impl LayoutSize for DataFlowNode {
-    fn layout_size(&self) -> (u16, u16) {
-        calculate_node_size(self)
     }
 }
 
@@ -303,7 +416,7 @@ impl DataFlowDag {
         let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
-            let (width, height) = node.layout_size();
+            let (width, height) = node.build_content(None, false, true).layout_size();
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id(), index);
             layout.add_node(index, node.id(), width, height);

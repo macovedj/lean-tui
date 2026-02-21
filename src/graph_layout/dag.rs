@@ -33,10 +33,6 @@ pub trait NavNode: DagNode {
     fn has_selectable_goals(&self) -> bool;
 }
 
-pub trait LayoutSize {
-    fn layout_size(&self) -> (u16, u16);
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct EdgeData {
     pub style: Option<Style>,
