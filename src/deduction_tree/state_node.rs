@@ -8,7 +8,6 @@ use ratatui::{
 
 use super::types::ProofDagTacticNode;
 use crate::{
-    deduction_tree::TacticProofState,
     selection::{Region, Selection},
     theme::{Red, Theme},
     widgets::{
@@ -28,7 +27,6 @@ pub struct StateNode<'a> {
     node: &'a ProofDagTacticNode,
     is_current: bool,
     selection: Option<Selection>,
-    current_state: &'a TacticProofState,
 }
 
 impl<'a> StateNode<'a> {
@@ -36,13 +34,11 @@ impl<'a> StateNode<'a> {
         node: &'a ProofDagTacticNode,
         is_current: bool,
         selection: Option<Selection>,
-        current_state: &'a TacticProofState,
     ) -> Self {
         Self {
             node,
             is_current,
             selection,
-            current_state,
         }
     }
 
@@ -64,12 +60,11 @@ impl<'a> StateNode<'a> {
             return Red::BRIGHT;
         }
 
-        let dominated_vars = (
+        match (
             self.is_current,
             self.node.is_leaf(),
             self.is_effective_complete(),
-        );
-        match dominated_vars {
+        ) {
             (true, _, _) => Theme::CURRENT_NODE_BORDER,
             (_, true, true) => Theme::COMPLETED_NODE_BORDER,
             (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
@@ -128,7 +123,7 @@ impl<'a> StateNode<'a> {
             )];
         }
 
-        let goals = &self.current_state.goals;
+        let goals = &self.node.proof_state.goals;
 
         if goals.is_empty() {
             return vec![AlignedRow::new(
@@ -163,7 +158,7 @@ impl<'a> StateNode<'a> {
                     Style::new()
                 };
 
-                let type_style = Style::new().fg(Theme::GOAL).add_modifier(underline);
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
 
                 AlignedRow::with_styled_type(
                     name_text,
@@ -198,7 +193,7 @@ impl<'a> StateNode<'a> {
         let mut regions = Vec::new();
         let hyp_count = self.node.proof_state.hypotheses.len();
 
-        let goal_count = self.current_state.goals.len();
+        let goal_count = self.node.proof_state.goals.len();
 
         let error_count = self
             .node

@@ -5,7 +5,6 @@ use ratatui::{buffer::Buffer, layout::Rect, widgets::StatefulWidget};
 
 use super::{proof_pane::ProofPane, types::CompleteProofDag};
 use crate::{
-    deduction_tree::TacticProofState,
     graph_layout::GraphViewport,
     protocol::NodeId,
     selection::{find_region_at, Region, Selection},
@@ -36,7 +35,6 @@ pub struct SemanticTableauLayout<'a> {
     dag: &'a CompleteProofDag,
     top_down: bool,
     selection: Option<Selection>,
-    current_state: &'a TacticProofState,
 }
 
 impl<'a> SemanticTableauLayout<'a> {
@@ -44,13 +42,11 @@ impl<'a> SemanticTableauLayout<'a> {
         dag: &'a CompleteProofDag,
         top_down: bool,
         selection: Option<Selection>,
-        current_state: &'a TacticProofState,
     ) -> Self {
         Self {
             dag,
             top_down,
             selection,
-            current_state,
         }
     }
 }
@@ -59,7 +55,7 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
     type State = SemanticTableauState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        ProofPane::new(self.dag, self.top_down, self.selection, self.current_state).render(
+        ProofPane::new(self.dag, self.top_down, self.selection).render(
             area,
             buf,
             &mut state.proof,

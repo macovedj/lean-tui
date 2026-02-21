@@ -24,12 +24,9 @@ pub trait NodeTextContent {
     fn content_lines(&self) -> Vec<String>;
 }
 
-/// Calculate layout size for any node with text content.
-/// Width is based on the widest line (title or content), height on line count.
-pub fn calculate_node_size<T: NodeTextContent>(node: &T) -> (u16, u16) {
-    let title_width = node.title().chars().count();
-    let lines = node.content_lines();
-
+/// Calculate layout size from a title and pre-computed content lines.
+pub fn calculate_size_from_lines(title: &str, lines: &[String]) -> (u16, u16) {
+    let title_width = title.chars().count();
     let max_line_width = lines.iter().map(|s| s.chars().count()).max().unwrap_or(0);
     let max_content_width = title_width.max(max_line_width);
 
@@ -37,6 +34,12 @@ pub fn calculate_node_size<T: NodeTextContent>(node: &T) -> (u16, u16) {
     let height = BORDER_HEIGHT + lines.len().max(1) as u16;
 
     (width, height)
+}
+
+/// Calculate layout size for any node with text content.
+/// Width is based on the widest line (title or content), height on line count.
+pub fn calculate_node_size<T: NodeTextContent>(node: &T) -> (u16, u16) {
+    calculate_size_from_lines(&node.title(), &node.content_lines())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

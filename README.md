@@ -13,18 +13,19 @@ Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bo
     - [1. Install `lean-tui` from Crates.io](#1-install-lean-tui-from-cratesio)
     - [2. Add `LeanPrism` Dependency](#2-add-leanprism-dependency)
   - [Configuration](#configuration)
-    - [Helix (recommended)](#helix-recommended)
+    - [Helix](#helix)
     - [Neovim](#neovim)
     - [VS Code](#vs-code)
     - [Zed](#zed)
   - [Quickstart](#quickstart)
     - [1. Split Your Terminal](#1-split-your-terminal)
-    - [2. Open your editor](#2-open-your-editor)
-    - [3. Add Back-end Import](#3-add-back-end-import)
+    - [2. Open Your Editor](#2-open-your-editor)
+    - [3. Add Back-End Import](#3-add-back-end-import)
     - [4. Open `lean-tui`](#4-open-lean-tui)
     - [5. Start Writing Lean](#5-start-writing-lean)
   - [User Guide](#user-guide)
     - [Keyboard](#keyboard)
+    - [Pane borders](#pane-borders)
     - [Node State Colors](#node-state-colors)
     - [Label Colors](#label-colors)
     - [Diff Colors for Types](#diff-colors-for-types)
@@ -111,7 +112,7 @@ Configure the command `lake serve` as a language server for `.lean` files. See [
 
 ### VS Code
 
-Install the Lean extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4).
+Install the Lean extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4). The VS Code info view will open automatically, but you might want to close it since this UI offers slightly more.
 
 ### Zed
 
@@ -131,13 +132,14 @@ You can choose between:
 
 ### 2. Open Your Editor
 
-Open your Lean file in your favorite (modal) editor that has a built-in LSP client (I recommend Helix, but Neovim, Zed, Kate also seem to have one). Lean will start up an LSP client hooked up to the default Lean LSP server, which might take awhile. Normally, any diagnostics should appear in your editor as the LSP client finishes start up.
+Open your Lean file in your editor (with an LSP client). Lean will start up an LSP client hooked up to the default Lean LSP server, which might take awhile. Normally, any diagnostics should appear in your editor as the LSP client finishes start up.
 
 If you encounter problems, it is usually because of stale build artifacts or incorrect `lakefile.toml`.
 
 ### 3. Add Back-End Import
 
-Add this to the top of your Lean file (or build target):
+Most of the logic behind this UI uses a back-end written in Lean. To import it,
+add this to the top of your Lean file (or build target):
 
 ```lean
 import LeanPrism
@@ -149,7 +151,7 @@ The Lake LSP server now needs to be restarted. You can do this as follows:
 - Helix: type command `:lsp-restart`
 - Neovim / others: restart your LSP client using your editor's command
 
-You should now see a diagnostic saying that Lake is building your dependencies (including LeanPrism), which can take awhile at the beginning.
+You should now see a diagnostic (or notification) saying that Lake is building your `LeanPrism`, which can take awhile at the beginning.
 
 ### 4. Open `lean-tui`
 
@@ -170,10 +172,14 @@ Depending on your editor, the Lean-TUI view will update after specific events:
 - Helix, one of the following:
   - Open the completion menu in insert mode: `ctrl+x`
   - Open documentation popup in normal mode: `space,k`
-- VS Code: any cursor movement or change should update the TUI
+  - Make edits in INSERT mode (should trigger the completions)
 - Neovim: same as Helix, but you may configure more frequent updates using Lua
+- VS Code:
+  - Positioning cursor with mouse or keyboard
+  - Opening completions
+  - Making edits
 
-The first rendering of a proof or function in a new project might be a bit slow, since the initialization happens lazily. Subsequent updates should be much faster.
+The first rendering of a proof or function in a new project might be a bit slow, since the initialization of the TCP server happens lazily. Subsequent updates should be much faster.
 
 ## User Guide
 
@@ -212,12 +218,15 @@ All views have the following key bindings for common operations:
 
 The input pane's content depends on your program's style. For functional programs, it contains function parameters. For proofs, it contains the hypotheses. The output pane is the expected type or the proposition to be proven.
 
-### Node State Colors
+### Pane Borders
 
-The most important are the colors of the borders of the nodes and panes:
+Panes are large sub-windows in the TUI. Their border is colored consistently between different display modes:
 
 - Assumptions, parameters, and theorem hypotheses are blue
-- Theorem statements, goals, and output types have an orange border.
+- Theorem statements, and output types have an orange border.
+- Inactive panes are gray
+
+### Node State Colors
 
 The border colors of the nodes also change dynamically:
 
@@ -333,7 +342,7 @@ Not all proofs are written using tactics. Lean has support for both tactic-based
 
 ### Data Flow
 
-If you are not using monads, and a simple pure functional programming style, you use this. It does a decomposition of your program into different related sub-states. The decomposition is built using a combination of CST and AST traversal. Each node contains the expected type at the focused part of the program and all active variables.
+This view mode is for term-styled proofs and purely functional programming. It does a decomposition of your program into different related sub-states. The decomposition is built using a combination of CST and AST traversal. Each node contains the expected type at the focused part of the program and all active variables.
 
 The following screenshot is a visualization of the [`./Samples/sorting.lean`](./Samples/sorting.lean) file:
 

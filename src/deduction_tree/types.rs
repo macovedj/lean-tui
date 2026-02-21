@@ -6,7 +6,8 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     graph_layout::{
-        Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode, NodeTextContent, calculate_node_size
+        Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode, NodeTextContent,
+        calculate_node_size, calculate_size_from_lines,
     },
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
@@ -87,8 +88,6 @@ pub struct ProofDagTacticNode {
     pub parent: Option<NodeId>,
     pub depth: u64,
     #[serde(default)]
-    pub new_hypothesis_indices: Vec<u64>,
-    #[serde(default)]
     pub hypothesis_dependencies: Vec<String>,
     #[serde(default)]
     pub referenced_theorems: Vec<String>,
@@ -118,6 +117,34 @@ impl ProofDagTacticNode {
     /// Compute rough size of this node's range.
     pub fn range_size(&self) -> u64 {
         range_size(self.position, self.end_position)
+    }
+
+    fn goal_lines(&self) -> Vec<String> {
+        if self.is_complete {
+            return vec!["\u{2713} Goal completed".to_string()];
+        }
+        if self.proof_state.goals.is_empty() {
+            return vec!["\u{22a2} ...".to_string()];
+        }
+        self.proof_state
+            .goals
+            .iter()
+            .map(|g| {
+                let goal_type = g.type_.to_plain_text();
+                g.username_str().map_or_else(
+                    || format!("\u{22a2} {goal_type}"),
+                    |name| format!("{name} \u{22a2} {goal_type}"),
+                )
+            })
+            .collect()
+    }
+
+    fn error_lines(&self) -> Vec<String> {
+        self.diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .map(|d| d.message.lines().next().unwrap_or(&d.message).to_string())
+            .collect()
     }
 }
 
@@ -258,13 +285,15 @@ impl CompleteProofDag {
         graph
     }
 
-    /// Convert to lay out graph for force-directed layout computation.
+    /// Convert to lay out graph for layered layout computation.
+    /// Each node is sized based on its own proof state.
     pub fn to_layout_graph(&self) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
-            let (width, height) = node.layout_size();
+            let lines = node.content_lines();
+            let (width, height) = calculate_size_from_lines(&node.tactic_text, &lines);
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
             layout.add_node(index, node.id, width, height);
@@ -399,11 +428,6 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         proof_state.hypotheses.len()
     );
 
-    let new_hypothesis_indices: Vec<u64> = node
-        .metadata
-        .get("new_hypothesis_indices")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
     let hypothesis_dependencies: Vec<String> = node
         .metadata
         .get("hypothesis_dependencies")
@@ -432,7 +456,6 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         children,
         parent: node.parent,
         depth: node.depth,
-        new_hypothesis_indices,
         hypothesis_dependencies,
         referenced_theorems,
         is_complete,
@@ -501,32 +524,13 @@ impl NodeTextContent for ProofDagTacticNode {
     }
 
     fn content_lines(&self) -> Vec<String> {
-        let mut lines = Vec::new();
-
-        for h in &self.proof_state.hypotheses {
-            lines.push(format!("{} : {}", h.name, h.type_.to_plain_text()));
-        }
-
-        if self.proof_state.goals.is_empty() {
-            lines.push("✓ Goal completed".to_string());
-        } else {
-            for g in &self.proof_state.goals {
-                let goal_type = g.type_.to_plain_text();
-                lines.push(g.username_str().map_or_else(
-                    || format!("⊢ {goal_type}"),
-                    |name| format!("{name} ⊢ {goal_type}"),
-                ));
-            }
-        }
-
-        for d in &self.diagnostics {
-            if d.severity == DiagnosticSeverity::Error {
-                let msg = d.message.lines().next().unwrap_or(&d.message);
-                lines.push(msg.to_string());
-            }
-        }
-
-        lines
+        let hyp_lines: Vec<String> = self
+            .proof_state
+            .hypotheses
+            .iter()
+            .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text()))
+            .collect();
+        [hyp_lines, self.goal_lines(), self.error_lines()].concat()
     }
 }
 
@@ -545,8 +549,8 @@ impl Dag for CompleteProofDag {
 }
 
 impl NavNode for ProofDagTacticNode {
-    fn new_hyp_indices(&self) -> Vec<u64> {
-        self.new_hypothesis_indices.clone()
+    fn hyp_count(&self) -> usize {
+        self.proof_state.hypotheses.len()
     }
 
     fn goal_count(&self) -> usize {

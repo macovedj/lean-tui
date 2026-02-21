@@ -23,8 +23,7 @@ impl Widget for StatusBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         const GLOBAL_KEYBINDINGS: &[(&str, &str)] = &[
             ("?", "help"),
-            ("j/k", "nav"),
-            ("[/]", "mode"),
+            ("[/]", "style"),
             ("i/o", "in/out"),
             ("q", "quit"),
         ];

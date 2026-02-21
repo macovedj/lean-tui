@@ -25,8 +25,8 @@ pub trait Dag {
 
 /// Trait for nodes that can have navigable hypothesis/binding regions.
 pub trait NavNode: DagNode {
-    /// Indices of new hypotheses/bindings introduced by this node.
-    fn new_hyp_indices(&self) -> Vec<u64>;
+    /// Number of hypotheses/bindings in this node.
+    fn hyp_count(&self) -> usize;
     /// Number of goals (0 = complete, 1+ = has goals).
     fn goal_count(&self) -> usize;
     /// Whether to show goal regions.

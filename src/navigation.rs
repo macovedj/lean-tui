@@ -83,10 +83,9 @@ where
                 "Processing node"
             );
 
-            let hyp_indices = node.new_hyp_indices();
-            let hyp_count = hyp_indices.len();
+            let hyp_count = node.hyp_count();
 
-            let hyp_regions = build_hyp_regions(pos, &hyp_indices);
+            let hyp_regions = build_hyp_regions(pos, hyp_count);
             let goal_regions = build_goal_regions(pos, node, hyp_count);
 
             hyp_regions.into_iter().chain(goal_regions)
@@ -99,18 +98,16 @@ where
 
 /// Build navigation regions for hypotheses/bindings in a node (stacked
 /// vertically).
-fn build_hyp_regions(pos: &NodePosition, hyp_indices: &[u64]) -> Vec<Region> {
-    hyp_indices
-        .iter()
-        .enumerate()
-        .map(|(i, &hyp_idx)| Region {
+fn build_hyp_regions(pos: &NodePosition, hyp_count: usize) -> Vec<Region> {
+    (0..hyp_count)
+        .map(|hyp_idx| Region {
             x: pos.x + 1,
-            y: pos.y + 1 + i as i32,
+            y: pos.y + 1 + hyp_idx as i32,
             width: pos.width.saturating_sub(2),
             height: 1,
             selection: Selection::Hyp {
                 node_id: pos.node_id,
-                hyp_idx: hyp_idx as usize,
+                hyp_idx,
             },
         })
         .collect()

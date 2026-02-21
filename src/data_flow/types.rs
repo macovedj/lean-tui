@@ -163,10 +163,8 @@ impl DagNode for DataFlowNode {
 }
 
 impl NavNode for DataFlowNode {
-    fn new_hyp_indices(&self) -> Vec<u64> {
-        // Return all binding indices for navigation (not just newly introduced ones)
-        // This allows keyboard navigation to select any binding in the node
-        (0..self.bindings().len() as u64).collect()
+    fn hyp_count(&self) -> usize {
+        self.bindings().len()
     }
 
     fn goal_count(&self) -> usize {

@@ -10,7 +10,6 @@ use super::{
     types::CompleteProofDag,
 };
 use crate::{
-    deduction_tree::TacticProofState,
     graph_layout::{calculate_layout, GraphViewport},
     navigation::build_navigation_regions,
     selection::Selection,
@@ -21,7 +20,6 @@ pub struct ProofPane<'a> {
     dag: &'a CompleteProofDag,
     top_down: bool,
     selection: Option<Selection>,
-    current_state: &'a TacticProofState,
 }
 
 impl<'a> ProofPane<'a> {
@@ -29,13 +27,11 @@ impl<'a> ProofPane<'a> {
         dag: &'a CompleteProofDag,
         top_down: bool,
         selection: Option<Selection>,
-        current_state: &'a TacticProofState,
     ) -> Self {
         Self {
             dag,
             top_down,
             selection,
-            current_state,
         }
     }
 }
@@ -93,7 +89,7 @@ impl StatefulWidget for ProofPane<'_> {
 
             let is_current = graph.is_current(pos.index);
 
-            let node_widget = StateNode::new(node, is_current, self.selection, self.current_state);
+            let node_widget = StateNode::new(node, is_current, self.selection);
             let mut node_state = StateNodeState::default();
             node_widget.render(render_area, buf, &mut node_state);
             state.click_regions.extend(node_state.click_regions);
