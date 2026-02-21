@@ -223,8 +223,8 @@ impl DagNode for EffectFlowNode {
 }
 
 impl NavNode for EffectFlowNode {
-    fn new_hyp_indices(&self) -> Vec<u64> {
-        (0..self.visible_bindings().len() as u64).collect()
+    fn hyp_count(&self) -> usize {
+        self.visible_bindings().len()
     }
 
     fn goal_count(&self) -> usize {

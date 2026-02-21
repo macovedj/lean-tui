@@ -6,8 +6,7 @@ pub mod types;
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
-    widgets::Paragraph,
+    style::Color,
     Frame,
 };
 use tracing::trace;
@@ -28,7 +27,6 @@ use crate::{
 
 /// Deduction Tree display mode - semantic tree visualization.
 pub struct SemanticTableau {
-    state: TacticProofState,
     error: Option<String>,
     proof_dag: Option<CompleteProofDag>,
     /// Flat index into `tree_selectable_items()`.
@@ -42,7 +40,6 @@ pub struct SemanticTableau {
 impl Default for SemanticTableau {
     fn default() -> Self {
         Self {
-            state: TacticProofState::default(),
             error: None,
             proof_dag: None,
             selected_idx: None,
@@ -65,13 +62,9 @@ impl SemanticTableau {
         dag.dfs_iter()
             .flat_map(|node| {
                 let node_id = node.id;
+                let hyp_count = node.proof_state.hypotheses.len();
                 let hyp_selections =
-                    node.new_hypothesis_indices
-                        .iter()
-                        .map(move |&hyp_idx| Selection::Hyp {
-                            node_id,
-                            hyp_idx: hyp_idx as usize,
-                        });
+                    (0..hyp_count).map(move |hyp_idx| Selection::Hyp { node_id, hyp_idx });
                 let active_goal_count = node.proof_state.goals.len();
                 let goal_selections = (0..active_goal_count)
                     .map(move |goal_idx| Selection::Goal { node_id, goal_idx });
@@ -200,22 +193,14 @@ impl Mode for SemanticTableau {
         let old_current = self.proof_dag.as_ref().and_then(|dag| dag.current_node_id);
         let new_current = dag.and_then(|dag| dag.current_node_id);
 
-        let new_state = new_current
-            .and_then(|id| dag?.get(id))
-            .map(|node| node.proof_state.clone())
-            .unwrap_or_default();
-
         let tree_changed = old_proof_count != new_proof_count || old_current != new_current;
-        let state_changed = self.state.goals.len() != new_state.goals.len()
-            || self.state.hypotheses.len() != new_state.hypotheses.len();
 
         self.tableau_state.update_current_node(new_current);
 
-        self.state = new_state;
         self.error = error;
         self.proof_dag = dag.cloned();
 
-        if tree_changed || state_changed {
+        if tree_changed {
             if let Some(sel) = self.active_goal_selection() {
                 self.select_by_selection(sel);
             } else {
@@ -252,24 +237,12 @@ impl Mode for SemanticTableau {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let content_area = render_error(frame, area, self.error.as_deref());
 
-        if self.state.goals.is_empty() && self.proof_dag.is_none() {
-            render_no_goals(frame, content_area);
-            return;
-        }
-
         if let Some(ref dag) = self.proof_dag {
-            let widget = SemanticTableauLayout::new(
-                dag,
-                self.tree_top_down,
-                self.current_tree_selection(),
-                &self.state,
-            );
+            let widget =
+                SemanticTableauLayout::new(dag, self.tree_top_down, self.current_tree_selection());
             frame.render_stateful_widget(widget, content_area, &mut self.tableau_state);
         } else {
-            frame.render_widget(
-                Paragraph::new("No proof steps available").style(Style::new().fg(Color::DarkGray)),
-                content_area,
-            );
+            render_no_goals(frame, content_area);
         }
     }
 }
