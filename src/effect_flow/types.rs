@@ -6,17 +6,21 @@ use std::{
 };
 
 use petgraph::graph::NodeIndex;
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 
 use crate::{
-    graph_layout::{
-        Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode, NodeTextContent,
-    },
+    graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
     protocol::{
         range_contains_cursor, range_size, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
         GenericDag, GraphEdge, GraphNode, LineCharacterPosition, LocalBinding, NodeId, RichText,
     },
-    theme::Theme,
+    selection::Selection,
+    theme::{Red, Theme},
+    widgets::{
+        aligned_table::AlignedRow,
+        diff_text::RichTextExt,
+        node_content::{ContentItem, ErrorLine, NodeContent, NodeStyle},
+    },
 };
 
 /// Parsed bindings from node metadata.
@@ -236,77 +240,6 @@ impl NavNode for EffectFlowNode {
     }
 }
 
-impl NodeTextContent for EffectFlowNode {
-    fn title(&self) -> String {
-        self.content.to_plain_text()
-    }
-
-    fn content_lines(&self) -> Vec<String> {
-        let mut lines = Vec::new();
-
-        // Add binding lines (filtered like in state_node)
-        for b in &self.bindings {
-            if !b.is_implicit && !b.is_instance {
-                lines.push(format!("{}: {}", b.name, b.type_.to_plain_text()));
-            }
-        }
-
-        // Add expression line - always present
-        lines.push(self.content.to_plain_text());
-
-        for fwd in &self.forwards {
-            lines.push(format!("→ {}", fwd.value));
-        }
-
-        for bwd in &self.backwards {
-            lines.push(format!("← {}", bwd.value));
-        }
-
-        lines.extend(format_error_diagnostics(&self.diagnostics));
-
-        if self.is_leaf() && !self.has_error() && !self.has_effects() {
-            lines.push("✓".to_string());
-        }
-
-        lines
-    }
-}
-
-impl LayoutSize for EffectFlowNode {
-    fn layout_size(&self) -> (u16, u16) {
-        const BORDER_AND_PADDING: usize = 4;
-        const BORDER_HEIGHT: u16 = 2;
-
-        let visible_bindings = self.visible_bindings();
-        let shows_completed = self.shows_completed_marker();
-
-        let content_width = [
-            Self::binding_table_width(&visible_bindings),
-            self.content.to_plain_text().chars().count(),
-            self.effect_width(),
-            if shows_completed {
-                "✓ completed".chars().count()
-            } else {
-                0
-            },
-        ]
-        .into_iter()
-        .max()
-        .unwrap_or(0);
-
-        let line_count = visible_bindings.len()
-            + 1 // expression
-            + self.forwards.len()
-            + self.backwards.len()
-            + usize::from(shows_completed);
-
-        let width = (content_width + BORDER_AND_PADDING) as u16;
-        let height = BORDER_HEIGHT + line_count as u16;
-
-        (width, height)
-    }
-}
-
 impl EffectFlowNode {
     pub fn visible_bindings(&self) -> Vec<&LocalBinding> {
         self.bindings
@@ -315,27 +248,123 @@ impl EffectFlowNode {
             .collect()
     }
 
-    fn binding_table_width(bindings: &[&LocalBinding]) -> usize {
-        if bindings.is_empty() {
-            return 0;
+    pub fn build_content(
+        &self,
+        selection: Option<Selection>,
+        is_current: bool,
+    ) -> NodeContent {
+        let title = if self.has_error() { " ⚠ ".to_string() } else { " ".to_string() };
+
+        let mut items = self.build_binding_items(selection);
+        items.push(self.build_expression_item(is_current));
+        items.extend(self.build_effect_items());
+        items.extend(self.build_completed_item());
+
+        let errors = self.build_error_items();
+
+        NodeContent { title, items, errors }
+    }
+
+    fn build_binding_items(&self, selection: Option<Selection>) -> Vec<ContentItem> {
+        self.visible_bindings()
+            .into_iter()
+            .enumerate()
+            .map(|(idx, b)| {
+                let selected = matches!(
+                    selection,
+                    Some(Selection::Hyp { node_id, hyp_idx }) if node_id == self.id && hyp_idx == idx
+                );
+                let underline = if selected { Modifier::UNDERLINED } else { Modifier::empty() };
+                let name_style = Style::new().fg(Theme::HYP_NAME).add_modifier(underline);
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
+                ContentItem::Row {
+                    row: AlignedRow::with_styled_type(
+                        b.name.clone(), name_style, ":", Style::new().fg(Color::DarkGray),
+                        b.type_.to_spans(type_style),
+                    ),
+                    selection: Some(Selection::Hyp { node_id: self.id, hyp_idx: idx }),
+                }
+            })
+            .collect()
+    }
+
+    fn build_expression_item(&self, is_current: bool) -> ContentItem {
+        let expr_style = if self.has_error() {
+            Style::new().fg(Red::BRIGHT).add_modifier(Modifier::ITALIC)
+        } else if is_current {
+            Style::new().fg(Color::White).add_modifier(Modifier::ITALIC)
+        } else {
+            Style::new().fg(Color::Gray).add_modifier(Modifier::ITALIC)
+        };
+        ContentItem::Line {
+            spans: self.content.to_spans(expr_style),
+            selection: Some(Selection::Goal { node_id: self.id, goal_idx: 0 }),
         }
-        let max_name = bindings.iter().map(|b| b.name.chars().count()).max();
-        let max_type = bindings
+    }
+
+    fn build_effect_items(&self) -> Vec<ContentItem> {
+        let mut items = Vec::new();
+        for fwd in &self.forwards {
+            items.push(ContentItem::Row {
+                row: AlignedRow::new(
+                    "", Style::default(), "→", Style::new().fg(Color::Green),
+                    fwd.value.clone(), Style::new().fg(Color::White),
+                ),
+                selection: None,
+            });
+        }
+        for bwd in &self.backwards {
+            items.push(ContentItem::Row {
+                row: AlignedRow::new(
+                    "", Style::default(), bwd.kind.icon(), Style::new().fg(Color::Magenta),
+                    bwd.value.clone(), Style::new().fg(Color::White),
+                ),
+                selection: None,
+            });
+        }
+        items
+    }
+
+    fn build_completed_item(&self) -> Option<ContentItem> {
+        if !self.is_leaf() || self.has_error() || self.has_effects() {
+            return None;
+        }
+        let s = Style::new().fg(Theme::COMPLETED_GOAL_FG).add_modifier(Modifier::BOLD);
+        Some(ContentItem::Row {
+            row: AlignedRow::new("", Style::default(), "✓", s, "completed", s),
+            selection: None,
+        })
+    }
+
+    fn build_error_items(&self) -> Vec<ErrorLine> {
+        let errors: Vec<ErrorLine> = self
+            .diagnostics
             .iter()
-            .map(|b| b.type_.to_plain_text().chars().count())
-            .max();
-
-        max_name.unwrap_or(0) + 1 + max_type.unwrap_or(0)
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .flat_map(|d| format_diagnostic_error_lines(&d.message))
+            .collect();
+        assign_error_selections(self.id, errors)
     }
 
-    fn effect_width(&self) -> usize {
-        let forward_widths = self.forwards.iter().map(|e| 2 + e.value.chars().count());
-        let backward_widths = self.backwards.iter().map(|e| 2 + e.value.chars().count());
-        forward_widths.chain(backward_widths).max().unwrap_or(0)
-    }
+    pub fn build_node_style(&self, is_current: bool) -> NodeStyle {
+        let border_color = if self.has_error() {
+            Red::BRIGHT
+        } else if is_current {
+            Theme::CURRENT_NODE_BORDER
+        } else if self.is_leaf() {
+            Theme::COMPLETED_NODE_BORDER
+        } else {
+            Theme::INACTIVE_NODE_BORDER
+        };
 
-    fn shows_completed_marker(&self) -> bool {
-        self.is_leaf() && !self.has_error() && !self.has_effects()
+        let title_color = border_color;
+
+        NodeStyle {
+            border_color,
+            border_bold: is_current || self.has_error(),
+            title_color,
+            title_bold: is_current || self.has_error(),
+        }
     }
 }
 
@@ -348,17 +377,33 @@ impl GraphEdge {
     }
 }
 
-fn format_error_diagnostics(diagnostics: &[DiagnosticInfo]) -> Vec<String> {
-    diagnostics
-        .iter()
-        .filter(|d| d.severity == DiagnosticSeverity::Error)
-        .flat_map(|d| {
-            d.message.lines().enumerate().map(|(i, line)| {
-                let prefix = if i == 0 { "✗ " } else { "  " };
-                format!("{prefix}{line}")
-            })
+fn format_diagnostic_error_lines(message: &str) -> Vec<ErrorLine> {
+    message
+        .lines()
+        .enumerate()
+        .map(|(i, line)| {
+            let prefix = if i == 0 { "✗ " } else { "  " };
+            ErrorLine {
+                text: format!("{prefix}{line}"),
+                style: Style::new().fg(Red::BRIGHT),
+                selection: None,
+            }
         })
         .collect()
+}
+
+fn assign_error_selections(node_id: NodeId, mut errors: Vec<ErrorLine>) -> Vec<ErrorLine> {
+    let mut error_idx = 0;
+    for err in &mut errors {
+        if err.text.starts_with("✗ ") {
+            err.selection = Some(Selection::Error {
+                node_id,
+                error_idx,
+            });
+            error_idx += 1;
+        }
+    }
+    errors
 }
 
 #[derive(Debug)]
@@ -487,7 +532,7 @@ impl EffectFlowDag {
             if !include_expand && excluded_node_ids.contains(&node.id) {
                 continue;
             }
-            let (width, height) = node.layout_size();
+            let (width, height) = node.build_content(None, false).layout_size();
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
             layout.add_node(index, node.id, width, height);

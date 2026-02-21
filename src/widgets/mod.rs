@@ -7,6 +7,7 @@ pub mod goals_pane;
 pub mod help_menu;
 pub mod input_pane;
 pub mod legend;
+pub mod node_content;
 pub mod output_pane;
 pub mod render_helpers;
 pub mod status_bar;

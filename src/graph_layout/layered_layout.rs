@@ -11,37 +11,6 @@ pub const ORPHAN_GAP: i32 = 3;
 const VERTICAL_GAP: i32 = 2;
 const HORIZONTAL_GAP: i32 = 2;
 
-// Node size calculation constants
-const BORDER_PADDING: usize = 6;
-const BORDER_HEIGHT: u16 = 2;
-
-/// Trait for nodes that can describe their text content for layout sizing.
-pub trait NodeTextContent {
-    /// The main title/header text
-    fn title(&self) -> String;
-
-    /// Additional content lines (each line's text)
-    fn content_lines(&self) -> Vec<String>;
-}
-
-/// Calculate layout size from a title and pre-computed content lines.
-pub fn calculate_size_from_lines(title: &str, lines: &[String]) -> (u16, u16) {
-    let title_width = title.chars().count();
-    let max_line_width = lines.iter().map(|s| s.chars().count()).max().unwrap_or(0);
-    let max_content_width = title_width.max(max_line_width);
-
-    let width = (max_content_width + BORDER_PADDING) as u16;
-    let height = BORDER_HEIGHT + lines.len().max(1) as u16;
-
-    (width, height)
-}
-
-/// Calculate layout size for any node with text content.
-/// Width is based on the widest line (title or content), height on line count.
-pub fn calculate_node_size<T: NodeTextContent>(node: &T) -> (u16, u16) {
-    calculate_size_from_lines(&node.title(), &node.content_lines())
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodePosition {
     pub index: NodeIndex,

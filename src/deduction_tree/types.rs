@@ -1,20 +1,23 @@
 use std::{collections::HashMap, error::Error, fmt};
 
 use petgraph::graph::NodeIndex;
-use ratatui::style::Style;
+use ratatui::style::{Color, Modifier, Style};
 use serde::de::DeserializeOwned;
 
 use crate::{
-    graph_layout::{
-        Dag, DagGraph, DagNode, EdgeData, LayoutGraph, LayoutSize, NavNode, NodeTextContent,
-        calculate_node_size, calculate_size_from_lines,
-    },
+    graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText, range_contains_cursor, range_size,
+        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
+        range_contains_cursor, range_size,
     },
     selection::Selection,
-    theme::Theme,
+    theme::{Red, Theme},
+    widgets::{
+        aligned_table::AlignedRow,
+        diff_text::RichTextExt,
+        node_content::{ContentItem, ErrorLine, NodeContent, NodeStyle},
+    },
 };
 
 /// A hypothesis in a proof context.
@@ -119,32 +122,177 @@ impl ProofDagTacticNode {
         range_size(self.position, self.end_position)
     }
 
-    fn goal_lines(&self) -> Vec<String> {
+    pub fn build_content(
+        &self,
+        selection: Option<Selection>,
+        is_current: bool,
+    ) -> NodeContent {
+        let error_prefix = if self.has_error() { "⚠ " } else { "" };
+        let title = format!(" {error_prefix}{} ", self.tactic_text);
+
+        let mut items: Vec<ContentItem> = self
+            .proof_state
+            .hypotheses
+            .iter()
+            .enumerate()
+            .map(|(hyp_idx, h)| {
+                let selected = matches!(
+                    selection,
+                    Some(Selection::Hyp { node_id, hyp_idx: hi }) if node_id == self.id && hi == hyp_idx
+                );
+                let underline = if selected {
+                    Modifier::UNDERLINED
+                } else {
+                    Modifier::empty()
+                };
+                let name_style = Style::new().fg(Theme::HYP_NAME).add_modifier(underline);
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
+                ContentItem::Row {
+                    row: AlignedRow::with_styled_type(
+                        h.name.clone(),
+                        name_style,
+                        ":",
+                        Style::new().fg(Color::DarkGray),
+                        h.type_.to_spans(type_style),
+                    ),
+                    selection: Some(Selection::Hyp {
+                        node_id: self.id,
+                        hyp_idx,
+                    }),
+                }
+            })
+            .collect();
+
+        items.extend(self.build_goal_items(selection, is_current));
+
+        let errors = self.build_error_items();
+
+        NodeContent {
+            title,
+            items,
+            errors,
+        }
+    }
+
+    fn build_goal_items(
+        &self,
+        selection: Option<Selection>,
+        _is_current: bool,
+    ) -> Vec<ContentItem> {
         if self.is_complete {
-            return vec!["\u{2713} Goal completed".to_string()];
+            let completed_style = Style::new()
+                .fg(Theme::COMPLETED_GOAL_FG)
+                .add_modifier(Modifier::BOLD);
+            return vec![ContentItem::Row {
+                row: AlignedRow::new(
+                    "",
+                    Style::default(),
+                    "✓",
+                    completed_style,
+                    "Goal completed",
+                    completed_style,
+                ),
+                selection: None,
+            }];
         }
+
         if self.proof_state.goals.is_empty() {
-            return vec!["\u{22a2} ...".to_string()];
+            return vec![ContentItem::Row {
+                row: AlignedRow::new(
+                    "",
+                    Style::default(),
+                    "⊢",
+                    Style::new().fg(Color::DarkGray),
+                    "...",
+                    Style::new().fg(Theme::GOAL),
+                ),
+                selection: None,
+            }];
         }
+
         self.proof_state
             .goals
             .iter()
-            .map(|g| {
-                let goal_type = g.type_.to_plain_text();
-                g.username_str().map_or_else(
-                    || format!("\u{22a2} {goal_type}"),
-                    |name| format!("{name} \u{22a2} {goal_type}"),
-                )
+            .enumerate()
+            .map(|(goal_idx, g)| {
+                let selected = matches!(
+                    selection,
+                    Some(Selection::Goal { node_id, goal_idx: gi }) if node_id == self.id && gi == goal_idx
+                );
+                let underline = if selected {
+                    Modifier::UNDERLINED
+                } else {
+                    Modifier::empty()
+                };
+                let name_text = g.username_str().unwrap_or_default().to_string();
+                let name_style = if g.username_str().is_some() {
+                    Style::new().fg(Theme::GOAL).add_modifier(underline)
+                } else {
+                    Style::new()
+                };
+                let type_style = Style::new().fg(Color::White).add_modifier(underline);
+                ContentItem::Row {
+                    row: AlignedRow::with_styled_type(
+                        name_text,
+                        name_style,
+                        "⊢",
+                        Style::new().fg(Color::DarkGray),
+                        g.type_.to_spans(type_style),
+                    ),
+                    selection: Some(Selection::Goal {
+                        node_id: self.id,
+                        goal_idx,
+                    }),
+                }
             })
             .collect()
     }
 
-    fn error_lines(&self) -> Vec<String> {
+    fn build_error_items(&self) -> Vec<ErrorLine> {
         self.diagnostics
             .iter()
             .filter(|d| d.severity == DiagnosticSeverity::Error)
-            .map(|d| d.message.lines().next().unwrap_or(&d.message).to_string())
+            .enumerate()
+            .map(|(error_idx, d)| {
+                let msg = d.message.lines().next().unwrap_or_default().to_string();
+                ErrorLine {
+                    text: msg,
+                    style: Style::new().fg(Red::BRIGHT),
+                    selection: Some(Selection::Error {
+                        node_id: self.id,
+                        error_idx,
+                    }),
+                }
+            })
             .collect()
+    }
+
+    pub fn build_node_style(&self, is_current: bool) -> NodeStyle {
+        let border_color = if self.has_error() {
+            Red::BRIGHT
+        } else {
+            match (is_current, self.is_leaf(), self.is_complete) {
+                (true, _, _) => Theme::CURRENT_NODE_BORDER,
+                (_, true, true) => Theme::COMPLETED_NODE_BORDER,
+                (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
+                (_, false, _) => Theme::INACTIVE_NODE_BORDER,
+            }
+        };
+
+        let title_color = if self.has_error() {
+            Red::BRIGHT
+        } else if is_current {
+            Theme::CURRENT_NODE_BORDER
+        } else {
+            Color::Gray
+        };
+
+        NodeStyle {
+            border_color,
+            border_bold: is_current,
+            title_color,
+            title_bold: is_current || self.has_error(),
+        }
     }
 }
 
@@ -292,8 +440,7 @@ impl CompleteProofDag {
         let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
-            let lines = node.content_lines();
-            let (width, height) = calculate_size_from_lines(&node.tactic_text, &lines);
+            let (width, height) = node.build_content(None, false).layout_size();
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
             layout.add_node(index, node.id, width, height);
@@ -515,28 +662,6 @@ impl DagNode for ProofDagTacticNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.children.clone()
-    }
-}
-
-impl NodeTextContent for ProofDagTacticNode {
-    fn title(&self) -> String {
-        self.tactic_text.clone()
-    }
-
-    fn content_lines(&self) -> Vec<String> {
-        let hyp_lines: Vec<String> = self
-            .proof_state
-            .hypotheses
-            .iter()
-            .map(|h| format!("{} : {}", h.name, h.type_.to_plain_text()))
-            .collect();
-        [hyp_lines, self.goal_lines(), self.error_lines()].concat()
-    }
-}
-
-impl LayoutSize for ProofDagTacticNode {
-    fn layout_size(&self) -> (u16, u16) {
-        calculate_node_size(self)
     }
 }
 
