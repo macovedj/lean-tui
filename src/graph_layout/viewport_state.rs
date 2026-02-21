@@ -2,7 +2,10 @@ use petgraph::graph::NodeIndex;
 use ratatui::{buffer::Buffer, layout::Rect};
 
 use super::{render_edges, render_scrollbars, DagGraph, DagLayout, NodePosition};
-use crate::{protocol::NodeId, selection::Region};
+use crate::{
+    protocol::NodeId,
+    selection::{find_region_at, Region, Selection},
+};
 
 /// Shared viewport state for scrollable graph panes.
 #[derive(Default)]
@@ -107,6 +110,10 @@ impl GraphViewport {
 
     pub fn clear_click_regions(&mut self) {
         self.click_regions.clear();
+    }
+
+    pub fn find_click_at(&self, x: u16, y: u16) -> Option<Selection> {
+        find_region_at(&self.click_regions, x, y)
     }
 }
 

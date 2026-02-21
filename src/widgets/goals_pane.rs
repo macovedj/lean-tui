@@ -153,20 +153,24 @@ impl StatefulWidget for GoalsPane<'_> {
         let table = AlignedTable::new(rows);
         Widget::render(table, inner, buf);
 
-        if let Some(nid) = self.node_id {
-            for (row, (goal_idx, _)) in visible_goals.iter().enumerate() {
-                let row_y = inner.y + row as u16;
-                if row_y >= inner.bottom() {
-                    break;
-                }
-                state.click_regions.push(Region::from_rect(
-                    Rect::new(inner.x, row_y, inner.width, 1),
-                    Selection::Goal {
-                        node_id: nid,
-                        goal_idx: *goal_idx,
-                    },
-                ));
-            }
-        }
+        let Some(nid) = self.node_id else {
+            return;
+        };
+        state.click_regions.extend(
+            visible_goals
+                .iter()
+                .enumerate()
+                .map(|(row, &(goal_idx, _))| (inner.y + row as u16, goal_idx))
+                .take_while(|&(row_y, _)| row_y < inner.bottom())
+                .map(|(row_y, goal_idx)| {
+                    Region::from_rect(
+                        Rect::new(inner.x, row_y, inner.width, 1),
+                        Selection::Goal {
+                            node_id: nid,
+                            goal_idx,
+                        },
+                    )
+                }),
+        );
     }
 }

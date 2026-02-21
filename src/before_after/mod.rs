@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::{
-    deduction_tree::{types::CompleteProofDag, TacticProofState},
+    deduction_tree::{graph::CompleteProofDag, TacticProofState},
     interactive::Mode,
     protocol::{DiagnosticInfo, NodeId},
     selection::{ListSelection, Selection},

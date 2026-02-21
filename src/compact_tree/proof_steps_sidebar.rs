@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use crate::{
-    deduction_tree::types::{CompleteProofDag, ProofDagTacticNode},
+    deduction_tree::graph::{CompleteProofDag, ProofDagTacticNode},
     interactive::InteractiveStatefulWidget,
     protocol::NodeId,
     theme::Theme,

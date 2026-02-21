@@ -14,7 +14,7 @@ use crate::{
     widgets::{
         aligned_table::AlignedRow,
         diff_text::RichTextExt,
-        node_content::{ContentItem, ErrorLine, NodeContent, NodeStyle},
+        node_content::{ContentItem, ErrorLine, NodeContent, NodeStyle, NodeVisualState},
     },
 };
 
@@ -263,31 +263,20 @@ impl DataFlowNode {
     }
 
     pub fn build_node_style(&self, is_current: bool) -> NodeStyle {
-        let border_color = if self.has_error() {
-            Red::BRIGHT
-        } else {
-            match (is_current, self.is_leaf(), self.is_complete()) {
-                (true, _, _) => Theme::CURRENT_NODE_BORDER,
-                (_, true, false) => Theme::INCOMPLETE_NODE_BORDER,
-                (_, true, true) => Theme::COMPLETED_NODE_BORDER,
-                _ => Theme::INACTIVE_NODE_BORDER,
-            }
-        };
-
-        let title_color = if self.has_error() {
-            Red::BRIGHT
+        let state = if self.has_error() {
+            NodeVisualState::Error
         } else if is_current {
-            Theme::CURRENT_NODE_BORDER
+            NodeVisualState::Current
+        } else if self.is_leaf() {
+            if self.is_complete() {
+                NodeVisualState::CompletedLeaf
+            } else {
+                NodeVisualState::IncompleteLeaf
+            }
         } else {
-            Color::Gray
+            NodeVisualState::Inactive
         };
-
-        NodeStyle {
-            border_color,
-            border_bold: is_current || self.has_error(),
-            title_color,
-            title_bold: is_current || self.has_error(),
-        }
+        NodeStyle::from(state)
     }
 }
 

@@ -19,7 +19,7 @@ use crate::{
     widgets::{
         aligned_table::AlignedRow,
         diff_text::RichTextExt,
-        node_content::{ContentItem, ErrorLine, NodeContent, NodeStyle},
+        node_content::{ContentItem, ErrorLine, NodeContent, NodeStyle, NodeVisualState},
     },
 };
 
@@ -347,24 +347,18 @@ impl EffectFlowNode {
     }
 
     pub fn build_node_style(&self, is_current: bool) -> NodeStyle {
-        let border_color = if self.has_error() {
-            Red::BRIGHT
+        let state = if self.has_error() {
+            NodeVisualState::Error
         } else if is_current {
-            Theme::CURRENT_NODE_BORDER
+            NodeVisualState::Current
         } else if self.is_leaf() {
-            Theme::COMPLETED_NODE_BORDER
+            NodeVisualState::CompletedLeaf
         } else {
-            Theme::INACTIVE_NODE_BORDER
+            NodeVisualState::Inactive
         };
-
-        let title_color = border_color;
-
-        NodeStyle {
-            border_color,
-            border_bold: is_current || self.has_error(),
-            title_color,
-            title_bold: is_current || self.has_error(),
-        }
+        let mut style = NodeStyle::from(state);
+        style.title_color = style.border_color;
+        style
     }
 }
 
