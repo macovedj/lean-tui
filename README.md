@@ -381,4 +381,4 @@ If you want to see the leaf nodes, use the key binding `e` (expand). By default,
 
 Let me know if you tried it out and encountered any issues! PRs are also welcome. For those, who don't know Rust (understandable), there is a large portion of Lean code in the backend that also needs to be worked on. Take a look there if you want to contribute as a Lean user.
 
-See [`./CONTRIBUTING.md`](/CONTRIBUTING.md) for more.
+See [`./CONTRIBUTING.md`](CONTRIBUTING.md) for more.
