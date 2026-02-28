@@ -165,6 +165,7 @@ pub struct EffectFlowNode {
     pub backwards: Vec<EffectValue>,
     pub bindings: Vec<LocalBinding>,
     pub diagnostics: Vec<DiagnosticInfo>,
+    pub elapsed_ns: u64,
 }
 
 impl EffectFlowNode {
@@ -175,6 +176,8 @@ impl EffectFlowNode {
         let forwards = parse_effect_values(&node.metadata, "forwards");
         let backwards = parse_effect_values(&node.metadata, "backwards");
         let diagnostics = node.diagnostics.clone();
+
+        let elapsed_ns = node.elapsed_ns();
 
         Some(Self {
             id: node.id,
@@ -187,6 +190,7 @@ impl EffectFlowNode {
             backwards,
             bindings,
             diagnostics,
+            elapsed_ns,
         })
     }
 
@@ -262,7 +266,7 @@ impl EffectFlowNode {
 
         let errors = self.build_error_items();
 
-        NodeContent { title, items, errors }
+        NodeContent { title, items, errors, elapsed_ns: self.elapsed_ns }
     }
 
     fn build_binding_items(&self, selection: Option<Selection>) -> Vec<ContentItem> {

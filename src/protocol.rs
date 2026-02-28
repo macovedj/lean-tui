@@ -105,4 +105,31 @@ impl GraphNode {
     pub fn range_size(&self) -> u64 {
         range_size(self.position, self.end_position)
     }
+
+    pub fn elapsed_ns(&self) -> u64 {
+        self.metadata
+            .get("elapsed_ns")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+    }
+}
+
+pub fn format_elapsed_ns(ns: u64) -> String {
+    if ns == 0 {
+        return String::new();
+    }
+    let us = ns / 1_000;
+    if us < 1_000 {
+        format!("{us}µs")
+    } else if us < 1_000_000 {
+        let ms = us as f64 / 1_000.0;
+        if ms < 10.0 {
+            format!("{ms:.1}ms")
+        } else {
+            format!("{}ms", us / 1_000)
+        }
+    } else {
+        let s = us as f64 / 1_000_000.0;
+        format!("{s:.2}s")
+    }
 }

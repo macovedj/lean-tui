@@ -2,13 +2,14 @@ use std::mem;
 
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
 use crate::{
+    protocol::format_elapsed_ns,
     selection::{Region, Selection},
     theme::{Red, Theme},
 };
@@ -78,15 +79,18 @@ pub struct NodeContent {
     pub title: String,
     pub items: Vec<ContentItem>,
     pub errors: Vec<ErrorLine>,
+    pub elapsed_ns: u64,
 }
 
 impl NodeContent {
     pub fn layout_size(&self) -> (u16, u16) {
         let title_width = self.title.chars().count();
+        let elapsed_text = format_elapsed_ns(self.elapsed_ns);
+        let elapsed_width = if elapsed_text.is_empty() { 0 } else { elapsed_text.len() + 2 };
         let content_widths = collect_content_widths(&self.items, &self.errors);
         let max_content_width = content_widths.into_iter().max().unwrap_or(0);
 
-        let width = (title_width.max(max_content_width) + BORDER_PADDING) as u16;
+        let width = (title_width.max(max_content_width).max(elapsed_width) + BORDER_PADDING) as u16;
         let height = BORDER_HEIGHT + self.items.len() as u16 + self.errors.len() as u16;
 
         (width, height.max(BORDER_HEIGHT + 1))
@@ -146,13 +150,23 @@ impl StatefulWidget for NodeContentWidget {
         let border_mod = if self.style.border_bold { Modifier::BOLD } else { Modifier::empty() };
         let title_mod = if self.style.title_bold { Modifier::BOLD } else { Modifier::empty() };
 
-        let block = Block::default()
+        let elapsed = format_elapsed_ns(self.content.elapsed_ns);
+        let mut block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::new().fg(self.style.border_color).add_modifier(border_mod))
             .title(Span::styled(
                 self.content.title,
                 Style::new().fg(self.style.title_color).add_modifier(title_mod),
             ));
+        if !elapsed.is_empty() {
+            block = block.title_bottom(
+                Line::from(Span::styled(
+                    format!(" {elapsed} "),
+                    Style::new().fg(Color::DarkGray),
+                ))
+                .alignment(Alignment::Right),
+            );
+        }
 
         let inner = block.inner(area);
         block.render(area, buf);
