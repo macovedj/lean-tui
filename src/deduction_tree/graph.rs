@@ -7,9 +7,9 @@ use serde::de::DeserializeOwned;
 use crate::{
     graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
     protocol::{
-        DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, LocalBinding, NodeId, PreresolvedNavigationTargets, RichText,
-        range_contains_cursor, range_size,
+        range_contains_cursor, range_size, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
+        GenericDag, GraphNode, LineCharacterPosition, LocalBinding, NodeId,
+        PreresolvedNavigationTargets, RichText, TimingDisplay,
     },
     selection::Selection,
     theme::{Red, Theme},
@@ -98,7 +98,9 @@ pub struct ProofDagTacticNode {
     pub is_complete: bool,
     pub diagnostics: Vec<DiagnosticInfo>,
     #[serde(default)]
-    pub elapsed_ns: u64,
+    pub self_elaboration_ns: Option<u64>,
+    #[serde(default)]
+    pub self_elaboration_heartbeats: Option<u64>,
 }
 
 impl ProofDagTacticNode {
@@ -128,6 +130,7 @@ impl ProofDagTacticNode {
         &self,
         selection: Option<Selection>,
         is_current: bool,
+        timing_display: TimingDisplay,
     ) -> NodeContent {
         let error_prefix = if self.has_error() { "⚠ " } else { "" };
         let title = format!(" {error_prefix}{} ", self.tactic_text);
@@ -173,7 +176,9 @@ impl ProofDagTacticNode {
             title,
             items,
             errors,
-            elapsed_ns: self.elapsed_ns,
+            self_elaboration_ns: self.self_elaboration_ns,
+            self_elaboration_heartbeats: self.self_elaboration_heartbeats,
+            timing_display,
         }
     }
 
@@ -427,12 +432,14 @@ impl CompleteProofDag {
 
     /// Convert to lay out graph for layered layout computation.
     /// Each node is sized based on its own proof state.
-    pub fn to_layout_graph(&self) -> LayoutGraph {
+    pub fn to_layout_graph(&self, timing_display: TimingDisplay) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
-            let (width, height) = node.build_content(None, false).layout_size();
+            let (width, height) = node
+                .build_content(None, false, timing_display)
+                .layout_size();
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
             layout.add_node(index, node.id, width, height);
@@ -599,7 +606,8 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         referenced_theorems,
         is_complete,
         diagnostics: node.diagnostics.clone(),
-        elapsed_ns: node.elapsed_ns(),
+        self_elaboration_ns: node.self_elaboration_ns(),
+        self_elaboration_heartbeats: node.self_elaboration_heartbeats(),
     })
 }
 

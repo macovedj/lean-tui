@@ -8,13 +8,12 @@ use ratatui::{
     widgets::{Block, Borders, StatefulWidget, Widget},
 };
 
+use super::aligned_table::{AlignedRow, AlignedTable};
 use crate::{
-    protocol::format_elapsed_ns,
+    protocol::{format_timing, TimingDisplay},
     selection::{Region, Selection},
     theme::{Red, Theme},
 };
-
-use super::aligned_table::{AlignedRow, AlignedTable};
 
 const BORDER_PADDING: usize = 6;
 const BORDER_HEIGHT: u16 = 2;
@@ -79,14 +78,24 @@ pub struct NodeContent {
     pub title: String,
     pub items: Vec<ContentItem>,
     pub errors: Vec<ErrorLine>,
-    pub elapsed_ns: u64,
+    pub self_elaboration_ns: Option<u64>,
+    pub self_elaboration_heartbeats: Option<u64>,
+    pub timing_display: TimingDisplay,
 }
 
 impl NodeContent {
     pub fn layout_size(&self) -> (u16, u16) {
         let title_width = self.title.chars().count();
-        let elapsed_text = format_elapsed_ns(self.elapsed_ns);
-        let elapsed_width = if elapsed_text.is_empty() { 0 } else { elapsed_text.len() + 2 };
+        let elapsed_text = format_timing(
+            self.self_elaboration_ns,
+            self.self_elaboration_heartbeats,
+            self.timing_display,
+        );
+        let elapsed_width = if elapsed_text.is_empty() {
+            0
+        } else {
+            elapsed_text.len() + 2
+        };
         let content_widths = collect_content_widths(&self.items, &self.errors);
         let max_content_width = content_widths.into_iter().max().unwrap_or(0);
 
@@ -147,16 +156,34 @@ impl StatefulWidget for NodeContentWidget {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         state.click_regions.clear();
 
-        let border_mod = if self.style.border_bold { Modifier::BOLD } else { Modifier::empty() };
-        let title_mod = if self.style.title_bold { Modifier::BOLD } else { Modifier::empty() };
+        let border_mod = if self.style.border_bold {
+            Modifier::BOLD
+        } else {
+            Modifier::empty()
+        };
+        let title_mod = if self.style.title_bold {
+            Modifier::BOLD
+        } else {
+            Modifier::empty()
+        };
 
-        let elapsed = format_elapsed_ns(self.content.elapsed_ns);
+        let elapsed = format_timing(
+            self.content.self_elaboration_ns,
+            self.content.self_elaboration_heartbeats,
+            self.content.timing_display,
+        );
         let mut block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(self.style.border_color).add_modifier(border_mod))
+            .border_style(
+                Style::new()
+                    .fg(self.style.border_color)
+                    .add_modifier(border_mod),
+            )
             .title(Span::styled(
                 self.content.title,
-                Style::new().fg(self.style.title_color).add_modifier(title_mod),
+                Style::new()
+                    .fg(self.style.title_color)
+                    .add_modifier(title_mod),
             ));
         if !elapsed.is_empty() {
             block = block.title_bottom(
@@ -175,7 +202,13 @@ impl StatefulWidget for NodeContentWidget {
             return;
         }
 
-        let y = render_items(self.content.items, inner, inner.y, buf, &mut state.click_regions);
+        let y = render_items(
+            self.content.items,
+            inner,
+            inner.y,
+            buf,
+            &mut state.click_regions,
+        );
         render_errors(self.content.errors, inner, y, buf, &mut state.click_regions);
     }
 }
@@ -225,7 +258,12 @@ fn render_errors(
         if y >= bottom {
             break;
         }
-        buf.set_line(inner.x, y, &Line::from(Span::styled(err.text, err.style)), inner.width);
+        buf.set_line(
+            inner.x,
+            y,
+            &Line::from(Span::styled(err.text, err.style)),
+            inner.width,
+        );
         push_region(regions, inner, y, err.selection);
         y += 1;
     }
@@ -233,7 +271,10 @@ fn render_errors(
 
 fn push_region(regions: &mut Vec<Region>, inner: Rect, y: u16, selection: Option<Selection>) {
     if let Some(sel) = selection {
-        regions.push(Region::from_rect(Rect::new(inner.x, y, inner.width, 1), sel));
+        regions.push(Region::from_rect(
+            Rect::new(inner.x, y, inner.width, 1),
+            sel,
+        ));
     }
 }
 

@@ -12,7 +12,7 @@ use crate::{
     deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
     effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode},
     interactive::Mode,
-    protocol::{GenericDag, LineCharacterPosition, LocalBinding, RichText},
+    protocol::{GenericDag, LineCharacterPosition, LocalBinding, RichText, TimingDisplay},
     selection::Selection,
     widgets::legend::LegendSection,
 };
@@ -142,6 +142,7 @@ impl Default for ModeVariant {
 pub struct DisplayMode {
     mode: ModeVariant,
     pub dag: DagState,
+    pub timing_display: TimingDisplay,
 }
 
 impl Default for DisplayMode {
@@ -149,6 +150,7 @@ impl Default for DisplayMode {
         Self {
             mode: ModeVariant::default(),
             dag: DagState::None,
+            timing_display: TimingDisplay::Off,
         }
     }
 }
@@ -344,14 +346,25 @@ impl DisplayMode {
         }
     }
 
-    /// Render active mode.
+    /// Sync timing display to mode viewports and render.
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
+        self.sync_timing_display();
         match &mut self.mode {
             ModeVariant::Compact(m) => m.render(frame, area),
             ModeVariant::CompactTree(m) => m.render(frame, area),
             ModeVariant::DeductionTree(m) => m.render(frame, area),
             ModeVariant::DataFlow(m) => m.render(frame, area),
             ModeVariant::EffectFlow(m) => m.render(frame, area),
+        }
+    }
+
+    fn sync_timing_display(&mut self) {
+        let td = self.timing_display;
+        match &mut self.mode {
+            ModeVariant::DeductionTree(m) => m.viewport.timing_display = td,
+            ModeVariant::DataFlow(m) => m.viewport.timing_display = td,
+            ModeVariant::EffectFlow(m) => m.viewport.timing_display = td,
+            ModeVariant::Compact(_) | ModeVariant::CompactTree(_) => {}
         }
     }
 }

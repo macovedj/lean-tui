@@ -4,6 +4,7 @@ pub mod render;
 use std::{collections::HashSet, iter::once};
 
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
+pub use graph::{DataFlowConversionError, DataFlowDag};
 use ratatui::{
     layout::Rect,
     style::{Color, Style},
@@ -11,7 +12,6 @@ use ratatui::{
     Frame,
 };
 use tracing::trace;
-pub use graph::{DataFlowConversionError, DataFlowDag};
 
 use crate::{
     data_flow::render::DataFlowLayout,
@@ -34,7 +34,7 @@ pub struct DataFlowMode {
     selected_idx: Option<usize>,
     /// When true, tree renders top-down (parent above children).
     tree_top_down: bool,
-    viewport: GraphViewport,
+    pub(crate) viewport: GraphViewport,
     /// Clicked error message to display in banner.
     clicked_error: Option<String>,
 }

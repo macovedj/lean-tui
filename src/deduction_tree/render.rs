@@ -48,8 +48,9 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
 
         let graph = self.dag.to_graph();
 
+        let td = state.timing_display;
         let layout_changed = state.update_layout(|| {
-            let layout_graph = self.dag.to_layout_graph();
+            let layout_graph = self.dag.to_layout_graph(td);
             calculate_layout(&layout_graph, self.top_down)
         });
 
@@ -85,7 +86,7 @@ impl StatefulWidget for SemanticTableauLayout<'_> {
             }
 
             let is_current = graph.is_current(pos.index);
-            let content = node.build_content(self.selection, is_current);
+            let content = node.build_content(self.selection, is_current, state.timing_display);
             let style = node.build_node_style(is_current);
             let mut node_state = NodeWidgetState::default();
             NodeContentWidget { content, style }.render(render_area, buf, &mut node_state);

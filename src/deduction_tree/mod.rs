@@ -2,13 +2,9 @@ pub mod graph;
 pub mod render;
 
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
-use ratatui::{
-    layout::Rect,
-    style::Color,
-    Frame,
-};
-use tracing::trace;
 pub use graph::{CompleteProofDag, ProofDagConversionError, TacticProofState};
+use ratatui::{layout::Rect, style::Color, Frame};
+use tracing::trace;
 
 use crate::{
     deduction_tree::render::SemanticTableauLayout,
@@ -32,7 +28,7 @@ pub struct SemanticTableau {
     selected_idx: Option<usize>,
     /// When true, tree renders top-down (parent above children).
     tree_top_down: bool,
-    viewport: GraphViewport,
+    pub(crate) viewport: GraphViewport,
 }
 
 impl Default for SemanticTableau {

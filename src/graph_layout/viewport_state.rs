@@ -3,7 +3,7 @@ use ratatui::{buffer::Buffer, layout::Rect};
 
 use super::{render_edges, render_scrollbars, DagGraph, DagLayout, NodePosition};
 use crate::{
-    protocol::NodeId,
+    protocol::{NodeId, TimingDisplay},
     selection::{find_region_at, Region, Selection},
 };
 
@@ -19,6 +19,7 @@ pub struct GraphViewport {
     pub click_regions: Vec<Region>,
     /// Navigation regions with virtual coordinates (for keyboard nav).
     pub navigation_regions: Vec<Region>,
+    pub timing_display: TimingDisplay,
 }
 
 impl GraphViewport {

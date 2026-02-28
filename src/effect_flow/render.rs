@@ -45,8 +45,9 @@ impl StatefulWidget for EffectFlowLayout<'_> {
         let top_down = true;
         let graph = self.dag.to_graph_filtered(self.expanded);
 
+        let td = state.timing_display;
         let layout_changed = state.update_layout(|| {
-            let layout_graph = self.dag.to_layout_graph_filtered(self.expanded);
+            let layout_graph = self.dag.to_layout_graph_filtered(self.expanded, td);
             calculate_layout(&layout_graph, top_down)
         });
 
@@ -82,7 +83,7 @@ impl StatefulWidget for EffectFlowLayout<'_> {
             }
 
             let is_current = graph.is_current(pos.index);
-            let content = node.build_content(self.selection, is_current);
+            let content = node.build_content(self.selection, is_current, state.timing_display);
             let style = node.build_node_style(is_current);
             let mut node_state = NodeWidgetState::default();
             NodeContentWidget { content, style }.render(render_area, buf, &mut node_state);

@@ -7,7 +7,7 @@ use crate::{
     graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
     protocol::{
         DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, LocalBinding, NodeId, RichText,
+        LineCharacterPosition, LocalBinding, NodeId, RichText, TimingDisplay,
     },
     selection::Selection,
     theme::{Red, Theme},
@@ -157,6 +157,7 @@ impl DataFlowNode {
         selection: Option<Selection>,
         _is_current: bool,
         top_down: bool,
+        timing_display: TimingDisplay,
     ) -> NodeContent {
         let kind = self.data_flow_kind();
         let icon = kind.icon();
@@ -184,7 +185,9 @@ impl DataFlowNode {
             title,
             items,
             errors: self.build_error_items(),
-            elapsed_ns: self.inner.elapsed_ns(),
+            self_elaboration_ns: self.inner.self_elaboration_ns(),
+            self_elaboration_heartbeats: self.inner.self_elaboration_heartbeats(),
+            timing_display,
         }
     }
 
@@ -219,19 +222,32 @@ impl DataFlowNode {
             selection,
             Some(Selection::Goal { node_id, goal_idx: 0 }) if node_id == self.id()
         );
-        let underline = if goal_selected { Modifier::UNDERLINED } else { Modifier::empty() };
-        let goal_sel = Some(Selection::Goal { node_id: self.id(), goal_idx: 0 });
+        let underline = if goal_selected {
+            Modifier::UNDERLINED
+        } else {
+            Modifier::empty()
+        };
+        let goal_sel = Some(Selection::Goal {
+            node_id: self.id(),
+            goal_idx: 0,
+        });
 
         match (self.expected_type(), self.is_complete()) {
             (Some(ty), _) => ContentItem::Row {
                 row: AlignedRow::new(
-                    "", Style::default(), "⊢", Style::new().fg(Color::DarkGray),
-                    ty, Style::new().fg(Theme::GOAL).add_modifier(underline),
+                    "",
+                    Style::default(),
+                    "⊢",
+                    Style::new().fg(Color::DarkGray),
+                    ty,
+                    Style::new().fg(Theme::GOAL).add_modifier(underline),
                 ),
                 selection: goal_sel,
             },
             (None, true) => {
-                let s = Style::new().fg(Theme::COMPLETED_GOAL_FG).add_modifier(Modifier::BOLD);
+                let s = Style::new()
+                    .fg(Theme::COMPLETED_GOAL_FG)
+                    .add_modifier(Modifier::BOLD);
                 ContentItem::Row {
                     row: AlignedRow::new("", Style::default(), "✓", s, "Complete", s),
                     selection: goal_sel,
@@ -239,8 +255,12 @@ impl DataFlowNode {
             }
             (None, false) => ContentItem::Row {
                 row: AlignedRow::new(
-                    "", Style::default(), "⊢", Style::new().fg(Color::DarkGray),
-                    "...", Style::new().fg(Theme::GOAL).add_modifier(underline),
+                    "",
+                    Style::default(),
+                    "⊢",
+                    Style::new().fg(Color::DarkGray),
+                    "...",
+                    Style::new().fg(Theme::GOAL).add_modifier(underline),
                 ),
                 selection: goal_sel,
             },
@@ -257,7 +277,10 @@ impl DataFlowNode {
                 ErrorLine {
                     text: msg,
                     style: Style::new().fg(Red::BRIGHT),
-                    selection: Some(Selection::Error { node_id: self.id(), error_idx }),
+                    selection: Some(Selection::Error {
+                        node_id: self.id(),
+                        error_idx,
+                    }),
                 }
             })
             .collect()
@@ -401,12 +424,14 @@ impl DataFlowDag {
         graph
     }
 
-    pub fn to_layout_graph(&self) -> LayoutGraph {
+    pub fn to_layout_graph(&self, timing_display: TimingDisplay) -> LayoutGraph {
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();
 
         for node in &self.nodes {
-            let (width, height) = node.build_content(None, false, true).layout_size();
+            let (width, height) = node
+                .build_content(None, false, true, timing_display)
+                .layout_size();
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id(), index);
             layout.add_node(index, node.id(), width, height);

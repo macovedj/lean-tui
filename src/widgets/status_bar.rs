@@ -25,6 +25,7 @@ impl Widget for StatusBar<'_> {
             ("?", "help"),
             ("[/]", "style"),
             ("i/o", "in/out"),
+            ("m", "metrics"),
             ("q", "quit"),
         ];
 

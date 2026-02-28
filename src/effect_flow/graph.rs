@@ -13,6 +13,7 @@ use crate::{
     protocol::{
         range_contains_cursor, range_size, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
         GenericDag, GraphEdge, GraphNode, LineCharacterPosition, LocalBinding, NodeId, RichText,
+        TimingDisplay,
     },
     selection::Selection,
     theme::{Red, Theme},
@@ -103,7 +104,6 @@ impl EffectKind {
             Self::Custom(_) => "◆",
         }
     }
-
 }
 
 /// Edge kinds for effect flow edges.
@@ -165,7 +165,8 @@ pub struct EffectFlowNode {
     pub backwards: Vec<EffectValue>,
     pub bindings: Vec<LocalBinding>,
     pub diagnostics: Vec<DiagnosticInfo>,
-    pub elapsed_ns: u64,
+    pub self_elaboration_ns: Option<u64>,
+    pub self_elaboration_heartbeats: Option<u64>,
 }
 
 impl EffectFlowNode {
@@ -177,10 +178,10 @@ impl EffectFlowNode {
         let backwards = parse_effect_values(&node.metadata, "backwards");
         let diagnostics = node.diagnostics.clone();
 
-        let elapsed_ns = node.elapsed_ns();
-
         Some(Self {
             id: node.id,
+            self_elaboration_ns: node.self_elaboration_ns(),
+            self_elaboration_heartbeats: node.self_elaboration_heartbeats(),
             content: node.content,
             position: node.position,
             end_position: node.end_position,
@@ -190,7 +191,6 @@ impl EffectFlowNode {
             backwards,
             bindings,
             diagnostics,
-            elapsed_ns,
         })
     }
 
@@ -256,8 +256,13 @@ impl EffectFlowNode {
         &self,
         selection: Option<Selection>,
         is_current: bool,
+        timing_display: TimingDisplay,
     ) -> NodeContent {
-        let title = if self.has_error() { " ⚠ ".to_string() } else { " ".to_string() };
+        let title = if self.has_error() {
+            " ⚠ ".to_string()
+        } else {
+            " ".to_string()
+        };
 
         let mut items = self.build_binding_items(selection);
         items.push(self.build_expression_item(is_current));
@@ -266,7 +271,14 @@ impl EffectFlowNode {
 
         let errors = self.build_error_items();
 
-        NodeContent { title, items, errors, elapsed_ns: self.elapsed_ns }
+        NodeContent {
+            title,
+            items,
+            errors,
+            self_elaboration_ns: self.self_elaboration_ns,
+            self_elaboration_heartbeats: self.self_elaboration_heartbeats,
+            timing_display,
+        }
     }
 
     fn build_binding_items(&self, selection: Option<Selection>) -> Vec<ContentItem> {
@@ -302,7 +314,10 @@ impl EffectFlowNode {
         };
         ContentItem::Line {
             spans: self.content.to_spans(expr_style),
-            selection: Some(Selection::Goal { node_id: self.id, goal_idx: 0 }),
+            selection: Some(Selection::Goal {
+                node_id: self.id,
+                goal_idx: 0,
+            }),
         }
     }
 
@@ -311,8 +326,12 @@ impl EffectFlowNode {
         for fwd in &self.forwards {
             items.push(ContentItem::Row {
                 row: AlignedRow::new(
-                    "", Style::default(), "→", Style::new().fg(Color::Green),
-                    fwd.value.clone(), Style::new().fg(Color::White),
+                    "",
+                    Style::default(),
+                    "→",
+                    Style::new().fg(Color::Green),
+                    fwd.value.clone(),
+                    Style::new().fg(Color::White),
                 ),
                 selection: None,
             });
@@ -320,8 +339,12 @@ impl EffectFlowNode {
         for bwd in &self.backwards {
             items.push(ContentItem::Row {
                 row: AlignedRow::new(
-                    "", Style::default(), bwd.kind.icon(), Style::new().fg(Color::Magenta),
-                    bwd.value.clone(), Style::new().fg(Color::White),
+                    "",
+                    Style::default(),
+                    bwd.kind.icon(),
+                    Style::new().fg(Color::Magenta),
+                    bwd.value.clone(),
+                    Style::new().fg(Color::White),
                 ),
                 selection: None,
             });
@@ -333,7 +356,9 @@ impl EffectFlowNode {
         if !self.is_leaf() || self.has_error() || self.has_effects() {
             return None;
         }
-        let s = Style::new().fg(Theme::COMPLETED_GOAL_FG).add_modifier(Modifier::BOLD);
+        let s = Style::new()
+            .fg(Theme::COMPLETED_GOAL_FG)
+            .add_modifier(Modifier::BOLD);
         Some(ContentItem::Row {
             row: AlignedRow::new("", Style::default(), "✓", s, "completed", s),
             selection: None,
@@ -394,10 +419,7 @@ fn assign_error_selections(node_id: NodeId, mut errors: Vec<ErrorLine>) -> Vec<E
     let mut error_idx = 0;
     for err in &mut errors {
         if err.text.starts_with("✗ ") {
-            err.selection = Some(Selection::Error {
-                node_id,
-                error_idx,
-            });
+            err.selection = Some(Selection::Error { node_id, error_idx });
             error_idx += 1;
         }
     }
@@ -521,7 +543,11 @@ impl EffectFlowDag {
         graph
     }
 
-    pub fn to_layout_graph_filtered(&self, include_expand: bool) -> LayoutGraph {
+    pub fn to_layout_graph_filtered(
+        &self,
+        include_expand: bool,
+        timing_display: TimingDisplay,
+    ) -> LayoutGraph {
         let excluded_node_ids = self.expand_target_ids();
         let mut layout = LayoutGraph::new();
         let mut id_to_index = HashMap::new();
@@ -530,7 +556,9 @@ impl EffectFlowDag {
             if !include_expand && excluded_node_ids.contains(&node.id) {
                 continue;
             }
-            let (width, height) = node.build_content(None, false).layout_size();
+            let (width, height) = node
+                .build_content(None, false, timing_display)
+                .layout_size();
             let index = NodeIndex::new(layout.nodes.len());
             id_to_index.insert(node.id, index);
             layout.add_node(index, node.id, width, height);
