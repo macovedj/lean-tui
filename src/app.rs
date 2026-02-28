@@ -634,6 +634,10 @@ impl App {
                 self.copy_to_clipboard();
                 true
             }
+            KeyCode::Char('m') => {
+                self.display_mode.timing_display.next();
+                true
+            }
             _ => false,
         }
     }

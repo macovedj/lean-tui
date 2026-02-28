@@ -1,9 +1,10 @@
-mod render;
 pub mod graph;
+mod render;
 
 use std::iter::once;
 
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
+pub use graph::{EdgeKind, EffectFlowConversionError, EffectFlowDag, EffectKind};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -12,7 +13,6 @@ use ratatui::{
     Frame,
 };
 use tracing::trace;
-pub use graph::{EdgeKind, EffectFlowConversionError, EffectFlowDag, EffectKind};
 
 use crate::{
     effect_flow::render::EffectFlowLayout,
@@ -32,7 +32,7 @@ pub struct EffectFlowMode {
     error: Option<String>,
     effect_dag: Option<EffectFlowDag>,
     selected_idx: Option<usize>,
-    viewport: GraphViewport,
+    pub(crate) viewport: GraphViewport,
     expanded: bool,
 }
 
@@ -287,8 +287,7 @@ impl Mode for EffectFlowMode {
 
         if let Some(ref dag) = self.effect_dag {
             let remaining = self.render_monad_stack(frame, content_area);
-            let widget =
-                EffectFlowLayout::new(dag, self.current_tree_selection(), self.expanded);
+            let widget = EffectFlowLayout::new(dag, self.current_tree_selection(), self.expanded);
             frame.render_stateful_widget(widget, remaining, &mut self.viewport);
             return;
         }

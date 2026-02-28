@@ -17,6 +17,24 @@ pub use generated::*;
 /// Type alias for node IDs.
 pub type NodeId = u64;
 
+#[derive(Default, Copy, Clone, PartialEq, Eq)]
+pub enum TimingDisplay {
+    #[default]
+    Off,
+    Heartbeats,
+    ClockTime,
+}
+
+impl TimingDisplay {
+    pub fn next(&mut self) {
+        *self = match self {
+            Self::Off => Self::Heartbeats,
+            Self::Heartbeats => Self::ClockTime,
+            Self::ClockTime => Self::Off,
+        };
+    }
+}
+
 impl ServerToClientMessage {
     /// Get a string describing the message type for logging.
     pub const fn message_type(&self) -> &'static str {
@@ -106,18 +124,22 @@ impl GraphNode {
         range_size(self.position, self.end_position)
     }
 
-    pub fn elapsed_ns(&self) -> u64 {
+    pub fn self_elaboration_ns(&self) -> Option<u64> {
         self.metadata
-            .get("elapsed_ns")
+            .get("metrics")
+            .and_then(|m| m.get("tactic_self_elaboration_ns"))
             .and_then(serde_json::Value::as_u64)
-            .unwrap_or(0)
+    }
+
+    pub fn self_elaboration_heartbeats(&self) -> Option<u64> {
+        self.metadata
+            .get("metrics")
+            .and_then(|m| m.get("tactic_self_elaboration_heartbeats"))
+            .and_then(serde_json::Value::as_u64)
     }
 }
 
-pub fn format_elapsed_ns(ns: u64) -> String {
-    if ns == 0 {
-        return String::new();
-    }
+fn format_ns(ns: u64) -> String {
     let us = ns / 1_000;
     if us < 1_000 {
         format!("{us}µs")
@@ -131,5 +153,29 @@ pub fn format_elapsed_ns(ns: u64) -> String {
     } else {
         let s = us as f64 / 1_000_000.0;
         format!("{s:.2}s")
+    }
+}
+
+fn format_heartbeats(hb: u64) -> String {
+    if hb < 1_000 {
+        format!("{hb} hb")
+    } else if hb < 1_000_000 {
+        let k = hb as f64 / 1_000.0;
+        if k < 10.0 {
+            format!("{k:.1}k hb")
+        } else {
+            format!("{}k hb", hb / 1_000)
+        }
+    } else {
+        let m = hb as f64 / 1_000_000.0;
+        format!("{m:.1}M hb")
+    }
+}
+
+pub fn format_timing(ns: Option<u64>, hb: Option<u64>, mode: TimingDisplay) -> String {
+    match mode {
+        TimingDisplay::Off => String::new(),
+        TimingDisplay::Heartbeats => hb.map_or_else(String::new, format_heartbeats),
+        TimingDisplay::ClockTime => ns.map_or_else(String::new, format_ns),
     }
 }
