@@ -184,6 +184,7 @@ impl DataFlowNode {
             title,
             items,
             errors: self.build_error_items(),
+            elapsed_ns: self.inner.elapsed_ns(),
         }
     }
 

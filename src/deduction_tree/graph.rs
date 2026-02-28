@@ -97,6 +97,8 @@ pub struct ProofDagTacticNode {
     #[serde(default)]
     pub is_complete: bool,
     pub diagnostics: Vec<DiagnosticInfo>,
+    #[serde(default)]
+    pub elapsed_ns: u64,
 }
 
 impl ProofDagTacticNode {
@@ -171,6 +173,7 @@ impl ProofDagTacticNode {
             title,
             items,
             errors,
+            elapsed_ns: self.elapsed_ns,
         }
     }
 
@@ -596,6 +599,7 @@ fn parse_graph_node(node: &GraphNode) -> Result<ProofDagTacticNode, ProofDagConv
         referenced_theorems,
         is_complete,
         diagnostics: node.diagnostics.clone(),
+        elapsed_ns: node.elapsed_ns(),
     })
 }
 
