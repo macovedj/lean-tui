@@ -39,9 +39,15 @@
     in
     {
       packages = forEachSystem (
-        { craneLib, ... }:
+        { craneLib, pkgs, ... }:
         {
-          default = craneLib.buildPackage (craneLib.cleanCargoSource ./.);
+          default = craneLib.buildPackage {
+            src = craneLib.cleanCargoSource ./.;
+            LEAN_DAG_SCHEMA = pkgs.fetchurl {
+              url = "https://codeberg.org/wvhulle/lean-prism/raw/commit/af86afc/protocol-schema.json";
+              sha256 = "sha256-RllBZkdVaUnnxfOtRmndyQ9XJEeNG+2An9ZVWo/Cvb8=";
+            };
+          };
         }
       );
       devShells = forEachSystem (
