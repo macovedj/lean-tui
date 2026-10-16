@@ -49,6 +49,9 @@ let
       "--set"
       "SHELL"
       (lib.getExe pkgs.bashInteractive)
+      "--set"
+      "VHS_NO_SANDBOX"
+      "true"
     ];
   } ./record-scene.nu;
 
