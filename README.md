@@ -61,22 +61,23 @@ Now, make sure that `~/.cargo/bin` is in your path to be able to run `lean-tui` 
 
 ### 2. Add `LeanPrism` Dependency
 
-Add [LeanPrism](https://codeberg.org/wvhulle/lean-prism) as a Lake dependency.
-
-In your `lakefile.toml`:
+Add [LeanPrism](https://codeberg.org/wvhulle/lean-prism) as a Lake dependency, pinned to the branch that matches the `lean-toolchain` of your project. For `leanprover/lean4:v4.33.0`, in your `lakefile.toml`:
 
 ```toml
 [[require]]
 name = "LeanPrism"
 git = "https://codeberg.org/wvhulle/lean-prism.git"
-rev = "main"
+rev = "lean-v4.33"
 ```
 
 Alternatively, in `lakefile.lean`:
 
 ```lean
-require LeanPrism from "https://codeberg.org/wvhulle/lean-prism.git" @ "main"
+require LeanPrism from "https://codeberg.org/wvhulle/lean-prism.git" @ "lean-v4.33"
 ```
+
+> [!WARNING]
+> LeanPrism runs inside the Lean language server and uses unstable compiler internals, so a LeanPrism revision works with exactly one Lean minor version. Lake builds it with your project's toolchain, not its own. Pick the `rev` for your `lean-toolchain` from the [supported versions table](https://codeberg.org/wvhulle/lean-prism#installation) and change it whenever you upgrade Lean. A mismatch shows up as errors such as `object file '.../Std/Internal/Async.olean' does not exist`. Avoid `rev = "main"`: it follows whichever Lean version LeanPrism currently targets.
 
 Optionally, pre-fetch the source of this library and build it:
 
