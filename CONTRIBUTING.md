@@ -76,6 +76,16 @@ tail -f ~/.cache/helix/helix.log
 
 Don't forget to update the commit hash in `build.rs` when the JSON schema changes upstream.
 
+### Releases
+
+Releases are automated with [release-plz](https://release-plz.dev/) on Woodpecker, so write [conventional commits](https://www.conventionalcommits.org/) (pull requests are checked with `convco`).
+
+- `.woodpecker/checks.yaml` builds the crate, runs the tests and `rustfmt`, and builds the recording project.
+- `.woodpecker/release.yaml` runs on every push to `main`: it publishes a bumped version to crates.io, tags it and creates the Codeberg release, then opens or updates a release pull request with the next version and changelog. Merging that pull request triggers the next release. `feat`, `fix` and `perf` commits trigger a release; other types only appear in the changelog.
+- `.woodpecker/binaries.yaml` builds static musl binaries (`nix build .#dist`) and attaches them to each Codeberg release.
+
+The Woodpecker repository needs the secrets `codeberg_token` (repository write access), `cargo_registry_token` (crates.io publish token for `lean-tui`) and `cachix_auth_token` (push access to `wvhulle.cachix.org`).
+
 ### Regenerating Screenshots
 
 The GIFs in `screenshots/` are recorded with [VHS](https://github.com/charmbracelet/vhs) tapes in `tests/recordings/`: each `<scene>.tape` opens Helix and `lean-tui` side by side in tmux (shared setup in `open.tape`, shared settings in `common.tape`) and plays the keystrokes.

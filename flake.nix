@@ -19,77 +19,86 @@
 
   outputs =
     {
-      self,
       rust-overlay,
       nixpkgs,
       crane,
       lean4-nix,
+      ...
     }:
     let
-      leanPrismSource = import ./nix/lean-prism-source.nix {
+      protocolSchema = import ./protocol-schema.nix {
         inherit (nixpkgs) lib;
         manifest = ./tests/recordings/lake-manifest.json;
       };
-      forEachSystem =
-        f:
-        nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ] (
-          system:
-          f rec {
-            inherit system;
-            pkgs = import nixpkgs {
-              inherit system;
-              overlays = [
-                (import rust-overlay)
-                (lean4-nix.readToolchainFile ./tests/recordings/lean-toolchain)
-              ];
-            };
-            craneLib = (crane.mkLib pkgs).overrideToolchain (
-              pkgs.rust-bin.selectLatestNightlyWith (
-                t:
-                t.default.override {
-                  extensions = [ "rust-src" ];
-                }
-              )
-            );
-          }
-        );
-    in
-    {
-      packages = forEachSystem (
-        { pkgs, craneLib, ... }:
+      perSystem = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ] (
+        system:
         let
-          lean-tui = import ./nix/lean-tui.nix { inherit craneLib leanPrismSource; };
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              (import rust-overlay)
+              (lean4-nix.readToolchainFile ./tests/recordings/lean-toolchain)
+            ];
+          };
+          craneLib = (crane.mkLib pkgs).overrideToolchain (
+            pkgs.rust-bin.selectLatestNightlyWith (
+              toolchain: toolchain.default.override { extensions = [ "rust-src" ]; }
+            )
+          );
+          lean-tui = import ./package.nix { inherit craneLib protocolSchema; };
           recordings = import ./tests/recordings {
             inherit (nixpkgs) lib;
             inherit pkgs lean4-nix lean-tui;
           };
         in
         {
-          default = lean-tui;
-          inherit lean-tui;
-          inherit (recordings) record-scene;
-          recording-project = recordings.project;
-          recordings = recordings.all;
+          inherit pkgs craneLib lean-tui recordings;
+          checks = import ./checks.nix {
+            inherit craneLib lean-tui;
+            recordingProject = recordings.project;
+          };
+          release = import ./release { inherit pkgs crane lean-tui; };
+        }
+      );
+      mkApp = program: {
+        type = "app";
+        program = nixpkgs.lib.getExe program;
+      };
+    in
+    {
+      packages = builtins.mapAttrs (
+        _: system:
+        {
+          default = system.lean-tui;
+          inherit (system) lean-tui;
+          inherit (system.recordings) record-scene;
+          recording-project = system.recordings.project;
+          recordings = system.recordings.all;
+          inherit (system.release) dist;
+          x86_64-linux-musl = system.release.muslPackages.x86_64;
+          aarch64-linux-musl = system.release.muslPackages.aarch64;
         }
         // nixpkgs.lib.mapAttrs' (
           scene: recording: nixpkgs.lib.nameValuePair "recording-${scene}" recording
-        ) recordings.scenes
-      );
-      checks = forEachSystem (
-        { system, ... }:
-        {
-          build-lean-tui = self.packages.${system}.lean-tui;
-          build-recording-project = self.packages.${system}.recording-project;
-        }
-      );
-      devShells = forEachSystem (
-        { pkgs, craneLib, ... }:
-        {
-          default = craneLib.devShell {
-            packages = [ pkgs.elan ];
-            MATHLIB_NO_CACHE_ON_UPDATE = "1";
-          };
-        }
-      );
+        ) system.recordings.scenes
+      ) perSystem;
+      checks = builtins.mapAttrs (_: system: system.checks) perSystem;
+      apps = builtins.mapAttrs (_: system: {
+        release = mkApp system.release.release;
+        release-pr = mkApp system.release.release-pr;
+        cached-build = mkApp system.release.cached-build;
+        check-commits = mkApp system.release.check-commits;
+      }) perSystem;
+      devShells = builtins.mapAttrs (_: system: {
+        default = system.craneLib.devShell {
+          packages = [
+            system.pkgs.elan
+            system.pkgs.release-plz
+            system.pkgs.convco
+            system.pkgs.git-cliff
+          ];
+          MATHLIB_NO_CACHE_ON_UPDATE = "1";
+        };
+      }) perSystem;
     };
 }
