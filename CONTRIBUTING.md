@@ -75,3 +75,27 @@ tail -f ~/.cache/helix/helix.log
 ## Development
 
 Don't forget to update the commit hash in `build.rs` when the JSON schema changes upstream.
+
+### Regenerating Screenshots
+
+The GIFs in `screenshots/` are recorded in the Nix sandbox by `lean-tui-recordings` (`tests/recordings/`): it runs Helix and `lean-tui` in two pseudo-terminals, composes them side by side, and writes an asciicast with fixed frame durations, which agg renders to GIF. Frames are only taken once the screen has settled, so the GIFs are reproducible.
+
+```bash
+nix build .#demos && cp --no-preserve=mode result/*.gif screenshots/
+```
+
+Each scene is its own derivation (`.#demo-semantic_tableau`, `.#demo-data_flow`, ...), so Nix records them in parallel. Scenes live in `tests/recordings/src/scenes/`, one file per scene, registered in `tests/recordings/src/scenes.rs`; the file name is the scene name.
+
+Woodpecker on Codeberg runs `nix flake check` on every push and pull request (`.woodpecker/check.yaml`). On version tags (`v*`) or a manual run, `.woodpecker/screenshots.yaml` re-records the GIFs and commits changed ones to `main` as `docs: regenerate screenshots [skip ci]`; it needs a Woodpecker secret `codeberg_token` (a Codeberg access token with repository write access).
+
+The test projects live in `tests/`:
+
+- `tests/samples/`: the Lean files shown in the README and recordings.
+- `tests/lean-dev/`: Lake project for co-developing against a sibling `../lean-prism` checkout (with Mathlib).
+- `tests/recordings/lean/`: Lake project with `LeanPrism` pinned in `lake-manifest.json` (update with `lake update` inside that directory); the flake also takes the protocol schema for the Nix build of `lean-tui` from that revision.
+
+To iterate on a scene outside Nix, run it from `tests/recordings/lean/` with `hx`, `agg`, `gifsicle` and a built `lean-tui` on the `PATH`:
+
+```bash
+cargo run --release -p lean-tui-recordings -- record --out /tmp/recordings --font-dir <dir with JetBrains Mono> semantic_tableau
+```

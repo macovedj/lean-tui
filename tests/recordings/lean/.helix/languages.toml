@@ -1,0 +1,8 @@
+[language-server.lake-serve]
+command = "lake"
+args = ["serve"]
+
+[[language]]
+name = "lean"
+roots = ["lakefile.toml", "lakefile.lean"]
+language-servers = ["lake-serve"]

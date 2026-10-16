@@ -1,0 +1,21 @@
+when:
+  - event: tag
+    ref: refs/tags/v*
+  - event: manual
+
+depends_on:
+  - check
+
+steps:
+  - name: record-and-publish
+    image: nixos/nix:2.34.9
+    environment:
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        accept-flake-config = true
+        sandbox = false
+      CODEBERG_TOKEN:
+        from_secret: codeberg_token
+    commands:
+      - nix build .#demos -L --max-jobs 1
+      - nix shell .#lean-tui-recordings nixpkgs#git -c lean-tui-recordings publish result

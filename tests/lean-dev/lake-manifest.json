@@ -16,7 +16,7 @@
    "name": "LeanPrism",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
-   "dir": "../lean-prism",
+   "dir": "../../../lean-prism",
    "configFile": "lakefile.lean"},
   {"url": "https://github.com/leanprover-community/plausible",
    "type": "git",

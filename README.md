@@ -2,7 +2,7 @@
 
 Standalone interactive view for detailed visualization of programs and proofs that are written in [Lean](https://lean-lang.org/).
 
-![](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png)
+![](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/workflow.gif)
 
 Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bottom of this page for a usage guide.
 
@@ -319,7 +319,7 @@ By default the previous state is shown as well. Things that didn't change will h
 
 Intuitively, your proof consists of steps and each step is a node in this tree diagram. The tree follows the cursor position in your editor.
 
-![Semantic tableau screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.png)
+![Semantic tableau screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.gif)
 
 You can click on the goals and hypotheses of each node. You can also jump between clickable items with your keyboard:
 
@@ -344,7 +344,7 @@ Not all proofs are written using tactics. Lean has support for both tactic-based
 
 This view mode is for term-styled proofs and purely functional programming. It does a decomposition of your program into different related sub-states. The decomposition is built using a combination of CST and AST traversal. Each node contains the expected type at the focused part of the program and all active variables.
 
-The following screenshot is a visualization of the [`./Samples/sorting.lean`](./Samples/sorting.lean) file:
+The following screenshot is a visualization of the [`./tests/samples/sorting.lean`](./tests/samples/sorting.lean) file:
 
 ```lean
 def insert (x : Nat) : List Nat → List Nat
@@ -352,7 +352,7 @@ def insert (x : Nat) : List Nat → List Nat
   | y :: ys => if x ≤ y then x :: y :: ys else  y :: insert x ys
 ```
 
-![Data flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/data_flow.png)
+![Data flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/data_flow.gif)
 
 The decomposition is based on a few built-in rules. However, not all Lean control flow has an accompanying rule.
 
@@ -373,7 +373,7 @@ def counterSequence : StateM Counter Nat := do
   pure (v1 + v2 + v3)
 ```
 
-![Effect flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/effect_flow.png)
+![Effect flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/effect_flow.gif)
 
 If you want to see the leaf nodes, use the key binding `e` (expand). By default, nested calls and function definitions are hidden.
 
