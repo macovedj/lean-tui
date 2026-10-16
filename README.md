@@ -2,7 +2,7 @@
 
 Standalone interactive view for detailed visualization of programs and proofs that are written in [Lean](https://lean-lang.org/).
 
-![](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/workflow.gif)
+![Helix with lean-tui following the cursor](./screenshots/workflow.gif)
 
 Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bottom of this page for a usage guide.
 
@@ -279,33 +279,29 @@ Switching between them happens automatically when you change between different p
 
 Shows the proof as a list of hypotheses and goals. By default, displays the current state with the previous state (before the current tactic) side by side.
 
-Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof:
+Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof from [`./tests/samples/swap_tactic.lean`](./tests/samples/swap_tactic.lean):
 
 ```lean
-import LeanPrism -- important
-import Mathlib.Data.Set.Basic
+import LeanPrism
 
-theorem commutativityOfIntersections
-    (s t : Set Nat) : s ∩ t = t ∩ s := by
-  ext x
+theorem andSwap (p q : Prop) : p ∧ q ↔ q ∧ p := by
   apply Iff.intro
 
   intro h1
-  rw [Set.mem_inter_iff, and_comm] at h1
+  rw [and_comm] at h1
 
   exact h1
   intro h2
   -- Wrong
-  rw [ and_comm] at h2
-  -- Correct: rw [Set.mem_inter_iff, and_comm] at h2
   exact h2
+  -- Correct: rw [and_comm] at h2; exact h2
 ```
 
-Notice that there is a deliberate type error. See how the rewrite is not sufficient to solve the proof goal and fails. The deliberate error is there to show how errors are displayed by this program. As errors are an important part of proof development, they are attached to every display style.
+Notice that there is a deliberate type error. See how `h2` is used without the rewrite, so it does not match the goal. The deliberate error is there to show how errors are displayed by this program. As errors are an important part of proof development, they are attached to every display style.
 
 Lean-TUI will visualize the proof as follows:
 
-![(Screenshot in repo)](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/before_after.png)
+![Compact view](./screenshots/compact.gif)
 
 By default the previous state is shown as well. Things that didn't change will have the default color (white or black). Things added in the current state are green. Goals that will be closed or hypotheses removed are red.
 
@@ -319,7 +315,7 @@ By default the previous state is shown as well. Things that didn't change will h
 
 Intuitively, your proof consists of steps and each step is a node in this tree diagram. The tree follows the cursor position in your editor.
 
-![Semantic tableau screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/semantic_tableau.gif)
+![Semantic tableau view](./screenshots/semantic_tableau.gif)
 
 You can click on the goals and hypotheses of each node. You can also jump between clickable items with your keyboard:
 
@@ -336,7 +332,7 @@ This is a more compact version of the semantic tableau with the tree on its side
 
 On the right, you can see active hypotheses and goals, but only the ones currently active.
 
-![Compact tree screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/tactic_tree.png)
+![Compact tree view](./screenshots/compact_tree.gif)
 
 Not all proofs are written using tactics. Lean has support for both tactic-based and term-based proofs. Tactic-based proofs work backwards. Term-based proofs work forwards and are almost indistinguishable from normal functional programs.
 
@@ -352,7 +348,7 @@ def insert (x : Nat) : List Nat → List Nat
   | y :: ys => if x ≤ y then x :: y :: ys else  y :: insert x ys
 ```
 
-![Data flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/data_flow.gif)
+![Data flow view](./screenshots/data_flow.gif)
 
 The decomposition is based on a few built-in rules. However, not all Lean control flow has an accompanying rule.
 
@@ -373,7 +369,7 @@ def counterSequence : StateM Counter Nat := do
   pure (v1 + v2 + v3)
 ```
 
-![Effect flow screenshot](https://codeberg.org/wvhulle/lean-tui/media/branch/main/screenshots/effect_flow.gif)
+![Effect flow view](./screenshots/effect_flow.gif)
 
 If you want to see the leaf nodes, use the key binding `e` (expand). By default, nested calls and function definitions are hidden.
 

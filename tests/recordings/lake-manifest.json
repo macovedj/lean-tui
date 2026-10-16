@@ -21,6 +21,6 @@
    "inputRev": "main",
    "inherited": true,
    "configFile": "lakefile.lean"}],
- "name": "demos",
+ "name": "recordings",
  "lakeDir": ".lake",
  "fixedToolchain": false}

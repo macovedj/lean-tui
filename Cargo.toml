@@ -9,13 +9,7 @@ repository = "https://codeberg.org/wvhulle/lean-tui"
 version = "1.0.1"
 exclude = ["screenshots", "tests"]
 
-[lints]
-workspace = true
-
-[workspace]
-members = ["tests/recordings"]
-
-[workspace.lints.clippy]
+[lints.clippy]
 absolute_paths = { level = "warn", priority = 2 }
 # TUI coordinate calculations involve safe numeric conversions
 cast_possible_truncation = { level = "allow", priority = 2 }
