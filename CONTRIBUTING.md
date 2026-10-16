@@ -78,24 +78,18 @@ Don't forget to update the commit hash in `build.rs` when the JSON schema change
 
 ### Regenerating Screenshots
 
-The GIFs in `screenshots/` are recorded in the Nix sandbox by `lean-tui-recordings` (`tests/recordings/`): it runs Helix and `lean-tui` in two pseudo-terminals, composes them side by side, and writes an asciicast with fixed frame durations, which agg renders to GIF. Frames are only taken once the screen has settled, so the GIFs are reproducible.
+The GIFs in `screenshots/` are recorded with [VHS](https://github.com/charmbracelet/vhs) tapes in `tests/recordings/`: each `<scene>.tape` opens Helix and `lean-tui` side by side in tmux (shared setup in `open.tape`, shared settings in `common.tape`) and plays the keystrokes.
 
 ```bash
-nix build .#demos && cp --no-preserve=mode result/*.gif screenshots/
+nix build .#recordings && cp --no-preserve=mode result/*.gif screenshots/
 ```
 
-Each scene is its own derivation (`.#demo-semantic_tableau`, `.#demo-data_flow`, ...), so Nix records them in parallel. Scenes live in `tests/recordings/src/scenes/`, one file per scene, registered in `tests/recordings/src/scenes.rs`; the file name is the scene name.
+Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` next to the others.
 
-Woodpecker on Codeberg runs `nix flake check` on every push and pull request (`.woodpecker/check.yaml`). On version tags (`v*`) or a manual run, `.woodpecker/screenshots.yaml` re-records the GIFs and commits changed ones to `main` as `docs: regenerate screenshots [skip ci]`; it needs a Woodpecker secret `codeberg_token` (a Codeberg access token with repository write access).
+Woodpecker on Codeberg runs `nix flake check` on every push and pull request (`.woodpecker/check.yaml`). On every push to `main`, `.woodpecker/screenshots.yaml` builds the recordings, pushes them to `wvhulle.cachix.org`, and commits changed GIFs to `main` as `docs: regenerate screenshots [skip ci]`. Because unchanged recordings come from the cache, they keep the same bytes and are not committed again. It needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
 
 The test projects live in `tests/`:
 
 - `tests/samples/`: the Lean files shown in the README and recordings.
 - `tests/lean-dev/`: Lake project for co-developing against a sibling `../lean-prism` checkout (with Mathlib).
-- `tests/recordings/lean/`: Lake project with `LeanPrism` pinned in `lake-manifest.json` (update with `lake update` inside that directory); the flake also takes the protocol schema for the Nix build of `lean-tui` from that revision.
-
-To iterate on a scene outside Nix, run it from `tests/recordings/lean/` with `hx`, `agg`, `gifsicle` and a built `lean-tui` on the `PATH`:
-
-```bash
-cargo run --release -p lean-tui-recordings -- record --out /tmp/recordings --font-dir <dir with JetBrains Mono> semantic_tableau
-```
+- `tests/recordings/`: Lake project with `LeanPrism` pinned in `lake-manifest.json` (update with `lake update` inside that directory), plus the tapes; the flake also takes the protocol schema for the Nix build of `lean-tui` from that revision.

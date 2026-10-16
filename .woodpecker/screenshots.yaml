@@ -1,7 +1,6 @@
 when:
-  - event: tag
-    ref: refs/tags/v*
-  - event: manual
+  - event: [push, manual]
+    branch: main
 
 depends_on:
   - check
@@ -14,8 +13,10 @@ steps:
         experimental-features = nix-command flakes
         accept-flake-config = true
         sandbox = false
+      CACHIX_AUTH_TOKEN:
+        from_secret: cachix_auth_token
       CODEBERG_TOKEN:
         from_secret: codeberg_token
     commands:
-      - nix build .#demos -L --max-jobs 1
-      - nix shell .#lean-tui-recordings nixpkgs#git -c lean-tui-recordings publish result
+      - nix shell nixpkgs#cachix -c cachix watch-exec wvhulle -- nix build .#recordings -L --max-jobs 1
+      - nix shell nixpkgs#nushell nixpkgs#git -c nu .woodpecker/publish-screenshots.nu result

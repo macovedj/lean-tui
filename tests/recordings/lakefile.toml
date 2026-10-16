@@ -1,4 +1,4 @@
-name = "demos"
+name = "recordings"
 defaultTargets = ["Samples"]
 
 [[require]]
