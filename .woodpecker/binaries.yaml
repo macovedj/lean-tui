@@ -1,0 +1,30 @@
+when:
+  - repo: wvhulle/lean-tui
+    event: release
+
+steps:
+  - name: build-musl-tarballs
+    image: nixos/nix:2.34.9
+    environment:
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        accept-flake-config = true
+        sandbox = false
+      CACHIX_AUTH_TOKEN:
+        from_secret: cachix_auth_token
+    commands:
+      - nix run .#cached-build -- .#dist
+      - mkdir -p dist
+      - cp result/* dist/
+
+  - name: attach-to-codeberg-release
+    image: woodpeckerci/plugin-gitea-release
+    settings:
+      base_url: https://codeberg.org
+      api_key:
+        from_secret: codeberg_token
+      files:
+        - dist/*
+      file_exists: overwrite
+      checksum:
+        - sha256

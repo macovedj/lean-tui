@@ -1,9 +1,10 @@
 when:
-  - event: [push, manual]
+  - repo: wvhulle/lean-tui
+    event: [push, manual]
     branch: main
 
 depends_on:
-  - check
+  - checks
 
 steps:
   - name: record-and-publish
@@ -18,5 +19,5 @@ steps:
       CODEBERG_TOKEN:
         from_secret: codeberg_token
     commands:
-      - nix shell nixpkgs#cachix -c cachix watch-exec wvhulle -- nix build .#recordings -L --max-jobs 1
+      - nix run .#cached-build -- .#recordings --max-jobs 1
       - nix shell nixpkgs#nushell nixpkgs#git -c nu .woodpecker/publish-screenshots.nu result

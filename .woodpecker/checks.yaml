@@ -1,0 +1,43 @@
+when:
+  - repo: wvhulle/lean-tui
+    event: [pull_request, push, manual]
+
+variables:
+  - &nix_config
+    NIX_CONFIG: |
+      experimental-features = nix-command flakes
+      accept-flake-config = true
+      sandbox = false
+  - &cache_writing_env
+    <<: *nix_config
+    CACHIX_AUTH_TOKEN:
+      from_secret: cachix_auth_token
+  - &on_trusted_events
+    - event: [push, manual]
+  - &on_pull_requests
+    - event: pull_request
+  - &flake_checks
+    image: nixos/nix:2.34.9
+    depends_on: []
+    commands:
+      - nix run .#cached-build -- .#checks.x86_64-linux.build-lean-tui .#checks.x86_64-linux.tests .#checks.x86_64-linux.fmt .#checks.x86_64-linux.build-recording-project
+
+steps:
+  - name: flake-checks
+    <<: *flake_checks
+    when: *on_trusted_events
+    environment: *cache_writing_env
+
+  - name: flake-checks-pr
+    <<: *flake_checks
+    when: *on_pull_requests
+    environment: *nix_config
+
+  - name: conventional-commits
+    image: nixos/nix:2.34.9
+    depends_on: []
+    when: *on_pull_requests
+    environment: *nix_config
+    commands:
+      - git fetch --quiet origin "$${CI_COMMIT_TARGET_BRANCH}"
+      - nix run .#check-commits -- FETCH_HEAD..HEAD
