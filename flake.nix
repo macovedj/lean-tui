@@ -40,10 +40,15 @@
               (lean4-nix.readToolchainFile ./tests/recordings/lean-toolchain)
             ];
           };
-          craneLib = (crane.mkLib pkgs).overrideToolchain (
-            pkgs.rust-bin.selectLatestNightlyWith (
-              toolchain: toolchain.default.override { extensions = [ "rust-src" ]; }
-            )
+          craneWithNightly =
+            selectComponents:
+            (crane.mkLib pkgs).overrideToolchain (pkgs.rust-bin.selectLatestNightlyWith selectComponents);
+          craneLib = craneWithNightly (toolchain: toolchain.minimal);
+          rustfmtCrane = craneWithNightly (
+            toolchain: toolchain.minimal.override { extensions = [ "rustfmt" ]; }
+          );
+          devCrane = craneWithNightly (
+            toolchain: toolchain.default.override { extensions = [ "rust-src" ]; }
           );
           lean-tui = import ./package.nix { inherit craneLib protocolSchema; };
           recordings = import ./tests/recordings {
@@ -52,9 +57,14 @@
           };
         in
         {
-          inherit pkgs craneLib lean-tui recordings;
+          inherit
+            pkgs
+            devCrane
+            lean-tui
+            recordings
+            ;
           checks = import ./checks.nix {
-            inherit craneLib lean-tui;
+            inherit craneLib rustfmtCrane lean-tui;
             recordingProject = recordings.project;
           };
           release = import ./release { inherit pkgs crane lean-tui; };
@@ -88,9 +98,10 @@
         release-pr = mkApp system.release.release-pr;
         cached-build = mkApp system.release.cached-build;
         check-commits = mkApp system.release.check-commits;
+        upload-release-assets = mkApp system.release.upload-release-assets;
       }) perSystem;
       devShells = builtins.mapAttrs (_: system: {
-        default = system.craneLib.devShell {
+        default = system.devCrane.devShell {
           packages = [
             system.pkgs.elan
             system.pkgs.release-plz
