@@ -7,7 +7,7 @@ let
   inherit (pkgs) lib;
 
   nightlyWithTargets =
-    targets: pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override { inherit targets; });
+    targets: pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.minimal.override { inherit targets; });
 
   mkMuslPackage =
     arch:
@@ -71,4 +71,8 @@ in
     pkgs.convco
     pkgs.gitMinimal
   ] "def --wrapped main [...range: string] { ^convco check ...$range }";
+  upload-release-assets = writeNuTool "upload-release-assets" [
+    pkgs.tea
+    pkgs.coreutils
+  ] ./upload-release-assets.nu;
 }
