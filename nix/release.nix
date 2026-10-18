@@ -1,13 +1,12 @@
 {
   pkgs,
   crane,
+  nightlyWithTargets,
+  writeNuTool,
   lean-tui,
 }:
 let
   inherit (pkgs) lib;
-
-  nightlyWithTargets =
-    targets: pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.minimal.override { inherit targets; });
 
   mkMuslPackage =
     arch:
@@ -32,17 +31,6 @@ let
 
   muslPackages = lib.genAttrs [ "x86_64" "aarch64" ] mkMuslPackage;
 
-  writeNuTool =
-    name: tools: script:
-    pkgs.writers.writeNuBin name {
-      makeWrapperArgs = [
-        "--prefix"
-        "PATH"
-        ":"
-        (lib.makeBinPath tools)
-      ];
-    } script;
-
   releasePlzOnCodeberg =
     subcommand:
     writeNuTool subcommand [
@@ -66,13 +54,8 @@ in
 
   release = releasePlzOnCodeberg "release";
   release-pr = releasePlzOnCodeberg "release-pr";
-  cached-build = writeNuTool "cached-build" [ pkgs.cachix ] ./cached-build.nu;
-  check-commits = writeNuTool "check-commits" [
-    pkgs.convco
-    pkgs.gitMinimal
-  ] "def --wrapped main [...range: string] { ^convco check ...$range }";
   upload-release-assets = writeNuTool "upload-release-assets" [
     pkgs.tea
     pkgs.coreutils
-  ] ./upload-release-assets.nu;
+  ] ./scripts/upload-release-assets.nu;
 }

@@ -280,7 +280,7 @@ Switching between them happens automatically when you change between different p
 
 Shows the proof as a list of hypotheses and goals. By default, displays the current state with the previous state (before the current tactic) side by side.
 
-Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof from [`./tests/samples/swap_tactic.lean`](https://codeberg.org/wvhulle/lean-tui/src/branch/main/tests/samples/swap_tactic.lean):
+Below you can see (or go to [Codeberg](https://codeberg.org/wvhulle/lean-tui)) a simple but incomplete Lean proof from [`./recordings/Samples/swap_tactic.lean`](https://codeberg.org/wvhulle/lean-tui/src/branch/main/recordings/Samples/swap_tactic.lean):
 
 ```lean
 import LeanPrism
@@ -341,7 +341,7 @@ Not all proofs are written using tactics. Lean has support for both tactic-based
 
 This view mode is for term-styled proofs and purely functional programming. It does a decomposition of your program into different related sub-states. The decomposition is built using a combination of CST and AST traversal. Each node contains the expected type at the focused part of the program and all active variables.
 
-The following screenshot is a visualization of the [`./tests/samples/sorting.lean`](https://codeberg.org/wvhulle/lean-tui/src/branch/main/tests/samples/sorting.lean) file:
+The following screenshot is a visualization of the [`./recordings/Samples/sorting.lean`](https://codeberg.org/wvhulle/lean-tui/src/branch/main/recordings/Samples/sorting.lean) file:
 
 ```lean
 def insert (x : Nat) : List Nat → List Nat

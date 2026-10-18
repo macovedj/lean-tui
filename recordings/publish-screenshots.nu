@@ -1,6 +1,9 @@
 #!/usr/bin/env nu
-const SCREENSHOTS_DIR = path self ../screenshots
 const COMMIT_MESSAGE = "docs: regenerate screenshots [skip ci]"
+
+def screenshots-dir []: nothing -> path {
+  ^git rev-parse --show-toplevel | str trim | path join screenshots
+}
 
 def push-url []: nothing -> string {
   let forge_host = $env.CI_FORGE_URL | url parse | get host
@@ -8,12 +11,13 @@ def push-url []: nothing -> string {
 }
 
 def main [recordings: path]: nothing -> nothing {
-  ^cp --no-preserve=mode ...(glob ($recordings | path join "*.gif")) $SCREENSHOTS_DIR
-  if (^git status --porcelain -- $SCREENSHOTS_DIR | is-empty) {
+  let screenshots = screenshots-dir
+  ^cp --no-preserve=mode ...(glob ($recordings | path join "*.gif")) $screenshots
+  if (^git status --porcelain -- $screenshots | is-empty) {
     print "screenshots unchanged"
     return
   }
-  ^git add -- $SCREENSHOTS_DIR
+  ^git add -- $screenshots
   ^git -c "user.name=lean-tui screenshots" -c user.email=ci@codeberg.org commit --message $COMMIT_MESSAGE
   let remote = push-url
   ^git fetch $remote main

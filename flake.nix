@@ -15,64 +15,66 @@
       url = "github:lenianiva/lean4-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    lean-prism = {
+      url = "git+https://codeberg.org/wvhulle/lean-prism?ref=lean-v4.33";
+      flake = false;
+    };
   };
 
   outputs =
     {
-      rust-overlay,
       nixpkgs,
       crane,
+      rust-overlay,
       lean4-nix,
+      lean-prism,
       ...
     }:
     let
-      protocolSchema = import ./protocol-schema.nix {
-        inherit (nixpkgs) lib;
-        manifest = ./tests/recordings/lake-manifest.json;
-      };
-      perSystem = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ] (
+      inherit (nixpkgs) lib;
+      perSystem = lib.genAttrs [ "x86_64-linux" "aarch64-linux" ] (
         system:
         let
           pkgs = import nixpkgs {
             inherit system;
-            overlays = [
-              (import rust-overlay)
-              (lean4-nix.readToolchainFile ./tests/recordings/lean-toolchain)
-            ];
+            overlays = [ (import rust-overlay) ];
           };
-          craneWithNightly =
-            selectComponents:
-            (crane.mkLib pkgs).overrideToolchain (pkgs.rust-bin.selectLatestNightlyWith selectComponents);
-          craneLib = craneWithNightly (toolchain: toolchain.minimal);
-          rustfmtCrane = craneWithNightly (
-            toolchain: toolchain.minimal.override { extensions = [ "rustfmt" ]; }
-          );
-          devCrane = craneWithNightly (
-            toolchain: toolchain.default.override { extensions = [ "rust-src" ]; }
-          );
-          lean-tui = import ./package.nix { inherit craneLib protocolSchema; };
-          recordings = import ./tests/recordings {
-            inherit (nixpkgs) lib;
-            inherit pkgs lean4-nix lean-tui;
+          toolchains = import ./nix/toolchains.nix { inherit pkgs crane; };
+          writeNuTool = import ./nix/nu-tool.nix { inherit pkgs; };
+          lean-tui = import ./nix/package.nix {
+            inherit (toolchains) craneLib;
+            inherit lean-prism;
           };
         in
         {
-          inherit
-            pkgs
-            devCrane
-            lean-tui
-            recordings
-            ;
-          checks = import ./checks.nix {
-            inherit craneLib rustfmtCrane lean-tui;
-            recordingProject = recordings.project;
+          inherit pkgs toolchains lean-tui;
+          checks = import ./nix/checks.nix {
+            inherit (toolchains) craneLib rustfmtCrane;
+            inherit lean-tui;
           };
-          release = import ./release { inherit pkgs crane lean-tui; };
+          release = import ./nix/release.nix {
+            inherit (toolchains) nightlyWithTargets;
+            inherit
+              pkgs
+              crane
+              writeNuTool
+              lean-tui
+              ;
+          };
+          ci = import ./nix/ci.nix { inherit pkgs writeNuTool; };
+          recordings = import ./recordings {
+            inherit
+              pkgs
+              lean4-nix
+              writeNuTool
+              lean-tui
+              ;
+          };
         }
       );
       mkApp = program: {
         type = "app";
-        program = nixpkgs.lib.getExe program;
+        program = lib.getExe program;
       };
     in
     {
@@ -88,20 +90,21 @@
           x86_64-linux-musl = system.release.muslPackages.x86_64;
           aarch64-linux-musl = system.release.muslPackages.aarch64;
         }
-        // nixpkgs.lib.mapAttrs' (
-          scene: recording: nixpkgs.lib.nameValuePair "recording-${scene}" recording
+        // lib.mapAttrs' (
+          scene: recording: lib.nameValuePair "recording-${scene}" recording
         ) system.recordings.scenes
       ) perSystem;
       checks = builtins.mapAttrs (_: system: system.checks) perSystem;
       apps = builtins.mapAttrs (_: system: {
         release = mkApp system.release.release;
         release-pr = mkApp system.release.release-pr;
-        cached-build = mkApp system.release.cached-build;
-        check-commits = mkApp system.release.check-commits;
         upload-release-assets = mkApp system.release.upload-release-assets;
+        cached-build = mkApp system.ci.cached-build;
+        check-commits = mkApp system.ci.check-commits;
+        publish-screenshots = mkApp system.recordings.publish-screenshots;
       }) perSystem;
       devShells = builtins.mapAttrs (_: system: {
-        default = system.devCrane.devShell {
+        default = system.toolchains.devCrane.devShell {
           packages = [
             system.pkgs.elan
             system.pkgs.release-plz

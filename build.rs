@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-const LEAN_PRISM_COMMIT: &str = "af86afc";
+const LEAN_PRISM_COMMIT: &str = "487c189a4ee2791ccf37a2d49d19710a0ecef81b";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
