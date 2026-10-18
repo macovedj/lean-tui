@@ -74,13 +74,22 @@ tail -f ~/.cache/helix/helix.log
 
 ## Development
 
-Don't forget to update the commit hash in `build.rs` when the JSON schema changes upstream.
+The protocol types are generated from `protocol-schema.json` in lean-prism. Nix builds take it from the `lean-prism` flake input, which follows the lean-prism release branch matching the recordings' Lean version (`lean-v4.33`); plain `cargo` builds fetch it at `LEAN_PRISM_COMMIT` in `build.rs`. Keep both on the same commit:
+
+```bash
+nix flake update lean-prism
+nix flake metadata --json | jq -r '.locks.nodes."lean-prism".locked.rev'
+```
+
+Then put that revision in `build.rs`. When the recordings move to a new Lean release, switch the input's `ref` to the matching `lean-v4.xx` branch first.
+
+The flake is split by concern: `nix/` builds, checks and releases the Rust crate, and `recordings/` holds everything that needs Lean.
 
 ### Releases
 
 Releases are automated with [release-plz](https://release-plz.dev/) on Woodpecker, so write [conventional commits](https://www.conventionalcommits.org/) (pull requests are checked with `convco`).
 
-- `.woodpecker/checks.yaml` builds the crate, runs the tests and `rustfmt`, and builds the recording project.
+- `.woodpecker/checks.yaml` builds the crate and runs the tests and `rustfmt`. It never needs Lean.
 - `.woodpecker/release.yaml` runs on every push to `main`: it publishes a bumped version to crates.io, tags it and creates the Codeberg release, then opens or updates a release pull request with the next version and changelog. Merging that pull request triggers the next release. `feat`, `fix` and `perf` commits trigger a release; other types only appear in the changelog.
 - `.woodpecker/binaries.yaml` builds static musl binaries (`nix build .#dist`) and attaches them to each Codeberg release.
 
@@ -88,7 +97,7 @@ The Woodpecker repository needs the secrets `codeberg_token` (repository write a
 
 ### Regenerating Screenshots
 
-The GIFs in `screenshots/` are recorded with [VHS](https://github.com/charmbracelet/vhs) tapes in `tests/recordings/`: each `<scene>.tape` opens Helix and `lean-tui` side by side in tmux (shared setup in `open.tape`, shared settings in `common.tape`) and plays the keystrokes.
+The GIFs in `screenshots/` are recorded with [VHS](https://github.com/charmbracelet/vhs) tapes in `recordings/tapes/`: each `<scene>.tape` opens Helix and `lean-tui` side by side in tmux (shared setup in `open.tape`, shared settings in `common.tape`) and plays the keystrokes.
 
 ```bash
 nix build .#recordings && cp --no-preserve=mode result/*.gif screenshots/
@@ -96,10 +105,9 @@ nix build .#recordings && cp --no-preserve=mode result/*.gif screenshots/
 
 Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` next to the others.
 
-Woodpecker on Codeberg runs `nix flake check` on every push and pull request (`.woodpecker/check.yaml`). On every push to `main`, `.woodpecker/screenshots.yaml` builds the recordings, pushes them to `wvhulle.cachix.org`, and commits changed GIFs to `main` as `docs: regenerate screenshots [skip ci]`. Because unchanged recordings come from the cache, they keep the same bytes and are not committed again. It needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
+On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or `recordings/`, `.woodpecker/screenshots.yaml` builds the recordings (and with them the Lean project), pushes them to `wvhulle.cachix.org`, and commits changed GIFs to `main` as `docs: regenerate screenshots [skip ci]`. Because unchanged recordings come from the cache, they keep the same bytes and are not committed again. It needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
 
-The test projects live in `tests/`:
+The Lean projects:
 
-- `tests/samples/`: the Lean files shown in the README and recordings.
-- `tests/lean-dev/`: Lake project for co-developing against a sibling `../lean-prism` checkout (with Mathlib).
-- `tests/recordings/`: Lake project with `LeanPrism` pinned in `lake-manifest.json` (update with `lake update` inside that directory), plus the tapes; the flake also takes the protocol schema for the Nix build of `lean-tui` from that revision.
+- `recordings/`: Lake project with `LeanPrism` pinned in `lake-manifest.json` (update with `lake update` inside that directory). `recordings/Samples/` holds the Lean files shown in the README and recordings, `recordings/tapes/` the VHS tapes.
+- `tests/lean-dev/`: Lake project for co-developing against a sibling `../lean-prism` checkout (with Mathlib). Its `Samples` links to `recordings/Samples`.

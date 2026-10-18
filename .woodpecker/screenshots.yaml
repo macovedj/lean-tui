@@ -1,6 +1,18 @@
 when:
   - repo: wvhulle/lean-tui
-    event: [push, manual]
+    event: push
+    branch: main
+    path:
+      - src/**
+      - build.rs
+      - Cargo.toml
+      - Cargo.lock
+      - flake.lock
+      - nix/package.nix
+      - nix/toolchains.nix
+      - recordings/**
+  - repo: wvhulle/lean-tui
+    event: manual
     branch: main
 
 depends_on:
@@ -20,4 +32,4 @@ steps:
         from_secret: codeberg_token
     commands:
       - nix run .#cached-build -- .#recordings --max-jobs 1
-      - nix shell nixpkgs#nushell nixpkgs#git -c nu .woodpecker/publish-screenshots.nu result
+      - nix run .#publish-screenshots -- result

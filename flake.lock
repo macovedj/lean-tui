@@ -33,6 +33,23 @@
         "type": "github"
       }
     },
+    "lean-prism": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792154680,
+        "narHash": "sha256-r3Fqq0S627J+OQPW4CAq+/dvXmVy8f1fjb0X4IOGDgY=",
+        "ref": "lean-v4.33",
+        "rev": "487c189a4ee2791ccf37a2d49d19710a0ecef81b",
+        "revCount": 218,
+        "type": "git",
+        "url": "https://codeberg.org/wvhulle/lean-prism"
+      },
+      "original": {
+        "ref": "lean-v4.33",
+        "type": "git",
+        "url": "https://codeberg.org/wvhulle/lean-prism"
+      }
+    },
     "lean4-nix": {
       "inputs": {
         "flake-parts": "flake-parts",
@@ -88,6 +105,7 @@
     "root": {
       "inputs": {
         "crane": "crane",
+        "lean-prism": "lean-prism",
         "lean4-nix": "lean4-nix",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay"

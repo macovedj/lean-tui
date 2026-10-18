@@ -1,9 +1,9 @@
-{ craneLib, protocolSchema }:
+{ craneLib, lean-prism }:
 let
   cargoArgs = {
-    src = craneLib.cleanCargoSource ./.;
+    src = craneLib.cleanCargoSource ../.;
     strictDeps = true;
-    LEAN_DAG_SCHEMA = protocolSchema;
+    LEAN_DAG_SCHEMA = "${lean-prism}/protocol-schema.json";
     meta.mainProgram = "lean-tui";
   };
   cargoArtifacts = craneLib.buildDepsOnly cargoArgs;

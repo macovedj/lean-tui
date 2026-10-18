@@ -1,11 +1,13 @@
 {
-  lib,
   pkgs,
   lean4-nix,
+  writeNuTool,
   lean-tui,
 }:
 let
-  lake2nix = pkgs.callPackage lean4-nix.lake { };
+  inherit (pkgs) lib;
+  leanPkgs = pkgs.extend (lean4-nix.readToolchainFile ./lean-toolchain);
+  lake2nix = leanPkgs.callPackage lean4-nix.lake { };
 
   project = lake2nix.mkPackage {
     name = "Samples";
@@ -19,10 +21,6 @@ let
         ./Samples
       ];
     };
-    postUnpack = ''
-      rm "$sourceRoot/Samples"
-      cp -r ${../samples} "$sourceRoot/Samples"
-    '';
   };
 
   record-scene = pkgs.writers.writeNuBin "record-scene" {
@@ -32,7 +30,7 @@ let
       ":"
       (lib.makeBinPath [
         lean-tui
-        pkgs.lean.lean-all
+        leanPkgs.lean.lean-all
         pkgs.helix
         pkgs.tmux
         pkgs.vhs
@@ -60,7 +58,7 @@ let
     "open.tape"
   ];
 
-  sceneNames = lib.pipe (builtins.readDir ./.) [
+  sceneNames = lib.pipe (builtins.readDir ./tapes) [
     builtins.attrNames
     (builtins.filter (file: lib.hasSuffix ".tape" file && !(builtins.elem file sharedTapes)))
     (map (lib.removeSuffix ".tape"))
@@ -71,9 +69,9 @@ let
     pkgs.stdenvNoCC.mkDerivation {
       name = "lean-tui-recording-${scene}";
       src = lib.fileset.toSource {
-        root = ./.;
+        root = ./tapes;
         fileset = lib.fileset.unions (
-          map (tape: ./. + "/${tape}") (sharedTapes ++ [ "${scene}.tape" ]) ++ [ ./tmux.conf ]
+          map (tape: ./tapes + "/${tape}") (sharedTapes ++ [ "${scene}.tape" ]) ++ [ ./tapes/tmux.conf ]
         );
       };
       nativeBuildInputs = [ record-scene ];
@@ -89,4 +87,8 @@ in
     name = "lean-tui-recordings";
     paths = builtins.attrValues scenes;
   };
+  publish-screenshots = writeNuTool "publish-screenshots" [
+    pkgs.coreutils
+    pkgs.git
+  ] ./publish-screenshots.nu;
 }
