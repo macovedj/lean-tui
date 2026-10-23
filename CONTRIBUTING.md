@@ -74,14 +74,13 @@ tail -f ~/.cache/helix/helix.log
 
 ## Development
 
-The protocol types are generated from `protocol-schema.json` in lean-prism. Nix builds take it from the `lean-prism` flake input, which follows the lean-prism release branch matching the recordings' Lean version (`lean-v4.33`); plain `cargo` builds fetch it at `LEAN_PRISM_COMMIT` in `build.rs`. Keep both on the same commit:
+The protocol types are generated from `protocol-schema.json` in lean-prism. `build.rs` reads the file named by `LEAN_DAG_SCHEMA`, which `nix build` and `nix develop` set from the `lean-prism` flake input (lean-prism's `main`). That input is the only pin. To pick up a protocol change:
 
 ```bash
 nix flake update lean-prism
-nix flake metadata --json | jq -r '.locks.nodes."lean-prism".locked.rev'
 ```
 
-Then put that revision in `build.rs`. When the recordings move to a new Lean release, switch the input's `ref` to the matching `lean-v4.xx` branch first.
+A `cargo` build outside the devshell needs `LEAN_DAG_SCHEMA` pointing at a checkout of lean-prism's `protocol-schema.json`.
 
 The flake is split by concern: `nix/` builds, checks and releases the Rust crate, and `recordings/` holds everything that needs Lean.
 

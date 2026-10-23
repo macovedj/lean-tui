@@ -16,7 +16,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     lean-prism = {
-      url = "git+https://codeberg.org/wvhulle/lean-prism?ref=lean-v4.33";
+      url = "git+https://codeberg.org/wvhulle/lean-prism?ref=main";
       flake = false;
     };
   };
@@ -112,6 +112,7 @@
             system.pkgs.git-cliff
           ];
           MATHLIB_NO_CACHE_ON_UPDATE = "1";
+          LEAN_DAG_SCHEMA = "${lean-prism}/protocol-schema.json";
         };
       }) perSystem;
     };

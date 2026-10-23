@@ -10,7 +10,7 @@ Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bo
 
 - [Lean-TUI](#lean-tui)
   - [Installation](#installation)
-    - [1. Install `lean-tui` from Crates.io](#1-install-lean-tui-from-cratesio)
+    - [1. Install `lean-tui`](#1-install-lean-tui)
     - [2. Install `lean-prism`](#2-install-lean-prism)
   - [Configuration](#configuration)
     - [Helix](#helix)
@@ -42,21 +42,22 @@ Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bo
 
 For those that just want to get started quickly
 
-### 1. Install `lean-tui` from Crates.io
+### 1. Install `lean-tui`
 
-Install Rust (through [`rustup`](https://rustup.rs/)) if you haven't compiled Rust programs before. Then install this crate as a binary in your user with:
-
-```bash
-cargo install lean-tui
-```
-
-Or if you want the latest unstable version,
+With Nix:
 
 ```bash
-cargo install https://codeberg.org/wvhulle/lean-tui
+nix profile install git+https://codeberg.org/wvhulle/lean-tui
 ```
 
-Now, make sure that `~/.cargo/bin` is in your path to be able to run `lean-tui` (without the `~/.cargo/bin/lean-tui` prefix).
+With Cargo, the build needs Lean-Prism's protocol schema, named by `LEAN_DAG_SCHEMA`:
+
+```bash
+git clone https://codeberg.org/wvhulle/lean-prism
+LEAN_DAG_SCHEMA=$PWD/lean-prism/protocol-schema.json cargo install lean-tui
+```
+
+Then make sure that `~/.cargo/bin` is in your path to be able to run `lean-tui` (without the `~/.cargo/bin/lean-tui` prefix).
 
 ### 2. Install `lean-prism`
 
@@ -118,7 +119,7 @@ If you encounter problems, it is usually because of stale build artifacts or inc
 
 ### 3. Open `lean-tui`
 
-Make sure you have followed the installation steps and added `~/.cargo/bin` to your path. Focus the other terminal (in any directory) and run this TUI (stands for terminal user interface):
+Make sure `lean-tui` is on your path (see the installation steps). Focus the other terminal (in any directory) and run this TUI (stands for terminal user interface). Until you ask your editor for hover or completion, it tells you what it is waiting for and which keys to press in your editor:
 
 ```bash
 lean-tui
