@@ -83,7 +83,7 @@ The Woodpecker repository needs the secrets `codeberg_token` (repository write a
 
 ### Regenerating Screenshots
 
-The WebP animations in `screenshots/` are recorded with [VHS](https://github.com/charmbracelet/vhs) tapes in `recordings/tapes/`: each `<scene>.tape` opens Helix (with `lean-prism serve` as language server, see `recordings/.helix/`) and `lean-tui` side by side in tmux (shared setup in `open.tape`, shared settings in `common.tape`) and plays the keystrokes. Tapes trigger graph updates with `space h` (document highlight) instead of hover, so no popup covers the code. `cargo xtask record-scene` converts the VHS GIF to WebP.
+The WebP animations in `screenshots/` are recorded with [VHS](https://github.com/charmbracelet/vhs) tapes in `recordings/tapes/`: each `<scene>.tape` opens Helix (with `lean-prism serve` as language server, see `recordings/.helix/`) and `lean-tui` side by side in tmux (shared setup in `open.tape`, shared settings in `common.tape`) and plays the keystrokes. Tapes trigger graph updates with `space h` (document highlight) instead of hover, so no popup covers the code. VHS records MP4, and `cargo xtask record-scene` encodes it to an animated WebP with ffmpeg, dropping duplicate frames (`mpdecimate`) so still moments cost nothing.
 
 ```bash
 nix build .#recordings && cp --no-preserve=mode result/*.webp screenshots/

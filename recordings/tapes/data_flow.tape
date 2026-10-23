@@ -1,5 +1,5 @@
 Source common.tape
-Output data_flow.gif
+Output data_flow.mp4
 Env SCENE_FILE "Samples/sorting.lean:2"
 Source open.tape
 

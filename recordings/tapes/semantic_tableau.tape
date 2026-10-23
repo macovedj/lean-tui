@@ -1,5 +1,5 @@
 Source common.tape
-Output semantic_tableau.gif
+Output semantic_tableau.mp4
 Env SCENE_FILE "Samples/prime_tactic.lean:7"
 Source open.tape
 
