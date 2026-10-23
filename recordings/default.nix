@@ -30,8 +30,8 @@ let
       lean-tui
       lean-prism-server
       leanPkgs.lean.lean-all
+      pkgs.ffmpeg
       pkgs.helix
-      pkgs.libwebp
       pkgs.tmux
       pkgs.vhs
     ];

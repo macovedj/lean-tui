@@ -1,5 +1,5 @@
 Source common.tape
-Output compact.gif
+Output compact.mp4
 Env SCENE_FILE "Samples/swap_tactic.lean:4"
 Source open.tape
 

@@ -13,13 +13,30 @@ const SCREENSHOTS_COMMIT_MESSAGE: &str = "docs: regenerate screenshots [skip ci]
 
 pub fn record_scene(lean_project: &Path, scene: &str, out: &Path) -> Result<(), TaskError> {
     copy_writable_tree(lean_project, Path::new("."))?;
-    let gif_name = format!("{scene}.gif");
+    let video_name = format!("{scene}.mp4");
     let webp_name = format!("{scene}.webp");
     run_command(Command::new("vhs").arg(format!("{scene}.tape")))?;
-    run_command(
-        Command::new("gif2webp")
-            .args(["-quiet", "-mixed", "-q", "80", &gif_name, "-o", &webp_name]),
-    )?;
+    run_command(Command::new("ffmpeg").args([
+        "-loglevel",
+        "error",
+        "-i",
+        &video_name,
+        "-vf",
+        "mpdecimate",
+        "-fps_mode",
+        "vfr",
+        "-c:v",
+        "libwebp_anim",
+        "-lossless",
+        "0",
+        "-q:v",
+        "80",
+        "-compression_level",
+        "6",
+        "-loop",
+        "0",
+        &webp_name,
+    ]))?;
     fs::create_dir_all(out)?;
     fs::copy(&webp_name, out.join(&webp_name))?;
     Ok(())

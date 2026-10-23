@@ -1,5 +1,5 @@
 Source common.tape
-Output effect_flow.gif
+Output effect_flow.mp4
 Env SCENE_FILE "Samples/monadic.lean:9"
 Source open.tape
 

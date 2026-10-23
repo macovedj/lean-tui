@@ -1,5 +1,5 @@
 Source common.tape
-Output compact_tree.gif
+Output compact_tree.mp4
 Env SCENE_FILE "Samples/prime_tactic.lean:7"
 Source open.tape
 

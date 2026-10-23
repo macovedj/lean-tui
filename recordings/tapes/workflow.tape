@@ -1,5 +1,5 @@
 Source common.tape
-Output workflow.gif
+Output workflow.mp4
 Env SCENE_FILE "Samples/prime_tactic.lean:2"
 Source open.tape
 
