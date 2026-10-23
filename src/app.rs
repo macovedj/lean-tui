@@ -10,7 +10,7 @@ use crossterm::{
 use ratatui::{
     layout::{Constraint, Layout},
     prelude::*,
-    widgets::{Block, Paragraph},
+    widgets::Block,
     Frame,
 };
 
@@ -24,17 +24,20 @@ use crate::{
     tcp_client::{ConnectionPool, WorkerInfo},
     theme::Theme,
     widgets::{
+        connection_hint::ConnectionHint,
         help_menu::{HelpMenuState, HelpMenuWidget},
         input_pane::{InputPane, InputPaneState},
         legend::{Legend, LegendWidget},
         output_pane::{OutputPane, OutputPaneState},
         status_bar::StatusBar,
-        welcome::WelcomeScreen,
         worker_selector::{WorkerSelectorResult, WorkerSelectorState, WorkerSelectorWidget},
     },
 };
 
-/// Information about the enclosing definition (theorem, lemma, def, etc.)
+fn file_name_of(uri: &str) -> &str {
+    uri.rsplit('/').next().unwrap_or(uri)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DefinitionInfo {
     /// Kind of definition (theorem, lemma, def, example)
@@ -89,6 +92,9 @@ pub struct App {
     follow_mode: bool,
     /// Error message to show as overlay (from clicking on error in graph).
     error_overlay: Option<String>,
+    editor_name: Option<String>,
+    stopped_worker_file_uri: Option<String>,
+    awaiting_graph: bool,
 }
 
 impl App {
@@ -116,6 +122,9 @@ impl App {
             known_worker_ports: Vec::new(),
             follow_mode: true,
             error_overlay: None,
+            editor_name: None,
+            stopped_worker_file_uri: None,
+            awaiting_graph: false,
         }
     }
 
@@ -139,6 +148,56 @@ impl App {
         self.connected = false;
         self.connected_file_uri = None;
         self.display_mode.dag = DagState::None;
+        self.awaiting_graph = false;
+        self.editor_name = self
+            .worker_selector
+            .workers
+            .iter()
+            .find(|worker| worker.port == new_port)
+            .and_then(|worker| worker.editor_name.clone());
+    }
+
+    pub fn sync_connection_state(&mut self, pool: &ConnectionPool) {
+        if let Some(port) = pool.active_port() {
+            self.connected = true;
+            self.connected_file_uri = pool.file_uri(port).cloned();
+            self.stopped_worker_file_uri = None;
+        } else {
+            if self.connected {
+                self.stopped_worker_file_uri = self.connected_file_uri.take();
+            }
+            self.connected = false;
+            self.connected_file_uri = None;
+        }
+    }
+
+    fn connection_hint(&self) -> Option<ConnectionHint<'_>> {
+        let (port_min, port_max) = self.port_range();
+        if !self.connected {
+            return Some(self.stopped_worker_file_uri.as_deref().map_or(
+                ConnectionHint::SearchingWorkers { port_min, port_max },
+                |uri| ConnectionHint::WorkerStopped {
+                    file_name: file_name_of(uri),
+                    port_min,
+                    port_max,
+                },
+            ));
+        }
+        if self.display_mode.dag.is_some() || self.error.is_some() {
+            return None;
+        }
+        match &self.cursor {
+            None => Some(ConnectionHint::AwaitingCursor {
+                file_name: self.connected_file_uri.as_deref().map(file_name_of),
+                editor_name: self.editor_name.as_deref(),
+                other_worker_count: self.known_worker_ports.len().saturating_sub(1),
+            }),
+            Some(cursor) if self.awaiting_graph => Some(ConnectionHint::AwaitingGraph {
+                file_name: file_name_of(&cursor.uri),
+                line_number: cursor.position.line + 1,
+            }),
+            Some(_) => None,
+        }
     }
 
     /// Set discovered workers in the selector.
@@ -199,10 +258,14 @@ impl App {
                 file_uri,
                 port_range_min,
                 port_range_max,
+                editor_name,
                 ..
             } => {
                 self.connected = true;
                 self.connected_file_uri = file_uri;
+                if editor_name.is_some() {
+                    self.editor_name = editor_name;
+                }
                 if let (Some(min), Some(max)) = (port_range_min, port_range_max) {
                     let min_port = u16::try_from(min.get()).unwrap_or(9742);
                     let max_port = u16::try_from(max.get()).unwrap_or(9752);
@@ -227,6 +290,7 @@ impl App {
                     uri,
                 });
                 self.connected = true;
+                self.awaiting_graph = true;
 
                 // Update current node based on cursor position
                 if self.display_mode.dag.update_current_from_cursor(position) {
@@ -268,10 +332,12 @@ impl App {
                     None => DagState::None,
                 };
                 self.connected = true;
+                self.awaiting_graph = false;
             }
             ServerToClientMessage::Error { error } => {
                 self.error = Some(error);
                 self.connected = true;
+                self.awaiting_graph = false;
             }
             ServerToClientMessage::FileFocused { uri, focused } => {
                 tracing::debug!("FileFocused: uri={}, focused={}", uri, focused);
@@ -384,12 +450,8 @@ impl App {
     }
 
     fn render_main(&mut self, frame: &mut Frame, area: Rect) {
-        let has_dag = self.display_mode.dag.is_some();
-        let show_welcome =
-            self.connected && self.cursor.is_none() && !has_dag && self.error.is_none();
-
-        if show_welcome {
-            frame.render_widget(WelcomeScreen, area);
+        if let Some(hint) = self.connection_hint() {
+            frame.render_widget(hint, area);
             return;
         }
 
@@ -405,14 +467,6 @@ impl App {
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
-
-        if !self.connected {
-            frame.render_widget(
-                Paragraph::new(format!("Connecting to 127.0.0.1:{}...", self.port)),
-                inner,
-            );
-            return;
-        }
 
         // Calculate required heights for layout
         let input_height = if self.show_input {

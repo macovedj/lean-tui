@@ -36,16 +36,16 @@
     "lean-prism": {
       "flake": false,
       "locked": {
-        "lastModified": 1792154680,
-        "narHash": "sha256-r3Fqq0S627J+OQPW4CAq+/dvXmVy8f1fjb0X4IOGDgY=",
-        "ref": "lean-v4.33",
-        "rev": "487c189a4ee2791ccf37a2d49d19710a0ecef81b",
-        "revCount": 218,
+        "lastModified": 1792770955,
+        "narHash": "sha256-Pt6I8E1iivQzzABsuLFlUYjkEk3qB9uJe5EwYEzjihI=",
+        "ref": "main",
+        "rev": "4b8b9e0c98613abcfac247d18d54ab66d4b5b56f",
+        "revCount": 223,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/lean-prism"
       },
       "original": {
-        "ref": "lean-v4.33",
+        "ref": "main",
         "type": "git",
         "url": "https://codeberg.org/wvhulle/lean-prism"
       }

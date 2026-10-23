@@ -1,26 +1,20 @@
 use std::{env, fs, path::PathBuf};
 
-const LEAN_PRISM_COMMIT: &str = "487c189a4ee2791ccf37a2d49d19710a0ecef81b";
+const SCHEMA_PATH_VARIABLE: &str = "LEAN_DAG_SCHEMA";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed={SCHEMA_PATH_VARIABLE}");
 
-    let schema_json = env::var("LEAN_DAG_SCHEMA")
-        .map(PathBuf::from)
-        .ok()
-        .filter(|p| p.exists())
-        .map_or_else(
-            || {
-                let url = format!(
-                    "https://codeberg.org/wvhulle/lean-prism/raw/commit/{LEAN_PRISM_COMMIT}/protocol-schema.json"
-                );
-                ureq::get(&url).call().expect("fetch schema").into_string().expect("read response")
-            },
-            |p| {
-                println!("cargo:rerun-if-changed={}", p.display());
-                fs::read_to_string(&p).expect("read local schema")
-            },
-        );
+    let schema_path = PathBuf::from(env::var(SCHEMA_PATH_VARIABLE).unwrap_or_else(|_| {
+        panic!(
+            "{SCHEMA_PATH_VARIABLE} is not set: point it at Lean-Prism's protocol-schema.json. \
+             `nix develop` and `nix build` set it from the `lean-prism` flake input."
+        )
+    }));
+    println!("cargo:rerun-if-changed={}", schema_path.display());
+    let schema_json = fs::read_to_string(&schema_path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", schema_path.display()));
 
     let mut type_space = typify::TypeSpace::default();
     type_space

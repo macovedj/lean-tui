@@ -17,15 +17,12 @@ use crate::{
     protocol::{ClientToServerCommand, ServerToClientMessage},
 };
 
-/// Information about a discovered lean-prism worker.
 #[derive(Debug, Clone)]
 pub struct WorkerInfo {
-    /// TCP port the worker is listening on.
     pub port: u16,
-    /// File URI this worker is handling.
     pub file_uri: Option<String>,
-    /// Server mode (Library or Standalone).
     pub server_mode: Option<String>,
+    pub editor_name: Option<String>,
 }
 
 impl WorkerInfo {
@@ -161,11 +158,13 @@ async fn probe_port(port: u16) -> Option<WorkerInfo> {
         ServerToClientMessage::Connected {
             file_uri,
             server_mode,
+            editor_name,
             ..
         } => Some(WorkerInfo {
             port,
             file_uri,
             server_mode: server_mode.map(|m| format!("{m:?}")),
+            editor_name,
         }),
         _ => None,
     }

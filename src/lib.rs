@@ -149,14 +149,7 @@ async fn event_loop(
         drain_messages(&mut app, &mut pool).await;
 
         app.update();
-        // Update connection state - active_port is set when we have a valid connection
-        if let Some(port) = pool.active_port() {
-            app.connected = true;
-            app.connected_file_uri = pool.file_uri(port).cloned();
-        } else {
-            app.connected = false;
-            app.connected_file_uri = None;
-        }
+        app.sync_connection_state(&pool);
         terminal.draw(|frame| app.render(frame))?;
 
         handle_events(&mut app, &mut pool, &mut event_stream, &mut scan_interval).await;
