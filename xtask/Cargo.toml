@@ -9,3 +9,4 @@ workspace = true
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+lean-tui = { path = ".." }

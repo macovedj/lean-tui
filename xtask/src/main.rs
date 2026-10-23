@@ -1,6 +1,7 @@
 mod ci_builds;
 mod command_runner;
 mod directory_files;
+mod keybinding_docs;
 mod recordings;
 mod release;
 
@@ -41,6 +42,12 @@ enum RepoTask {
         #[arg(value_enum)]
         release_plz_command: ReleasePlzCommand,
     },
+    KeybindingDocs {
+        #[arg(long, default_value = "docs/keybindings.md")]
+        docs_path: PathBuf,
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn run_repo_task(task: RepoTask) -> Result<(), TaskError> {
@@ -57,6 +64,9 @@ fn run_repo_task(task: RepoTask) -> Result<(), TaskError> {
         RepoTask::ReleasePlz {
             release_plz_command,
         } => release::run_release_plz(release_plz_command),
+        RepoTask::KeybindingDocs { docs_path, check } => {
+            keybinding_docs::write_keybinding_docs(&docs_path, check)
+        }
     }
 }
 
