@@ -1,8 +1,9 @@
 {
   pkgs,
   lean4-nix,
-  writeNuTool,
+  xtaskTool,
   lean-tui,
+  lean-prism-server,
 }:
 let
   inherit (pkgs) lib;
@@ -23,18 +24,18 @@ let
     };
   };
 
-  record-scene = pkgs.writers.writeNuBin "record-scene" {
-    makeWrapperArgs = [
-      "--prefix"
-      "PATH"
-      ":"
-      (lib.makeBinPath [
-        lean-tui
-        leanPkgs.lean.lean-all
-        pkgs.helix
-        pkgs.tmux
-        pkgs.vhs
-      ])
+  record-scene = xtaskTool {
+    name = "record-scene";
+    runtimeInputs = [
+      lean-tui
+      lean-prism-server
+      leanPkgs.lean.lean-all
+      pkgs.helix
+      pkgs.libwebp
+      pkgs.tmux
+      pkgs.vhs
+    ];
+    wrapperArgs = [
       "--set"
       "FONTCONFIG_FILE"
       (pkgs.makeFontsConf { fontDirectories = [ pkgs.jetbrains-mono ]; })
@@ -51,7 +52,7 @@ let
       "VHS_NO_SANDBOX"
       "true"
     ];
-  } ./record-scene.nu;
+  };
 
   sharedTapes = [
     "common.tape"
@@ -87,8 +88,8 @@ in
     name = "lean-tui-recordings";
     paths = builtins.attrValues scenes;
   };
-  publish-screenshots = writeNuTool "publish-screenshots" [
-    pkgs.coreutils
-    pkgs.git
-  ] ./publish-screenshots.nu;
+  publish-screenshots = xtaskTool {
+    name = "publish-screenshots";
+    runtimeInputs = [ pkgs.git ];
+  };
 }

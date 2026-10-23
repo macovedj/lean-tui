@@ -2,7 +2,8 @@
 .lake
 .direnv/
 result
-.cargo/
+.cargo/*
+!.cargo/config.toml
 .cargo-home/
 *.snap.new
 *.pending-snap

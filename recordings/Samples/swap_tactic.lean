@@ -1,5 +1,3 @@
-import LeanPrism
-
 theorem andSwap (p q : Prop) : p ∧ q ↔ q ∧ p := by
   apply Iff.intro
 

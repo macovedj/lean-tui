@@ -1,0 +1,71 @@
+mod ci_builds;
+mod command_runner;
+mod directory_files;
+mod recordings;
+mod release;
+
+use std::{path::PathBuf, process::ExitCode};
+
+use clap::{Parser, Subcommand};
+
+use crate::{command_runner::TaskError, release::ReleasePlzCommand};
+
+#[derive(Parser)]
+struct XtaskCli {
+    #[command(subcommand)]
+    task: RepoTask,
+}
+
+#[derive(Subcommand)]
+enum RepoTask {
+    RecordScene {
+        lean_project: PathBuf,
+        scene: String,
+        #[arg(long, default_value = ".")]
+        out: PathBuf,
+    },
+    PublishScreenshots {
+        recordings: PathBuf,
+    },
+    CachedBuild {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        build_args: Vec<String>,
+    },
+    CheckCommits {
+        revision_range: Vec<String>,
+    },
+    UploadReleaseAssets {
+        assets_dir: PathBuf,
+    },
+    ReleasePlz {
+        #[arg(value_enum)]
+        release_plz_command: ReleasePlzCommand,
+    },
+}
+
+fn run_repo_task(task: RepoTask) -> Result<(), TaskError> {
+    match task {
+        RepoTask::RecordScene {
+            lean_project,
+            scene,
+            out,
+        } => recordings::record_scene(&lean_project, &scene, &out),
+        RepoTask::PublishScreenshots { recordings } => recordings::publish_screenshots(&recordings),
+        RepoTask::CachedBuild { build_args } => ci_builds::cached_build(&build_args),
+        RepoTask::CheckCommits { revision_range } => ci_builds::check_commits(&revision_range),
+        RepoTask::UploadReleaseAssets { assets_dir } => release::upload_release_assets(&assets_dir),
+        RepoTask::ReleasePlz {
+            release_plz_command,
+        } => release::run_release_plz(release_plz_command),
+    }
+}
+
+fn main() -> ExitCode {
+    match run_repo_task(XtaskCli::parse().task) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(task_error) => {
+            eprintln!("xtask: {task_error}");
+            ExitCode::FAILURE
+        }
+    }
+}

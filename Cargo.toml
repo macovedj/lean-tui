@@ -7,9 +7,15 @@ license = "MIT"
 name = "lean-tui"
 repository = "https://codeberg.org/wvhulle/lean-tui"
 version = "1.1.0"
-exclude = ["screenshots", "tests", "src/**/snapshots"]
+exclude = ["docs", "recordings", "screenshots", "tests", "src/**/snapshots"]
 
-[lints.clippy]
+[workspace]
+members = ["xtask"]
+
+[lints]
+workspace = true
+
+[workspace.lints.clippy]
 absolute_paths = { level = "warn", priority = 2 }
 # TUI coordinate calculations involve safe numeric conversions
 cast_possible_truncation = { level = "allow", priority = 2 }

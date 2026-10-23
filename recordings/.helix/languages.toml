@@ -1,8 +1,8 @@
-[language-server.lake-serve]
-command = "lake"
+[language-server.lean-prism]
+command = "lean-prism"
 args = ["serve"]
 
 [[language]]
 name = "lean"
 roots = ["lakefile.toml", "lakefile.lean"]
-language-servers = ["lake-serve"]
+language-servers = ["lean-prism"]

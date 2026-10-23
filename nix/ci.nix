@@ -1,8 +1,14 @@
-{ pkgs, writeNuTool }:
+{ pkgs, xtaskTool }:
 {
-  cached-build = writeNuTool "cached-build" [ pkgs.cachix ] ./scripts/cached-build.nu;
-  check-commits = writeNuTool "check-commits" [
-    pkgs.convco
-    pkgs.gitMinimal
-  ] "def --wrapped main [...range: string] { ^convco check ...$range }";
+  cached-build = xtaskTool {
+    name = "cached-build";
+    runtimeInputs = [ pkgs.cachix ];
+  };
+  check-commits = xtaskTool {
+    name = "check-commits";
+    runtimeInputs = [
+      pkgs.convco
+      pkgs.gitMinimal
+    ];
+  };
 }
