@@ -38,6 +38,7 @@
           };
           toolchains = import ./nix/toolchains.nix { inherit pkgs crane; };
           lean-tui = import ./nix/package.nix {
+            inherit (pkgs) lib;
             inherit (toolchains) craneLib;
             inherit lean-prism;
           };

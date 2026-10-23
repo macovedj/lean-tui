@@ -1,7 +1,18 @@
-{ craneLib, lean-prism }:
+{
+  lib,
+  craneLib,
+  lean-prism,
+}:
 let
   cargoArgs = {
-    src = craneLib.cleanCargoSource ../.;
+    src = lib.fileset.toSource {
+      root = ../.;
+      fileset = lib.fileset.unions [
+        (craneLib.fileset.commonCargoSources ../.)
+        ../tests/fixtures
+        (lib.fileset.fileFilter (file: file.hasExt "snap") ../src)
+      ];
+    };
     strictDeps = true;
     LEAN_DAG_SCHEMA = "${lean-prism}/protocol-schema.json";
     meta.mainProgram = "lean-tui";
