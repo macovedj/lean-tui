@@ -62,17 +62,21 @@ pub fn publish_screenshots(recordings: &Path) -> Result<(), TaskError> {
         command_stdout(Command::new("git").args(["rev-parse", "--show-toplevel"]))?.trim(),
     );
     let screenshots = repository_root.join("screenshots");
+    let recorded_scenes = files_with_suffix(recordings, ".webp")?;
+    if recorded_scenes.is_empty() {
+        return Err(TaskError::MissingRecordings {
+            directory: recordings.to_path_buf(),
+        });
+    }
     regular_files(&screenshots)?
         .iter()
         .try_for_each(fs::remove_file)?;
-    files_with_suffix(recordings, ".webp")?
-        .iter()
-        .try_for_each(|recording| {
-            copy_writable_file(
-                recording,
-                &screenshots.join(recording.file_name().unwrap_or_default()),
-            )
-        })?;
+    recorded_scenes.iter().try_for_each(|recording| {
+        copy_writable_file(
+            recording,
+            &screenshots.join(recording.file_name().unwrap_or_default()),
+        )
+    })?;
     if command_stdout(
         Command::new("git")
             .args(["status", "--porcelain", "--"])

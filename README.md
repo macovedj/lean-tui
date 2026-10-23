@@ -21,11 +21,7 @@ The view follows your cursor and picks a display mode for the code under it. See
 
 ## Quick start
 
-1. Install `lean-tui` and the Lean-Prism language server (other ways in [setup](https://codeberg.org/wvhulle/lean-tui/src/branch/main/docs/setup.md)):
-
-   ```bash
-   nix profile install git+https://codeberg.org/wvhulle/lean-tui git+https://codeberg.org/wvhulle/lean-prism
-   ```
+1. Install `lean-tui` (a static Linux binary from the [releases](https://codeberg.org/wvhulle/lean-tui/releases), or with Cargo) and the [Lean-Prism](https://codeberg.org/wvhulle/lean-prism) language server. See [setup](https://codeberg.org/wvhulle/lean-tui/src/branch/main/docs/setup.md) for the steps.
 
 2. Make `lean-prism serve` your editor's Lean language server. For Helix, in `languages.toml`:
 
