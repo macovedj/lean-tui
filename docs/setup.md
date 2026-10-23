@@ -2,6 +2,8 @@
 
 Lean-TUI is a front-end. The proof and program graphs come from [Lean-Prism](https://codeberg.org/wvhulle/lean-prism), which runs inside the Lean language server of your editor and streams the graph under your cursor to `lean-tui` over TCP.
 
+Its command `lean-prism serve` replaces `lake serve`: it runs `lake serve` for your project with Lean-Prism loaded as a plugin built for the project's Lean version, so your project needs no changes.
+
 ## Install with Nix
 
 Both projects are flakes. Add them as inputs of your NixOS, Home Manager or project flake:
@@ -48,8 +50,6 @@ Make sure `~/.cargo/bin` is on your `PATH`.
 Static Linux binaries are also attached to every [Codeberg release](https://codeberg.org/wvhulle/lean-tui/releases).
 
 ## Install `lean-prism` without Nix
-
-`lean-prism serve` replaces `lake serve`. It runs `lake serve` for your project with Lean-Prism loaded as a plugin built for the project's Lean version, so your project needs no changes.
 
 Build it from a clone with `lake build lean-prism lean-server-plugin` and put `.lake/build/bin` on your `PATH`. A source build fetches and builds the plugin for your project's Lean version the first time you open the project, and reports that build to the editor as LSP progress. See [Lean-Prism's supported versions](https://codeberg.org/wvhulle/lean-prism#supported-lean-versions).
 
