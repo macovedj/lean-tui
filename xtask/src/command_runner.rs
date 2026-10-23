@@ -2,6 +2,7 @@ use std::{
     env,
     error::Error,
     fmt, io,
+    path::PathBuf,
     process::{Child, Command, ExitStatus, Output, Stdio},
 };
 
@@ -15,6 +16,10 @@ pub enum TaskError {
         program: String,
         status: ExitStatus,
     },
+    OutdatedFile {
+        path: PathBuf,
+        regenerate_command: &'static str,
+    },
 }
 
 impl fmt::Display for TaskError {
@@ -27,6 +32,14 @@ impl fmt::Display for TaskError {
             Self::CommandFailed { program, status } => {
                 write!(formatter, "{program} failed with {status}")
             }
+            Self::OutdatedFile {
+                path,
+                regenerate_command,
+            } => write!(
+                formatter,
+                "{} is out of date, run `{regenerate_command}`",
+                path.display()
+            ),
         }
     }
 }

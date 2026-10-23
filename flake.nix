@@ -51,7 +51,7 @@
           inherit pkgs toolchains lean-tui;
           checks = import ./nix/checks.nix {
             inherit (toolchains) craneLib rustfmtCrane;
-            inherit lean-tui;
+            inherit pkgs lean-tui xtask;
           };
           release = import ./nix/release.nix {
             inherit (toolchains) nightlyWithTargets;

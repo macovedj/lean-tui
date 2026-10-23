@@ -20,7 +20,7 @@ variables:
     image: nixos/nix:2.34.9
     depends_on: []
     commands:
-      - nix run .#cached-build -- .#checks.x86_64-linux.build-lean-tui .#checks.x86_64-linux.tests .#checks.x86_64-linux.fmt
+      - nix run .#cached-build -- .#checks.x86_64-linux.build-lean-tui .#checks.x86_64-linux.tests .#checks.x86_64-linux.fmt .#checks.x86_64-linux.keybinding-docs
 
 steps:
   - name: flake-checks
