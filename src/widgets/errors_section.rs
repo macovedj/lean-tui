@@ -3,108 +3,76 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
+    widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
 
-use crate::{protocol::DiagnosticInfo, theme::Red};
+use crate::{
+    message::{AppMessage, ClickTarget},
+    protocol::DiagnosticInfo,
+    theme::Red,
+};
 
-/// State for the errors section widget.
-#[derive(Default)]
-pub struct ErrorsSectionState {
-    errors: Vec<DiagnosticInfo>,
-    click_regions: Vec<(Rect, usize)>,
-    clicked_error: Option<String>,
+struct ErrorLine {
+    line: Line<'static>,
+    error_index: usize,
 }
 
-impl ErrorsSectionState {
-    pub fn update(&mut self, errors: Vec<DiagnosticInfo>) {
-        self.errors = errors;
-    }
-
-    /// Handle a click at (x, y). Returns true if an error was clicked.
-    pub fn handle_click(&mut self, x: u16, y: u16) -> bool {
-        let clicked_idx = self.click_regions.iter().find_map(|(rect, idx)| {
-            (x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height)
-                .then_some(*idx)
-        });
-
-        clicked_idx
-            .and_then(|idx| self.errors.get(idx))
-            .is_some_and(|error| {
-                self.clicked_error = Some(error.message.clone());
-                true
-            })
-    }
-
-    /// Take the clicked error message (if any) and clear it.
-    pub fn take_clicked_error(&mut self) -> Option<String> {
-        self.clicked_error.take()
-    }
-}
-
-/// Build styled error lines and a mapping from each line to its error index.
-fn build_error_lines(errors: &[DiagnosticInfo]) -> (Vec<Line<'static>>, Vec<usize>) {
+fn build_error_lines(errors: &[DiagnosticInfo]) -> Vec<ErrorLine> {
     errors
         .iter()
         .enumerate()
-        .flat_map(|(error_idx, e)| {
-            e.message.lines().enumerate().map(move |(i, line)| {
+        .flat_map(|(error_index, error)| {
+            error.message.lines().enumerate().map(move |(i, line)| {
                 let prefix = if i == 0 { "✗ " } else { "  " };
-                let styled_line = Line::from(Span::styled(
-                    format!("{prefix}{line}"),
-                    Style::new().fg(Red::BRIGHT),
-                ));
-                (styled_line, error_idx)
+                ErrorLine {
+                    line: Line::from(Span::styled(
+                        format!("{prefix}{line}"),
+                        Style::new().fg(Red::BRIGHT),
+                    )),
+                    error_index,
+                }
             })
         })
-        .unzip()
+        .collect()
 }
 
-/// Save a click region if it has non-zero height.
-fn save_region(
-    regions: &mut Vec<(Rect, usize)>,
-    x: u16,
-    y: u16,
-    width: u16,
-    height: u16,
-    idx: usize,
-) {
-    if height > 0 {
-        regions.push((Rect::new(x, y, width, height), idx));
+struct ErrorRows {
+    error_index: usize,
+    first_row: u16,
+    row_count: u16,
+}
+
+fn error_row_spans(error_lines: &[ErrorLine], inner: Rect) -> Vec<ErrorRows> {
+    let bottom = inner.y + inner.height;
+    let mut spans: Vec<ErrorRows> = Vec::new();
+    let mut row = inner.y;
+    for error_line in error_lines {
+        if row >= bottom {
+            break;
+        }
+        let wrapped_rows = ((error_line.line.width() as u16).saturating_sub(1) / inner.width) + 1;
+        let visible_rows = wrapped_rows.min(bottom - row);
+        match spans.last_mut() {
+            Some(last) if last.error_index == error_line.error_index => {
+                last.row_count += visible_rows;
+            }
+            _ => spans.push(ErrorRows {
+                error_index: error_line.error_index,
+                first_row: row,
+                row_count: visible_rows,
+            }),
+        }
+        row += wrapped_rows;
     }
+    spans
 }
 
-/// Save the previous error region if transitioning to a new error.
-fn save_previous_region(
-    regions: &mut Vec<(Rect, usize)>,
-    current_error_idx: Option<usize>,
-    current_y: u16,
-    region_start_y: u16,
-    inner: Rect,
-) {
-    let Some(prev_idx) = current_error_idx else {
-        return;
-    };
-    let height = current_y - region_start_y;
-    save_region(
-        regions,
-        inner.x,
-        region_start_y,
-        inner.width,
-        height,
-        prev_idx,
-    );
+pub struct ErrorsSection<'a> {
+    pub errors: &'a [DiagnosticInfo],
 }
 
-/// Widget for rendering the errors section.
-pub struct ErrorsSection;
-
-impl StatefulWidget for ErrorsSection {
-    type State = ErrorsSectionState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        state.click_regions.clear();
-
+impl ErrorsSection<'_> {
+    pub fn draw(self, area: Rect, buf: &mut Buffer) -> Vec<ClickTarget> {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::new().fg(Red::MUTED))
@@ -116,51 +84,33 @@ impl StatefulWidget for ErrorsSection {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        if inner.width < 2 || inner.height < 1 || state.errors.is_empty() {
-            return;
+        if inner.width < 2 || inner.height < 1 || self.errors.is_empty() {
+            return Vec::new();
         }
 
-        let (error_lines, line_to_error) = build_error_lines(&state.errors);
+        let error_lines = build_error_lines(self.errors);
+        let click_targets = error_row_spans(&error_lines, inner)
+            .into_iter()
+            .filter(|rows| rows.row_count > 0)
+            .filter_map(|rows| {
+                let error = self.errors.get(rows.error_index)?;
+                Some(ClickTarget {
+                    area: Rect::new(inner.x, rows.first_row, inner.width, rows.row_count),
+                    message: AppMessage::ShowError {
+                        message: error.message.clone(),
+                    },
+                })
+            })
+            .collect();
 
-        // Track click regions for each error
-        let mut current_y = inner.y;
-        let mut current_error_idx = None;
-        let mut region_start_y = inner.y;
-
-        for (line_idx, &error_idx) in line_to_error.iter().enumerate() {
-            if current_y >= inner.y + inner.height {
-                break;
-            }
-
-            if current_error_idx != Some(error_idx) {
-                save_previous_region(
-                    &mut state.click_regions,
-                    current_error_idx,
-                    current_y,
-                    region_start_y,
-                    inner,
-                );
-                current_error_idx = Some(error_idx);
-                region_start_y = current_y;
-            }
-
-            let line_chars = error_lines.get(line_idx).map_or(0, Line::width);
-            let wrapped_lines = ((line_chars as u16).saturating_sub(1) / inner.width) + 1;
-            current_y += wrapped_lines;
-        }
-
-        // Save final region
-        let final_y = current_y.min(inner.y + inner.height);
-        save_previous_region(
-            &mut state.click_regions,
-            current_error_idx,
-            final_y,
-            region_start_y,
-            inner,
-        );
-
-        Paragraph::new(error_lines)
-            .wrap(Wrap { trim: false })
-            .render(inner, buf);
+        Paragraph::new(
+            error_lines
+                .into_iter()
+                .map(|error_line| error_line.line)
+                .collect::<Vec<_>>(),
+        )
+        .wrap(Wrap { trim: false })
+        .render(inner, buf);
+        click_targets
     }
 }

@@ -2,30 +2,20 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::Style,
-    widgets::{Block, Borders, StatefulWidget, Widget},
+    widgets::{Block, Borders, Widget},
 };
 
 use crate::{
     deduction_tree::TacticProofState,
+    message::{selection_click_target, ClickTarget},
     protocol::NodeId,
-    selection::{Region, Selection},
+    selection::Selection,
     theme::{Blue, Gray, Theme},
     widgets::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::RichTextExt,
     },
 };
-
-#[derive(Default)]
-pub struct AssumptionPaneState {
-    click_regions: Vec<Region>,
-}
-
-impl AssumptionPaneState {
-    pub fn click_regions(&self) -> &[Region] {
-        &self.click_regions
-    }
-}
 
 pub struct AssumptionPane<'a> {
     state: &'a TacticProofState,
@@ -53,12 +43,8 @@ impl<'a> AssumptionPane<'a> {
     }
 }
 
-impl StatefulWidget for AssumptionPane<'_> {
-    type State = AssumptionPaneState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        state.click_regions.clear();
-
+impl AssumptionPane<'_> {
+    pub fn draw(self, area: Rect, buf: &mut Buffer) -> Vec<ClickTarget> {
         let border_color = if self.is_focused {
             Blue::BRIGHT
         } else if self.is_current {
@@ -126,24 +112,15 @@ impl StatefulWidget for AssumptionPane<'_> {
         let table = AlignedTable::new(rows);
         Widget::render(table, inner, buf);
 
-        let Some(nid) = self.node_id else {
-            return;
+        let Some(node_id) = self.node_id else {
+            return Vec::new();
         };
-        state.click_regions.extend(
-            visible_hyps
-                .iter()
-                .enumerate()
-                .map(|(row, &hyp_idx)| (inner.y + row as u16, hyp_idx))
-                .take_while(|&(row_y, _)| row_y < inner.bottom())
-                .map(|(row_y, hyp_idx)| {
-                    Region::from_rect(
-                        Rect::new(inner.x, row_y, inner.width, 1),
-                        Selection::Hyp {
-                            node_id: nid,
-                            hyp_idx,
-                        },
-                    )
-                }),
-        );
+        visible_hyps
+            .iter()
+            .zip(inner.rows())
+            .map(|(&hyp_idx, row_area)| {
+                selection_click_target(row_area, Selection::Hyp { node_id, hyp_idx })
+            })
+            .collect()
     }
 }

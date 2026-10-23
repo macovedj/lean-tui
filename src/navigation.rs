@@ -1,4 +1,3 @@
-use crossterm::event::KeyCode;
 use tracing::trace;
 
 use crate::{
@@ -6,24 +5,12 @@ use crate::{
     selection::{Region, Selection},
 };
 
-/// Direction for spatial navigation.
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Up,
     Down,
     Left,
     Right,
-}
-
-/// Convert vim-style hjkl and arrow keys to a Direction.
-pub fn key_to_direction(code: KeyCode) -> Option<Direction> {
-    match code {
-        KeyCode::Char('j') | KeyCode::Down => Some(Direction::Down),
-        KeyCode::Char('k') | KeyCode::Up => Some(Direction::Up),
-        KeyCode::Char('h') | KeyCode::Left => Some(Direction::Left),
-        KeyCode::Char('l') | KeyCode::Right => Some(Direction::Right),
-        _ => None,
-    }
 }
 
 impl Direction {

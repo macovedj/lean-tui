@@ -14,5 +14,5 @@ pub mod render_helpers;
 pub mod status_bar;
 pub mod worker_selector;
 
-pub use assumption_pane::{AssumptionPane, AssumptionPaneState};
-pub use goals_pane::{GoalsPane, GoalsPaneState};
+pub use assumption_pane::AssumptionPane;
+pub use goals_pane::GoalsPane;

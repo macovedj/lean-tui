@@ -5,13 +5,14 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, StatefulWidget, Widget},
+    widgets::{Block, Borders, Widget},
 };
 
 use super::aligned_table::{AlignedRow, AlignedTable};
 use crate::{
+    message::{selection_click_target, ClickTarget},
     protocol::{format_timing, TimingDisplay},
-    selection::{Region, Selection},
+    selection::Selection,
     theme::{Red, Theme},
 };
 
@@ -140,22 +141,13 @@ fn aligned_table_width(rows: &[&AlignedRow]) -> usize {
     max_name + 1 + max_type
 }
 
-#[derive(Default)]
-pub struct NodeWidgetState {
-    pub click_regions: Vec<Region>,
-}
-
 pub struct NodeContentWidget {
     pub content: NodeContent,
     pub style: NodeStyle,
 }
 
-impl StatefulWidget for NodeContentWidget {
-    type State = NodeWidgetState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        state.click_regions.clear();
-
+impl NodeContentWidget {
+    pub fn draw(self, area: Rect, buf: &mut Buffer) -> Vec<ClickTarget> {
         let border_mod = if self.style.border_bold {
             Modifier::BOLD
         } else {
@@ -199,17 +191,13 @@ impl StatefulWidget for NodeContentWidget {
         block.render(area, buf);
 
         if inner.height < 1 {
-            return;
+            return Vec::new();
         }
 
-        let y = render_items(
-            self.content.items,
-            inner,
-            inner.y,
-            buf,
-            &mut state.click_regions,
-        );
-        render_errors(self.content.errors, inner, y, buf, &mut state.click_regions);
+        let mut click_targets = Vec::new();
+        let y = render_items(self.content.items, inner, inner.y, buf, &mut click_targets);
+        render_errors(self.content.errors, inner, y, buf, &mut click_targets);
+        click_targets
     }
 }
 
@@ -218,7 +206,7 @@ fn render_items(
     inner: Rect,
     start_y: u16,
     buf: &mut Buffer,
-    regions: &mut Vec<Region>,
+    regions: &mut Vec<ClickTarget>,
 ) -> u16 {
     let mut y = start_y;
     let mut row_batch: Vec<AlignedRow> = Vec::new();
@@ -237,7 +225,7 @@ fn render_items(
                     return y;
                 }
                 buf.set_line(inner.x, y, &Line::from(spans), inner.width);
-                push_region(regions, inner, y, selection);
+                regions.extend(selection.map(|selection| row_click_target(inner, y, selection)));
                 y += 1;
             }
         }
@@ -250,7 +238,7 @@ fn render_errors(
     inner: Rect,
     start_y: u16,
     buf: &mut Buffer,
-    regions: &mut Vec<Region>,
+    regions: &mut Vec<ClickTarget>,
 ) {
     let bottom = inner.y + inner.height;
     let mut y = start_y;
@@ -264,18 +252,16 @@ fn render_errors(
             &Line::from(Span::styled(err.text, err.style)),
             inner.width,
         );
-        push_region(regions, inner, y, err.selection);
+        regions.extend(
+            err.selection
+                .map(|selection| row_click_target(inner, y, selection)),
+        );
         y += 1;
     }
 }
 
-fn push_region(regions: &mut Vec<Region>, inner: Rect, y: u16, selection: Option<Selection>) {
-    if let Some(sel) = selection {
-        regions.push(Region::from_rect(
-            Rect::new(inner.x, y, inner.width, 1),
-            sel,
-        ));
-    }
+fn row_click_target(inner: Rect, y: u16, selection: Selection) -> ClickTarget {
+    selection_click_target(Rect::new(inner.x, y, inner.width, 1), selection)
 }
 
 fn flush_render_batch(
@@ -284,7 +270,7 @@ fn flush_render_batch(
     inner: Rect,
     start_y: u16,
     buf: &mut Buffer,
-    regions: &mut Vec<Region>,
+    regions: &mut Vec<ClickTarget>,
 ) -> u16 {
     if rows.is_empty() {
         return start_y;
@@ -301,7 +287,7 @@ fn flush_render_batch(
         if row_y >= inner.y + inner.height {
             break;
         }
-        push_region(regions, inner, row_y, sel);
+        regions.extend(sel.map(|selection| row_click_target(inner, row_y, selection)));
     }
 
     let table_area = Rect::new(inner.x, start_y, inner.width, render_height);

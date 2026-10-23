@@ -2,30 +2,20 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Modifier, Style},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, Borders, Paragraph, Widget},
 };
 
 use crate::{
     deduction_tree::TacticProofState,
+    message::{selection_click_target, ClickTarget},
     protocol::NodeId,
-    selection::{Region, Selection},
+    selection::Selection,
     theme::{Gray, Orange, Theme},
     widgets::{
         aligned_table::{AlignedRow, AlignedTable},
         diff_text::RichTextExt,
     },
 };
-
-#[derive(Default)]
-pub struct GoalsPaneState {
-    click_regions: Vec<Region>,
-}
-
-impl GoalsPaneState {
-    pub fn click_regions(&self) -> &[Region] {
-        &self.click_regions
-    }
-}
 
 pub struct GoalsPane<'a> {
     state: &'a TacticProofState,
@@ -56,12 +46,8 @@ impl<'a> GoalsPane<'a> {
     }
 }
 
-impl StatefulWidget for GoalsPane<'_> {
-    type State = GoalsPaneState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        state.click_regions.clear();
-
+impl GoalsPane<'_> {
+    pub fn draw(self, area: Rect, buf: &mut Buffer) -> Vec<ClickTarget> {
         let border_color = if self.is_focused {
             Orange::BRIGHT
         } else if self.is_current {
@@ -100,7 +86,7 @@ impl StatefulWidget for GoalsPane<'_> {
             Paragraph::new("✓ Complete")
                 .style(Style::new().fg(complete_color).add_modifier(Modifier::BOLD))
                 .render(inner, buf);
-            return;
+            return Vec::new();
         }
 
         let visible_goals: Vec<_> = self
@@ -153,24 +139,15 @@ impl StatefulWidget for GoalsPane<'_> {
         let table = AlignedTable::new(rows);
         Widget::render(table, inner, buf);
 
-        let Some(nid) = self.node_id else {
-            return;
+        let Some(node_id) = self.node_id else {
+            return Vec::new();
         };
-        state.click_regions.extend(
-            visible_goals
-                .iter()
-                .enumerate()
-                .map(|(row, &(goal_idx, _))| (inner.y + row as u16, goal_idx))
-                .take_while(|&(row_y, _)| row_y < inner.bottom())
-                .map(|(row_y, goal_idx)| {
-                    Region::from_rect(
-                        Rect::new(inner.x, row_y, inner.width, 1),
-                        Selection::Goal {
-                            node_id: nid,
-                            goal_idx,
-                        },
-                    )
-                }),
-        );
+        visible_goals
+            .iter()
+            .zip(inner.rows())
+            .map(|(&(goal_idx, _), row_area)| {
+                selection_click_target(row_area, Selection::Goal { node_id, goal_idx })
+            })
+            .collect()
     }
 }

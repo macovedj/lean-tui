@@ -7,7 +7,7 @@ license = "MIT"
 name = "lean-tui"
 repository = "https://codeberg.org/wvhulle/lean-tui"
 version = "1.1.0"
-exclude = ["screenshots", "tests"]
+exclude = ["screenshots", "tests", "src/**/snapshots"]
 
 [lints.clippy]
 absolute_paths = { level = "warn", priority = 2 }
@@ -47,6 +47,7 @@ dirs = "6"
 
 # TUI
 crossterm = { version = "0.29", features = ["event-stream", "osc52"] }
+human-repr = "1.1.0"
 ratatui = "0.29"
 
 # Graph data structures
@@ -57,3 +58,6 @@ prettyplease = "0.2"
 serde_json = "1"
 syn = "2"
 typify = "0.4"
+
+[dev-dependencies]
+insta = "1.49.0"

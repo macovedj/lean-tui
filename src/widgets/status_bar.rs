@@ -6,62 +6,38 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::theme::Theme;
+use crate::{
+    keybindings::{KeyBinding, GLOBAL_KEYBINDINGS},
+    message::ModeAction,
+    theme::Theme,
+};
 
-/// Stateless status bar widget.
-pub struct StatusBar<'a> {
-    keybindings: &'a [(&'static str, &'static str)],
-}
-
-impl<'a> StatusBar<'a> {
-    pub fn new(keybindings: &'a [(&'static str, &'static str)]) -> Self {
-        Self { keybindings }
-    }
-}
-
-impl Widget for StatusBar<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        const GLOBAL_KEYBINDINGS: &[(&str, &str)] = &[
-            ("?", "help"),
-            ("[/]", "style"),
-            ("i/o", "in/out"),
-            ("m", "metrics"),
-            ("q", "quit"),
-        ];
-
-        let separator = Span::raw(" │ ");
-
-        let key_style = Style::new().fg(Theme::KEYBINDING);
-
-        let global_spans = GLOBAL_KEYBINDINGS
-            .iter()
-            .enumerate()
-            .flat_map(|(i, (key, desc))| {
-                let prefix = (i > 0).then(|| separator.clone());
-                prefix.into_iter().chain([
-                    Span::styled(*key, key_style),
-                    Span::raw(format!(": {desc}")),
-                ])
-            });
-
-        let mode_spans = self.keybindings.iter().flat_map(|(key, desc)| {
+fn status_entries<A>(bindings: &[KeyBinding<A>]) -> impl Iterator<Item = [Span<'static>; 2]> + '_ {
+    let key_style = Style::new().fg(Theme::KEYBINDING);
+    bindings.iter().filter_map(move |binding| {
+        binding.status_description.map(|description| {
             [
-                separator.clone(),
-                Span::styled(*key, key_style),
-                Span::raw(format!(": {desc}")),
+                Span::styled(binding.label, key_style),
+                Span::raw(format!(": {description}")),
             ]
-        });
+        })
+    })
+}
 
-        let nav_spans = [
-            separator.clone(),
-            Span::styled("g", key_style),
-            Span::raw(": goto"),
-            Span::raw(" "),
-            Span::styled("y", key_style),
-            Span::raw(": copy"),
-        ];
+pub struct StatusBar {
+    pub mode_keybindings: &'static [KeyBinding<ModeAction>],
+}
 
-        let spans: Vec<Span> = global_spans.chain(mode_spans).chain(nav_spans).collect();
+impl Widget for StatusBar {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let spans: Vec<Span> = status_entries(GLOBAL_KEYBINDINGS)
+            .chain(status_entries(self.mode_keybindings))
+            .enumerate()
+            .flat_map(|(index, entry)| {
+                let separator = (index > 0).then(|| Span::raw(" │ "));
+                separator.into_iter().chain(entry)
+            })
+            .collect();
         Paragraph::new(Line::from(spans)).render(area, buf);
     }
 }

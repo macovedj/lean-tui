@@ -8,8 +8,8 @@ use crate::{
     graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
     protocol::{
         range_contains_cursor, range_size, DiagnosticInfo, DiagnosticSeverity, DisplayStyle,
-        GenericDag, GraphNode, LineCharacterPosition, LocalBinding, NodeId,
-        PreresolvedNavigationTargets, RichText, TimingDisplay,
+        FullyQualifiedDocumentPosition, GenericDag, GraphNode, LineCharacterPosition, LocalBinding,
+        NodeId, PreresolvedNavigationTargets, RichText, TimingDisplay,
     },
     selection::Selection,
     theme::{Red, Theme},
@@ -306,6 +306,15 @@ pub struct CompleteProofDag {
     pub block_input: Vec<LocalBinding>,
 }
 
+pub static EMPTY_PROOF_DAG: CompleteProofDag = CompleteProofDag {
+    nodes: Vec::new(),
+    root_node_id: None,
+    current_node_id: None,
+    orphans: Vec::new(),
+    block_output: None,
+    block_input: Vec::new(),
+};
+
 impl CompleteProofDag {
     /// Get a node by ID.
     pub fn get(&self, id: NodeId) -> Option<&ProofDagTacticNode> {
@@ -317,6 +326,19 @@ impl CompleteProofDag {
         DfsIterator {
             dag: self,
             stack: self.root_node_id.into_iter().collect(),
+        }
+    }
+
+    pub fn dfs_iter_including_orphans(&self) -> impl Iterator<Item = &ProofDagTacticNode> {
+        DfsIterator {
+            dag: self,
+            stack: self
+                .orphans
+                .iter()
+                .rev()
+                .copied()
+                .chain(self.root_node_id)
+                .collect(),
         }
     }
 
@@ -362,13 +384,8 @@ impl CompleteProofDag {
         })
     }
 
-    /// Get the text content for a given selection.
     pub fn get_selection_text(&self, selection: Selection) -> Option<String> {
         match selection {
-            Selection::InitialHyp { hyp_idx } => self
-                .block_input
-                .get(hyp_idx)
-                .map(|b| format!("{} : {}", b.name, b.type_.to_plain_text())),
             Selection::Hyp { node_id, hyp_idx } => self
                 .get(node_id)
                 .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
@@ -377,33 +394,32 @@ impl CompleteProofDag {
                 .get(node_id)
                 .and_then(|node| node.proof_state.goals.get(goal_idx))
                 .map(|g| g.type_.to_plain_text()),
-            Selection::Theorem => self.block_output.as_ref().map(RichText::to_plain_text),
             Selection::Error { node_id, error_idx } => self.get_error_message(node_id, error_idx),
         }
     }
 
-    /// Get the navigation location for a selection.
     pub fn navigation_location(
         &self,
         selection: Selection,
         current_uri: &str,
-    ) -> Option<(String, LineCharacterPosition)> {
+    ) -> Option<FullyQualifiedDocumentPosition> {
         match selection {
-            Selection::InitialHyp { hyp_idx } => self
-                .block_input
-                .get(hyp_idx)
-                .and_then(|b| b.navigation_locations.as_ref())
-                .and_then(|nav| nav.definition.as_ref())
-                .map(|loc| (loc.uri.clone(), loc.position)),
             Selection::Hyp { node_id, hyp_idx } => self
                 .get(node_id)
                 .and_then(|node| node.proof_state.hypotheses.get(hyp_idx))
                 .and_then(|h| h.navigation_locations().definition)
-                .map(|loc| (loc.uri, loc.position)),
-            Selection::Goal { node_id, .. } => self
-                .get(node_id)
-                .map(|node| (current_uri.to_string(), node.position)),
-            Selection::Theorem | Selection::Error { .. } => None,
+                .map(|location| FullyQualifiedDocumentPosition {
+                    uri: location.uri,
+                    position: location.position,
+                }),
+            Selection::Goal { node_id, .. } => {
+                self.get(node_id)
+                    .map(|node| FullyQualifiedDocumentPosition {
+                        uri: current_uri.to_string(),
+                        position: node.position,
+                    })
+            }
+            Selection::Error { .. } => None,
         }
     }
 
@@ -671,6 +687,14 @@ impl Dag for CompleteProofDag {
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
+    }
+
+    fn node_count(&self) -> usize {
+        self.len()
+    }
+
+    fn current_node(&self) -> Option<NodeId> {
+        self.current_node_id
     }
 }
 

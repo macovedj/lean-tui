@@ -1,69 +1,42 @@
-use crossterm::event::KeyCode;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, Clear, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, Clear, Paragraph, Widget},
 };
 
 use crate::{
-    interactive::{InteractiveStatefulWidget, KeyEvent},
+    keybindings::{KeyBinding, GLOBAL_KEYBINDINGS},
+    message::ModeAction,
     theme::Theme,
 };
 
-const KEYBINDINGS: &[(&str, &str)] = &[
-    ("[/]", "cycle display mode"),
-    ("j/k", "navigate up/down"),
-    ("g", "goto origin"),
-    ("y", "copy to clipboard"),
-    ("f", "select file"),
-    ("F", "toggle follow mode"),
-    ("L", "legend"),
-    ("?", "close help"),
-    ("q", "quit"),
-];
-
-/// State for the help menu widget.
-#[derive(Default)]
-pub struct HelpMenuState {
-    visible: bool,
+fn help_lines<A>(bindings: &[KeyBinding<A>]) -> impl Iterator<Item = Line<'static>> + '_ {
+    let key_style = Style::new().fg(Theme::KEYBINDING);
+    bindings.iter().map(move |binding| {
+        Line::from(vec![
+            Span::styled(format!("{:>6}", binding.label), key_style),
+            Span::raw(format!("  {}", binding.help_description)),
+        ])
+    })
 }
 
-impl HelpMenuState {
-    pub const fn toggle(&mut self) {
-        self.visible = !self.visible;
-    }
+pub struct HelpMenu {
+    pub mode_keybindings: &'static [KeyBinding<ModeAction>],
 }
 
-/// Widget for rendering the help menu overlay.
-pub struct HelpMenuWidget;
-
-impl StatefulWidget for HelpMenuWidget {
-    type State = HelpMenuState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        if !state.visible {
-            return;
-        }
-
-        let key_style = Style::new().fg(Theme::KEYBINDING);
-
-        let lines: Vec<Line> = KEYBINDINGS
-            .iter()
-            .map(|(key, desc)| {
-                Line::from(vec![
-                    Span::styled(format!("{key:>6}"), key_style),
-                    Span::raw(format!("  {desc}")),
-                ])
-            })
+impl Widget for HelpMenu {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let lines: Vec<Line> = help_lines(GLOBAL_KEYBINDINGS)
+            .chain(help_lines(self.mode_keybindings))
             .collect();
 
-        let width = 28u16;
+        let width = lines.iter().map(Line::width).max().unwrap_or(0) as u16 + 2;
         let height = (lines.len() as u16) + 2;
         let x = area.width.saturating_sub(width + 1);
         let y = area.height.saturating_sub(height + 2);
-        let popup_area = Rect::new(x, y, width, height);
+        let popup_area = Rect::new(x, y, width, height).intersection(area);
 
         Clear.render(popup_area, buf);
 
@@ -72,26 +45,5 @@ impl StatefulWidget for HelpMenuWidget {
             .border_style(Style::new().fg(Color::Reset));
 
         Paragraph::new(lines).block(block).render(popup_area, buf);
-    }
-}
-
-impl InteractiveStatefulWidget for HelpMenuWidget {
-    type Input = ();
-    type Event = KeyEvent;
-
-    fn update_state(_state: &mut Self::State, _input: Self::Input) {}
-
-    fn handle_event(state: &mut Self::State, event: Self::Event) -> bool {
-        if !state.visible {
-            return false;
-        }
-
-        match event.code {
-            KeyCode::Esc | KeyCode::Char('?') => {
-                state.visible = false;
-                true
-            }
-            _ => false,
-        }
     }
 }
