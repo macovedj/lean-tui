@@ -2,7 +2,7 @@
   pkgs,
   crane,
   nightlyWithTargets,
-  writeNuTool,
+  xtaskTool,
   lean-tui,
 }:
 let
@@ -33,11 +33,18 @@ let
 
   releasePlzOnCodeberg =
     subcommand:
-    writeNuTool subcommand [
-      (nightlyWithTargets [ ])
-      pkgs.release-plz
-      pkgs.gitMinimal
-    ] "^release-plz ${subcommand} --forge gitea --git-token $env.CODEBERG_TOKEN";
+    xtaskTool {
+      name = subcommand;
+      taskArgs = [
+        "release-plz"
+        subcommand
+      ];
+      runtimeInputs = [
+        (nightlyWithTargets [ ])
+        pkgs.release-plz
+        pkgs.gitMinimal
+      ];
+    };
 in
 {
   inherit muslPackages;
@@ -54,8 +61,11 @@ in
 
   release = releasePlzOnCodeberg "release";
   release-pr = releasePlzOnCodeberg "release-pr";
-  upload-release-assets = writeNuTool "upload-release-assets" [
-    pkgs.tea
-    pkgs.coreutils
-  ] ./scripts/upload-release-assets.nu;
+  upload-release-assets = xtaskTool {
+    name = "upload-release-assets";
+    runtimeInputs = [
+      pkgs.tea
+      pkgs.coreutils
+    ];
+  };
 }

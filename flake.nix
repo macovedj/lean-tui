@@ -15,10 +15,7 @@
       url = "github:lenianiva/lean4-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    lean-prism = {
-      url = "git+https://codeberg.org/wvhulle/lean-prism?ref=main";
-      flake = false;
-    };
+    lean-prism.url = "git+https://codeberg.org/wvhulle/lean-prism?ref=main";
   };
 
   outputs =
@@ -40,11 +37,15 @@
             overlays = [ (import rust-overlay) ];
           };
           toolchains = import ./nix/toolchains.nix { inherit pkgs crane; };
-          writeNuTool = import ./nix/nu-tool.nix { inherit pkgs; };
           lean-tui = import ./nix/package.nix {
             inherit (toolchains) craneLib;
             inherit lean-prism;
           };
+          xtask = import ./nix/xtask.nix {
+            inherit (toolchains) craneLib;
+            inherit lean-tui;
+          };
+          xtaskTool = import ./nix/xtask-tool.nix { inherit pkgs xtask; };
         in
         {
           inherit pkgs toolchains lean-tui;
@@ -57,18 +58,19 @@
             inherit
               pkgs
               crane
-              writeNuTool
+              xtaskTool
               lean-tui
               ;
           };
-          ci = import ./nix/ci.nix { inherit pkgs writeNuTool; };
+          ci = import ./nix/ci.nix { inherit pkgs xtaskTool; };
           recordings = import ./recordings {
             inherit
               pkgs
               lean4-nix
-              writeNuTool
+              xtaskTool
               lean-tui
               ;
+            lean-prism-server = lean-prism.packages.${system}.lean-prism;
           };
         }
       );

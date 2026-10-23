@@ -1,6 +1,3 @@
-import LeanPrism
-
-
 /-! ## StateM Examples - State Read/Write Effects -/
 
 structure Counter where

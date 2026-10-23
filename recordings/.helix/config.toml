@@ -1,0 +1,5 @@
+[editor]
+cursorline = true
+
+[editor.cursor-shape]
+normal = "block"

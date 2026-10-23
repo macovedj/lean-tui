@@ -1,5 +1,4 @@
 import Mathlib.Data.Set.Basic
-import LeanPrism
 
 theorem commutativityOfIntersections
     (s t : Set Nat) : s ∩ t = t ∩ s := by

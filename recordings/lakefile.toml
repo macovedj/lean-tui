@@ -1,11 +1,6 @@
 name = "recordings"
 defaultTargets = ["Samples"]
 
-[[require]]
-name = "LeanPrism"
-git = "https://codeberg.org/wvhulle/lean-prism.git"
-rev = "00bdfbb3904d475079087c89c183c1a34c82e90d"
-
 [[lean_lib]]
 name = "Samples"
 roots = ["Samples.prime_tactic", "Samples.sorting", "Samples.monadic"]

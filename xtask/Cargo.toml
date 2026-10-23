@@ -1,0 +1,11 @@
+[package]
+edition = "2021"
+name = "xtask"
+publish = false
+version = "0.1.0"
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
