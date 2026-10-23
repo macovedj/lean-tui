@@ -11,7 +11,7 @@ Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bo
 - [Lean-TUI](#lean-tui)
   - [Installation](#installation)
     - [1. Install `lean-tui` from Crates.io](#1-install-lean-tui-from-cratesio)
-    - [2. Add `LeanPrism` Dependency](#2-add-leanprism-dependency)
+    - [2. Install `lean-prism`](#2-install-lean-prism)
   - [Configuration](#configuration)
     - [Helix](#helix)
     - [Neovim](#neovim)
@@ -20,9 +20,8 @@ Watch a demo of some of the features: <https://youtu.be/whekHs2P1Ew>. See the bo
   - [Quickstart](#quickstart)
     - [1. Split Your Terminal](#1-split-your-terminal)
     - [2. Open Your Editor](#2-open-your-editor)
-    - [3. Add Back-End Import](#3-add-back-end-import)
-    - [4. Open `lean-tui`](#4-open-lean-tui)
-    - [5. Start Writing Lean](#5-start-writing-lean)
+    - [3. Open `lean-tui`](#3-open-lean-tui)
+    - [4. Start Writing Lean](#4-start-writing-lean)
   - [User Guide](#user-guide)
     - [Keyboard](#keyboard)
     - [Pane borders](#pane-borders)
@@ -59,68 +58,48 @@ cargo install https://codeberg.org/wvhulle/lean-tui
 
 Now, make sure that `~/.cargo/bin` is in your path to be able to run `lean-tui` (without the `~/.cargo/bin/lean-tui` prefix).
 
-### 2. Add `LeanPrism` Dependency
+### 2. Install `lean-prism`
 
-Add [LeanPrism](https://codeberg.org/wvhulle/lean-prism) as a Lake dependency, pinned to the branch that matches the `lean-toolchain` of your project. For `leanprover/lean4:v4.33.0`, in your `lakefile.toml`:
-
-```toml
-[[require]]
-name = "LeanPrism"
-git = "https://codeberg.org/wvhulle/lean-prism.git"
-rev = "lean-v4.33"
-```
-
-Alternatively, in `lakefile.lean`:
-
-```lean
-require LeanPrism from "https://codeberg.org/wvhulle/lean-prism.git" @ "lean-v4.33"
-```
-
-> [!WARNING]
-> LeanPrism runs inside the Lean language server and uses unstable compiler internals, so a LeanPrism revision works with exactly one Lean minor version. Lake builds it with your project's toolchain, not its own. Pick the `rev` for your `lean-toolchain` from the [supported versions table](https://codeberg.org/wvhulle/lean-prism#installation) and change it whenever you upgrade Lean. A mismatch shows up as errors such as `object file '.../Std/Internal/Async.olean' does not exist`. Avoid `rev = "main"`: it follows whichever Lean version LeanPrism currently targets.
-
-Optionally, pre-fetch the source of this library and build it:
+The back-end, [Lean-Prism](https://codeberg.org/wvhulle/lean-prism), runs inside the Lean language server. Its `lean-prism serve` command replaces `lake serve`: it loads Lean-Prism built for your project's Lean version, so your project needs no changes.
 
 ```bash
-lake update LeanPrism
-lake build LeanPrism
+nix profile install git+https://codeberg.org/wvhulle/lean-prism
 ```
+
+Without Nix, build it from a clone with `lake build lean-prism lean-server-plugin` and put `.lake/build/bin` on your path. That build fetches and builds Lean-Prism for other Lean versions the first time you open a project that uses one. See [Lean-Prism's supported versions](https://codeberg.org/wvhulle/lean-prism#supported-lean-versions).
 
 ## Configuration
 
-You need a working code editor with an LSP client.
+You need a working code editor with an LSP client, using `lean-prism serve` as the Lean language server.
 
 ### Helix
 
-This is the recommended editor and used by the author. You should not need to do any setup since Helix already has Lean configured out of the box.
-
-If you are using an older version, configure Helix to use `lake serve` as the Lean LSP server like this
+This is the recommended editor and used by the author.
 
 ```toml
-# .helix/languages.toml
-[language-server.lean]
-command = "lake"
+# ~/.config/helix/languages.toml or .helix/languages.toml
+[language-server.lean-prism]
+command = "lean-prism"
 args = ["serve"]
 
 [[language]]
-language-servers = ["lean"]
 name = "lean"
+language-servers = ["lean-prism"]
 ```
+
+Set `editor.lsp.display-progress-messages = true` in `config.toml` to see when Lean-Prism is being built.
 
 ### Neovim
 
-Configure the command `lake serve` as a language server for `.lean` files. See [official Neovim LSP docs](https://neovim.io/doc/user/lsp.html).
+Configure the command `lean-prism serve` as a language server for `.lean` files. See [official Neovim LSP docs](https://neovim.io/doc/user/lsp.html).
 
 ### VS Code
 
-Install the Lean extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4). The VS Code info view will open automatically, but you might want to close it since this UI offers slightly more.
+The Lean extension starts `lake serve` itself, so add Lean-Prism as a library instead, see [Lean-Prism's library setup](https://codeberg.org/wvhulle/lean-prism#library). The VS Code info view will open automatically, but you might want to close it since this UI offers slightly more.
 
 ### Zed
 
-You can choose:
-
-- Configure `lake serve` as LSP server, see [official docs](https://zed.dev/docs/configuring-languages) (recommended)
-- Install the [Lean extension](https://zed.dev/extensions/lean4)
+Configure `lean-prism serve` as LSP server, see [official docs](https://zed.dev/docs/configuring-languages).
 
 ## Quickstart
 
@@ -137,24 +116,7 @@ Open your Lean file in your editor (with an LSP client). Lean will start up an L
 
 If you encounter problems, it is usually because of stale build artifacts or incorrect `lakefile.toml`.
 
-### 3. Add Back-End Import
-
-Most of the logic behind this UI uses a back-end written in Lean. To import it,
-add this to the top of your Lean file (or build target):
-
-```lean
-import LeanPrism
-```
-
-The Lake LSP server now needs to be restarted. You can do this as follows:
-
-- VS Code: Click on the `\forall` symbol at the corner and select "restart server"
-- Helix: type command `:lsp-restart`
-- Neovim / others: restart your LSP client using your editor's command
-
-You should now see a diagnostic (or notification) saying that Lake is building your `LeanPrism`, which can take awhile at the beginning.
-
-### 4. Open `lean-tui`
+### 3. Open `lean-tui`
 
 Make sure you have followed the installation steps and added `~/.cargo/bin` to your path. Focus the other terminal (in any directory) and run this TUI (stands for terminal user interface):
 
@@ -164,7 +126,7 @@ lean-tui
 
 This will launch the TUI in the second terminal, listening on a TCP port.
 
-### 5. Start Writing Lean
+### 4. Start Writing Lean
 
 Now you can switch back to your editor. Move your cursor somewhere in a proof or function using keyboard or mouse.
 
