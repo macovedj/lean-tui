@@ -1,17 +1,13 @@
-//! Legend popup overlay for displaying color/icon meanings.
+use std::iter::once;
 
-use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Clear, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, Clear, Paragraph, Widget},
 };
 
-use crate::interactive::InteractiveStatefulWidget;
-
-/// A single legend entry with icon, color, and description.
 #[derive(Debug, Clone)]
 pub struct LegendItem {
     pub icon: String,
@@ -29,7 +25,6 @@ impl LegendItem {
     }
 }
 
-/// A section in the legend with a title and items.
 #[derive(Debug, Clone)]
 pub struct LegendSection {
     pub title: String,
@@ -47,82 +42,39 @@ impl LegendSection {
     }
 }
 
-/// State for the legend popup.
-#[derive(Default)]
-pub struct Legend {
-    visible: bool,
-}
-
-impl Legend {
-    pub const fn toggle(&mut self) {
-        self.visible = !self.visible;
-    }
-}
-
-/// Widget for rendering the legend popup overlay.
-pub struct LegendWidget<'a> {
-    sections: &'a [LegendSection],
-}
-
-impl<'a> LegendWidget<'a> {
-    pub const fn new(sections: &'a [LegendSection]) -> Self {
-        Self { sections }
-    }
-
-    fn build_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
-
-        for section in self.sections {
-            lines.push(Line::from(Span::styled(
+fn legend_lines(sections: &[LegendSection]) -> Vec<Line<'static>> {
+    sections
+        .iter()
+        .flat_map(|section| {
+            let title = Line::from(Span::styled(
                 section.title.clone(),
                 Style::new()
                     .fg(section.title_color)
                     .add_modifier(Modifier::BOLD),
-            )));
-
-            for item in &section.items {
-                lines.push(Line::from(vec![
+            ));
+            let items = section.items.iter().map(|item| {
+                Line::from(vec![
                     Span::styled(item.icon.clone(), Style::new().fg(item.color)),
                     Span::raw(" "),
                     Span::raw(item.description.clone()),
-                ]));
-            }
-        }
-
-        lines
-    }
-
-    pub fn width(&self) -> u16 {
-        let lines = self.build_lines();
-        lines
-            .iter()
-            .map(ratatui::prelude::Line::width)
-            .max()
-            .unwrap_or_default() as u16
-            + 2
-    }
-
-    pub fn height(&self) -> u16 {
-        let lines = self.build_lines();
-        (lines.len() as u16) + 2
-    }
+                ])
+            });
+            once(title).chain(items)
+        })
+        .collect()
 }
 
-impl StatefulWidget for LegendWidget<'_> {
-    type State = Legend;
+pub struct LegendPopup {
+    pub sections: Vec<LegendSection>,
+}
 
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        if !state.visible {
-            return;
-        }
+impl Widget for LegendPopup {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let lines = legend_lines(&self.sections);
+        let width = lines.iter().map(Line::width).max().unwrap_or_default() as u16 + 2;
+        let height = (lines.len() as u16) + 2;
 
-        let lines = self.build_lines();
-        let width = self.width();
-        let height = self.height();
-
-        let x = 1;
-        let y = area.height.saturating_sub(height + 1);
-        let popup_area = Rect::new(x, y, width, height);
+        let popup_area = Rect::new(1, area.height.saturating_sub(height + 1), width, height);
 
         Clear.render(popup_area, buf);
 
@@ -131,26 +83,5 @@ impl StatefulWidget for LegendWidget<'_> {
             .border_style(Style::new().fg(Color::Reset));
 
         Paragraph::new(lines).block(block).render(popup_area, buf);
-    }
-}
-
-impl InteractiveStatefulWidget for LegendWidget<'_> {
-    type Input = ();
-    type Event = KeyEvent;
-
-    fn update_state(_state: &mut Self::State, _input: Self::Input) {}
-
-    fn handle_event(state: &mut Self::State, event: Self::Event) -> bool {
-        if !state.visible {
-            return false;
-        }
-
-        match event.code {
-            KeyCode::Esc | KeyCode::Char('L') => {
-                state.visible = false;
-                true
-            }
-            _ => false,
-        }
     }
 }

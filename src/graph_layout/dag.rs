@@ -19,8 +19,9 @@ pub trait DagNode {
 pub trait Dag {
     /// The node type stored in this DAG.
     type Node: DagNode;
-    /// Get a node by ID.
     fn get_node(&self, id: NodeId) -> Option<&Self::Node>;
+    fn node_count(&self) -> usize;
+    fn current_node(&self) -> Option<NodeId>;
 }
 
 /// Trait for nodes that can have navigable hypothesis/binding regions.

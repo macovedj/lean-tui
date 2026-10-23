@@ -1,4 +1,7 @@
-// Include generated types (suppress lints for generated code)
+use std::time::Duration;
+
+use human_repr::{HumanCount, HumanDuration};
+
 #[allow(
     clippy::absolute_paths,
     clippy::clone_on_copy,
@@ -139,43 +142,16 @@ impl GraphNode {
     }
 }
 
-fn format_ns(ns: u64) -> String {
-    let us = ns / 1_000;
-    if us < 1_000 {
-        format!("{us}µs")
-    } else if us < 1_000_000 {
-        let ms = us as f64 / 1_000.0;
-        if ms < 10.0 {
-            format!("{ms:.1}ms")
-        } else {
-            format!("{}ms", us / 1_000)
-        }
-    } else {
-        let s = us as f64 / 1_000_000.0;
-        format!("{s:.2}s")
-    }
-}
-
-fn format_heartbeats(hb: u64) -> String {
-    if hb < 1_000 {
-        format!("{hb} hb")
-    } else if hb < 1_000_000 {
-        let k = hb as f64 / 1_000.0;
-        if k < 10.0 {
-            format!("{k:.1}k hb")
-        } else {
-            format!("{}k hb", hb / 1_000)
-        }
-    } else {
-        let m = hb as f64 / 1_000_000.0;
-        format!("{m:.1}M hb")
-    }
-}
-
 pub fn format_timing(ns: Option<u64>, hb: Option<u64>, mode: TimingDisplay) -> String {
     match mode {
         TimingDisplay::Off => String::new(),
-        TimingDisplay::Heartbeats => hb.map_or_else(String::new, format_heartbeats),
-        TimingDisplay::ClockTime => ns.map_or_else(String::new, format_ns),
+        TimingDisplay::Heartbeats => hb.map_or_else(String::new, |heartbeats| {
+            format!("{} hb", heartbeats.human_count_bare())
+        }),
+        TimingDisplay::ClockTime => ns.map_or_else(String::new, |nanoseconds| {
+            Duration::from_nanos(nanoseconds)
+                .human_duration()
+                .to_string()
+        }),
     }
 }

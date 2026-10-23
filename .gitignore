@@ -4,3 +4,5 @@
 result
 .cargo/
 .cargo-home/
+*.snap.new
+*.pending-snap

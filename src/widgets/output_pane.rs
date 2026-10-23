@@ -1,101 +1,48 @@
+use std::iter::once;
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Modifier, Style},
-    widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
 
 use crate::{
     protocol::RichText,
-    selection::{Region, Selection},
     theme::{Gray, Orange, Theme},
     widgets::diff_text::RichTextExt,
 };
 
-#[derive(Default)]
-pub struct OutputPaneState {
-    click_regions: Vec<Region>,
-}
+const TURNSTILE: &str = "⊢ ";
 
-/// Output pane widget - displays block-level output (theorem statement).
 pub struct OutputPane<'a> {
-    block_output: Option<&'a RichText>,
-    selection: Option<Selection>,
-    is_focused: bool,
+    pub block_output: Option<&'a RichText>,
 }
 
-impl<'a> OutputPane<'a> {
-    pub const fn new(
-        block_output: Option<&'a RichText>,
-        selection: Option<Selection>,
-        is_focused: bool,
-    ) -> Self {
-        Self {
-            block_output,
-            selection,
-            is_focused,
-        }
-    }
-
-    fn is_selected(&self) -> bool {
-        matches!(self.selection, Some(Selection::Theorem))
-    }
-
-    /// Calculate the required height to display the output, given the available
-    /// width. Returns the content height (excluding borders).
+impl OutputPane<'_> {
     pub fn required_height(block_output: Option<&RichText>, available_width: u16) -> u16 {
-        let Some(output) = block_output else {
-            return 1; // "(no output)" text
-        };
-
-        let inner_width = available_width.saturating_sub(2) as usize; // Account for borders
-        if inner_width == 0 {
+        let inner_width = available_width.saturating_sub(2) as usize;
+        let Some(output) = block_output.filter(|_| inner_width > 0) else {
             return 1;
-        }
-
-        // Text is "⊢ " + the output
-        let text = format!("⊢ {}", output.to_plain_text());
-        let text_len = text.chars().count();
-
-        // Calculate lines needed with wrapping
-        let lines = text_len.div_ceil(inner_width);
-        (lines as u16).max(1)
+        };
+        let text_length = TURNSTILE.chars().count() + output.to_plain_text().chars().count();
+        (text_length.div_ceil(inner_width) as u16).max(1)
     }
 }
 
-impl StatefulWidget for OutputPane<'_> {
-    type State = OutputPaneState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        state.click_regions.clear();
-
+impl Widget for OutputPane<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let has_output = self.block_output.is_some();
-
-        let border_color = if self.is_focused {
-            Orange::BRIGHT
-        } else if has_output {
-            Orange::MUTED
-        } else {
-            Gray::DIM
-        };
-
-        let title = if self.is_focused {
-            "▶ Output "
-        } else {
-            " Output "
-        };
-
-        let title_color = if has_output {
-            Theme::TITLE_GOAL
-        } else {
-            Gray::DIM
-        };
-
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(border_color))
-            .title(title)
-            .title_style(Style::new().fg(title_color));
+            .border_style(Style::new().fg(if has_output { Orange::MUTED } else { Gray::DIM }))
+            .title(" Output ")
+            .title_style(Style::new().fg(if has_output {
+                Theme::TITLE_GOAL
+            } else {
+                Gray::DIM
+            }));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -111,23 +58,16 @@ impl StatefulWidget for OutputPane<'_> {
             return;
         };
 
-        let base_style = if self.is_selected() {
-            Style::new().fg(Theme::GOAL).bg(Theme::SELECTION_BG)
-        } else {
-            Style::new().fg(Theme::GOAL)
-        };
+        let base_style = Style::new().fg(Theme::GOAL);
+        let spans: Vec<Span> = once(Span::styled(
+            TURNSTILE,
+            base_style.add_modifier(Modifier::BOLD),
+        ))
+        .chain(output.to_spans(base_style))
+        .collect();
 
-        let turnstile_style = base_style.add_modifier(Modifier::BOLD);
-
-        let mut spans = vec![ratatui::text::Span::styled("⊢ ", turnstile_style)];
-        spans.extend(output.to_spans(base_style));
-
-        let paragraph = Paragraph::new(ratatui::text::Line::from(spans)).wrap(Wrap { trim: false });
-        paragraph.render(inner, buf);
-
-        // Register click region for theorem selection
-        state
-            .click_regions
-            .push(Region::from_rect(inner, Selection::Theorem));
+        Paragraph::new(Line::from(spans))
+            .wrap(Wrap { trim: false })
+            .render(inner, buf);
     }
 }

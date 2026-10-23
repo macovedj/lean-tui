@@ -1,20 +1,46 @@
-//! Display mode management - ties together all display styles.
+use std::{error::Error, fmt};
 
-use std::{error::Error, fmt, mem::take};
-
-use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::{layout::Rect, Frame};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Style},
+    widgets::{Paragraph, Widget},
+};
 
 use crate::{
-    before_after::BeforeAfterMode,
-    compact_tree::CompactTree,
-    data_flow::{DataFlowConversionError, DataFlowDag, DataFlowMode},
-    deduction_tree::{CompleteProofDag, ProofDagConversionError, SemanticTableau},
-    effect_flow::{EffectFlowConversionError, EffectFlowDag, EffectFlowMode},
-    interactive::Mode,
-    protocol::{GenericDag, LineCharacterPosition, LocalBinding, RichText, TimingDisplay},
+    before_after::{
+        apply_before_after_action, before_after_legend_sections, draw_before_after, BeforeAfterView,
+    },
+    compact_tree::{
+        apply_compact_tree_action, compact_tree_legend_sections, draw_compact_tree, CompactTreeView,
+    },
+    data_flow::{
+        apply_data_flow_action, current_data_flow_selection, data_flow_error_message,
+        data_flow_legend_sections, data_flow_selectable_items, draw_data_flow,
+        node_kind_legend_items, DataFlowConversionError, DataFlowDag,
+    },
+    deduction_tree::{
+        apply_tableau_action, current_tableau_selection, draw_semantic_tableau,
+        tableau_legend_sections, tableau_selectable_items, CompleteProofDag,
+        ProofDagConversionError, EMPTY_PROOF_DAG,
+    },
+    effect_flow::{
+        apply_effect_flow_action, current_effect_flow_selection, draw_effect_flow,
+        effect_flow_legend_sections, effect_flow_selectable_items, EffectFlowConversionError,
+        EffectFlowDag, EffectFlowView,
+    },
+    graph_layout::TreeGraphView,
+    keybindings::{
+        KeyBinding, BEFORE_AFTER_KEYBINDINGS, COMPACT_TREE_KEYBINDINGS, DATA_FLOW_KEYBINDINGS,
+        EFFECT_FLOW_KEYBINDINGS, SEMANTIC_TABLEAU_KEYBINDINGS,
+    },
+    message::{ClickTarget, ModeAction},
+    protocol::{
+        DisplayStyle, FullyQualifiedDocumentPosition, GenericDag, LineCharacterPosition,
+        LocalBinding, RichText, TimingDisplay,
+    },
     selection::Selection,
-    widgets::legend::LegendSection,
+    widgets::{legend::LegendSection, render_helpers::render_no_goals},
 };
 
 #[derive(Clone, Default)]
@@ -27,12 +53,10 @@ pub enum DagState {
 }
 
 impl DagState {
-    /// Check if any DAG is present.
     pub const fn is_some(&self) -> bool {
         !matches!(self, Self::None)
     }
 
-    /// Get the display style name of the current DAG.
     pub const fn style_name(&self) -> Option<&'static str> {
         match self {
             Self::None => None,
@@ -42,7 +66,17 @@ impl DagState {
         }
     }
 
-    /// Get block input bindings (theorem/def parameters).
+    pub const fn proof(&self) -> Option<&CompleteProofDag> {
+        match self {
+            Self::Proof(dag) => Some(dag),
+            _ => None,
+        }
+    }
+
+    fn proof_or_empty(&self) -> &CompleteProofDag {
+        self.proof().unwrap_or(&EMPTY_PROOF_DAG)
+    }
+
     pub fn block_input(&self) -> &[LocalBinding] {
         match self {
             Self::Proof(dag) => &dag.block_input,
@@ -52,7 +86,6 @@ impl DagState {
         }
     }
 
-    /// Get block output (theorem statement).
     pub fn block_output(&self) -> Option<&RichText> {
         match self {
             Self::Proof(dag) => dag.block_output.as_ref(),
@@ -63,8 +96,6 @@ impl DagState {
     }
 
     pub fn from_generic(dag: GenericDag) -> Result<Self, DagConversionError> {
-        use crate::protocol::DisplayStyle;
-
         match dag.display_style {
             DisplayStyle::Proof => CompleteProofDag::try_from(dag)
                 .map(Self::Proof)
@@ -78,7 +109,6 @@ impl DagState {
         }
     }
 
-    /// Returns true if the current node changed.
     pub fn update_current_from_cursor(&mut self, cursor: LineCharacterPosition) -> bool {
         match self {
             Self::Proof(dag) => dag.update_current_from_cursor(cursor),
@@ -88,23 +118,19 @@ impl DagState {
         }
     }
 
-    /// Get the navigation location for a selection.
-    /// Returns the URI and position to navigate to, if available.
     pub fn navigation_location(
         &self,
-        selection: Option<Selection>,
+        selection: Selection,
         current_uri: &str,
-    ) -> Option<(String, LineCharacterPosition)> {
-        let sel = selection?;
+    ) -> Option<FullyQualifiedDocumentPosition> {
         match self {
-            Self::Proof(dag) => dag.navigation_location(sel, current_uri),
-            Self::Dataflow(dag) => dag.navigation_location(sel, current_uri),
+            Self::Proof(dag) => dag.navigation_location(selection, current_uri),
+            Self::Dataflow(dag) => dag.navigation_location(selection, current_uri),
             Self::Effectflow(_) | Self::None => None,
         }
     }
 }
 
-/// Error when converting a `GenericDag` to a specific DAG type.
 #[derive(Debug)]
 pub enum DagConversionError {
     Proof(ProofDagConversionError),
@@ -124,247 +150,246 @@ impl fmt::Display for DagConversionError {
 
 impl Error for DagConversionError {}
 
-/// Mode variant - the actual display mode implementation.
-enum ModeVariant {
-    Compact(BeforeAfterMode),
-    CompactTree(CompactTree),
-    DeductionTree(SemanticTableau),
-    DataFlow(DataFlowMode),
-    EffectFlow(EffectFlowMode),
-}
-
-impl Default for ModeVariant {
-    fn default() -> Self {
-        Self::DeductionTree(SemanticTableau::default())
-    }
-}
-
-pub struct DisplayMode {
-    mode: ModeVariant,
-    pub dag: DagState,
-    pub timing_display: TimingDisplay,
+#[derive(Debug, Clone, Copy)]
+pub enum DisplayMode {
+    BeforeAfter(BeforeAfterView),
+    CompactTree(CompactTreeView),
+    SemanticTableau(TreeGraphView),
+    DataFlow(TreeGraphView),
+    EffectFlow(EffectFlowView),
 }
 
 impl Default for DisplayMode {
     fn default() -> Self {
-        Self {
-            mode: ModeVariant::default(),
-            dag: DagState::None,
-            timing_display: TimingDisplay::Off,
-        }
+        Self::SemanticTableau(TreeGraphView::default())
     }
 }
 
 impl DisplayMode {
-    pub fn switch_to_compatible_mode(&mut self, dag: &DagState) {
-        let is_compatible = matches!(
-            (&self.mode, dag),
-            (ModeVariant::DataFlow(_), DagState::Dataflow(_))
-                | (ModeVariant::EffectFlow(_), DagState::Effectflow(_))
-                | (
-                    ModeVariant::Compact(_)
-                        | ModeVariant::CompactTree(_)
-                        | ModeVariant::DeductionTree(_),
-                    DagState::Proof(_)
-                )
-                | (_, DagState::None)
-        );
-
-        if !is_compatible {
-            self.mode = match dag {
-                DagState::Proof(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
-                DagState::Dataflow(_) => ModeVariant::DataFlow(DataFlowMode::default()),
-                DagState::Effectflow(_) => ModeVariant::EffectFlow(EffectFlowMode::default()),
-                DagState::None => return,
-            };
+    const fn expected_style(&self) -> &'static str {
+        match self {
+            Self::BeforeAfter(_) | Self::CompactTree(_) | Self::SemanticTableau(_) => "proof",
+            Self::DataFlow(_) => "dataflow",
+            Self::EffectFlow(_) => "effectflow",
         }
     }
 
-    /// Get an error message if the current mode is incompatible with the DAG.
-    /// Returns None if compatible or no DAG is present.
-    pub fn incompatibility_error(&self) -> Option<String> {
-        let dag_style = self.dag.style_name()?;
+    fn accepts(&self, dag: &DagState) -> bool {
+        dag.style_name() == Some(self.expected_style())
+    }
 
-        let expected_style = match &self.mode {
-            ModeVariant::Compact(_)
-            | ModeVariant::CompactTree(_)
-            | ModeVariant::DeductionTree(_) => "proof",
-            ModeVariant::DataFlow(_) => "dataflow",
-            ModeVariant::EffectFlow(_) => "effectflow",
-        };
+    #[must_use]
+    pub fn compatible_with(self, dag: &DagState) -> Self {
+        match dag {
+            DagState::None => self,
+            _ if self.accepts(dag) => self,
+            DagState::Proof(_) => Self::SemanticTableau(TreeGraphView::default()),
+            DagState::Dataflow(_) => Self::DataFlow(TreeGraphView::default()),
+            DagState::Effectflow(_) => Self::EffectFlow(EffectFlowView::default()),
+        }
+    }
 
-        if dag_style == expected_style {
-            None
-        } else {
-            Some(format!(
+    pub fn incompatibility_error(&self, dag: &DagState) -> Option<String> {
+        let dag_style = dag.style_name()?;
+        (!self.accepts(dag)).then(|| {
+            format!(
                 "Mode '{}' expects '{}' DAG, but received '{}' DAG",
                 self.name(),
-                expected_style,
+                self.expected_style(),
                 dag_style
-            ))
+            )
+        })
+    }
+
+    #[must_use]
+    pub fn next(&self) -> Self {
+        match self {
+            Self::BeforeAfter(_) => Self::CompactTree(CompactTreeView::default()),
+            Self::CompactTree(_) => Self::SemanticTableau(TreeGraphView::default()),
+            Self::SemanticTableau(_) => Self::DataFlow(TreeGraphView::default()),
+            Self::DataFlow(_) => Self::EffectFlow(EffectFlowView::default()),
+            Self::EffectFlow(_) => Self::BeforeAfter(BeforeAfterView::default()),
         }
     }
 
-    /// Cycle to the next display mode, preserving DAG state.
-    pub fn next(&mut self) {
-        self.mode = match take(&mut self.mode) {
-            ModeVariant::Compact(_) => ModeVariant::CompactTree(CompactTree::default()),
-            ModeVariant::CompactTree(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
-            ModeVariant::DeductionTree(_) => ModeVariant::DataFlow(DataFlowMode::default()),
-            ModeVariant::DataFlow(_) => ModeVariant::EffectFlow(EffectFlowMode::default()),
-            ModeVariant::EffectFlow(_) => ModeVariant::Compact(BeforeAfterMode::default()),
+    #[must_use]
+    pub fn previous(&self) -> Self {
+        match self {
+            Self::BeforeAfter(_) => Self::EffectFlow(EffectFlowView::default()),
+            Self::CompactTree(_) => Self::BeforeAfter(BeforeAfterView::default()),
+            Self::SemanticTableau(_) => Self::CompactTree(CompactTreeView::default()),
+            Self::DataFlow(_) => Self::SemanticTableau(TreeGraphView::default()),
+            Self::EffectFlow(_) => Self::DataFlow(TreeGraphView::default()),
+        }
+    }
+
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::BeforeAfter(_) => "Compact",
+            Self::CompactTree(_) => "Compact Tree",
+            Self::SemanticTableau(_) => "Semantic tableau",
+            Self::DataFlow(_) => "Data Flow",
+            Self::EffectFlow(_) => "Effect Flow",
+        }
+    }
+
+    pub const fn keybindings(&self) -> &'static [KeyBinding<ModeAction>] {
+        match self {
+            Self::BeforeAfter(_) => BEFORE_AFTER_KEYBINDINGS,
+            Self::CompactTree(_) => COMPACT_TREE_KEYBINDINGS,
+            Self::SemanticTableau(_) => SEMANTIC_TABLEAU_KEYBINDINGS,
+            Self::DataFlow(_) => DATA_FLOW_KEYBINDINGS,
+            Self::EffectFlow(_) => EFFECT_FLOW_KEYBINDINGS,
+        }
+    }
+
+    pub fn legend_sections(&self, dag: &DagState) -> Vec<LegendSection> {
+        match (self, dag) {
+            (Self::BeforeAfter(_), _) => before_after_legend_sections(),
+            (Self::CompactTree(_), _) => compact_tree_legend_sections(),
+            (Self::SemanticTableau(_), _) => tableau_legend_sections(),
+            (Self::DataFlow(_), DagState::Dataflow(dag)) => {
+                data_flow_legend_sections(node_kind_legend_items(dag))
+            }
+            (Self::DataFlow(_), _) => data_flow_legend_sections(Vec::new()),
+            (Self::EffectFlow(_), _) => effect_flow_legend_sections(),
+        }
+    }
+
+    pub fn current_selection(&self, dag: &DagState) -> Option<Selection> {
+        match (self, dag) {
+            (
+                Self::BeforeAfter(BeforeAfterView { selection, .. })
+                | Self::CompactTree(CompactTreeView { selection, .. }),
+                _,
+            ) => selection.current(dag.proof_or_empty()),
+            (Self::SemanticTableau(view), DagState::Proof(dag)) => {
+                current_tableau_selection(view, dag)
+            }
+            (Self::DataFlow(view), DagState::Dataflow(dag)) => {
+                current_data_flow_selection(view, dag)
+            }
+            (Self::EffectFlow(view), DagState::Effectflow(dag)) => {
+                current_effect_flow_selection(view, dag)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn select(&mut self, clicked: Selection, dag: &DagState) {
+        match (self, dag) {
+            (
+                Self::BeforeAfter(BeforeAfterView { selection, .. })
+                | Self::CompactTree(CompactTreeView { selection, .. }),
+                _,
+            ) => selection.click(clicked, dag.proof_or_empty()),
+            (Self::SemanticTableau(view), DagState::Proof(dag)) => {
+                view.selection
+                    .click(clicked, dag, &tableau_selectable_items(dag));
+            }
+            (Self::DataFlow(view), DagState::Dataflow(dag)) => {
+                view.selection
+                    .click(clicked, dag, &data_flow_selectable_items(dag));
+            }
+            (Self::EffectFlow(view), DagState::Effectflow(dag)) => {
+                view.selection
+                    .click(clicked, dag, &effect_flow_selectable_items(dag));
+            }
+            _ => {}
+        }
+    }
+
+    pub fn clicked_error_message(&self, selection: Selection, dag: &DagState) -> Option<String> {
+        let Selection::Error { node_id, error_idx } = selection else {
+            return None;
         };
-    }
-
-    /// Cycle to the previous display mode, preserving DAG state.
-    pub fn prev(&mut self) {
-        self.mode = match take(&mut self.mode) {
-            ModeVariant::Compact(_) => ModeVariant::EffectFlow(EffectFlowMode::default()),
-            ModeVariant::CompactTree(_) => ModeVariant::Compact(BeforeAfterMode::default()),
-            ModeVariant::DeductionTree(_) => ModeVariant::CompactTree(CompactTree::default()),
-            ModeVariant::DataFlow(_) => ModeVariant::DeductionTree(SemanticTableau::default()),
-            ModeVariant::EffectFlow(_) => ModeVariant::DataFlow(DataFlowMode::default()),
-        };
-    }
-
-    /// Get the display name of the current mode.
-    pub fn name(&self) -> &'static str {
-        match &self.mode {
-            ModeVariant::Compact(m) => m.name(),
-            ModeVariant::CompactTree(m) => m.name(),
-            ModeVariant::DeductionTree(m) => m.name(),
-            ModeVariant::DataFlow(m) => m.name(),
-            ModeVariant::EffectFlow(m) => m.name(),
+        match (self, dag) {
+            (Self::SemanticTableau(_), DagState::Proof(dag)) => {
+                dag.get_error_message(node_id, error_idx)
+            }
+            (Self::DataFlow(_), DagState::Dataflow(dag)) => {
+                data_flow_error_message(dag, node_id, error_idx)
+            }
+            _ => None,
         }
     }
 
-    /// Get mode-specific keybindings.
-    pub fn keybindings(&self) -> &'static [(&'static str, &'static str)] {
-        match &self.mode {
-            ModeVariant::Compact(m) => m.keybindings(),
-            ModeVariant::CompactTree(m) => m.keybindings(),
-            ModeVariant::DeductionTree(m) => m.keybindings(),
-            ModeVariant::DataFlow(m) => m.keybindings(),
-            ModeVariant::EffectFlow(m) => m.keybindings(),
+    pub fn apply_action(&mut self, action: ModeAction, dag: &DagState, timing: TimingDisplay) {
+        match (self, dag) {
+            (Self::BeforeAfter(view), _) => {
+                apply_before_after_action(view, action, dag.proof_or_empty());
+            }
+            (Self::CompactTree(view), _) => {
+                apply_compact_tree_action(view, action, dag.proof_or_empty());
+            }
+            (Self::SemanticTableau(view), DagState::Proof(dag)) => {
+                apply_tableau_action(view, action, dag, timing);
+            }
+            (Self::DataFlow(view), DagState::Dataflow(dag)) => {
+                apply_data_flow_action(view, action, dag, timing);
+            }
+            (Self::EffectFlow(view), DagState::Effectflow(dag)) => {
+                apply_effect_flow_action(view, action, dag, timing);
+            }
+            (Self::SemanticTableau(view) | Self::DataFlow(view), _) => view.toggle(action),
+            (Self::EffectFlow(view), _) => view.toggle(action),
         }
     }
 
-    /// Get current selection from active mode.
-    pub fn current_selection(&self) -> Option<Selection> {
-        match &self.mode {
-            ModeVariant::Compact(m) => m.current_selection(),
-            ModeVariant::CompactTree(m) => m.current_selection(),
-            ModeVariant::DeductionTree(m) => m.current_selection(),
-            ModeVariant::DataFlow(m) => m.current_selection(),
-            ModeVariant::EffectFlow(m) => m.current_selection(),
+    pub fn draw(
+        &self,
+        dag: &DagState,
+        timing: TimingDisplay,
+        area: Rect,
+        buf: &mut Buffer,
+    ) -> Vec<ClickTarget> {
+        match (self, dag) {
+            (Self::BeforeAfter(view), _) => {
+                draw_before_after(view, dag.proof_or_empty(), area, buf)
+            }
+            (Self::CompactTree(view), _) => {
+                draw_compact_tree(view, dag.proof_or_empty(), area, buf)
+            }
+            (Self::SemanticTableau(view), DagState::Proof(dag)) => {
+                draw_semantic_tableau(view, dag, timing, area, buf)
+            }
+            (Self::DataFlow(view), DagState::Dataflow(dag)) => {
+                draw_data_flow(view, dag, timing, area, buf)
+            }
+            (Self::EffectFlow(view), DagState::Effectflow(dag)) => {
+                draw_effect_flow(view, dag, timing, area, buf)
+            }
+            (Self::SemanticTableau(_), _) => {
+                render_no_goals(area, buf);
+                Vec::new()
+            }
+            (Self::DataFlow(_), _) => {
+                draw_missing_dag("No data flow available (term mode only)", area, buf)
+            }
+            (Self::EffectFlow(_), _) => draw_missing_dag("No effect flow DAG available", area, buf),
         }
     }
+}
 
-    /// Get legend sections from active mode.
-    pub fn legend_sections(&self) -> Vec<LegendSection> {
-        match &self.mode {
-            ModeVariant::Compact(m) => m.legend_sections(),
-            ModeVariant::CompactTree(m) => m.legend_sections(),
-            ModeVariant::DeductionTree(m) => m.legend_sections(),
-            ModeVariant::DataFlow(m) => m.legend_sections(),
-            ModeVariant::EffectFlow(m) => m.legend_sections(),
-        }
-    }
+fn draw_missing_dag(text: &str, area: Rect, buf: &mut Buffer) -> Vec<ClickTarget> {
+    Paragraph::new(text)
+        .style(Style::new().fg(Color::DarkGray))
+        .render(area, buf);
+    Vec::new()
+}
 
-    /// Handle key event for active mode.
-    pub fn handle_key(&mut self, key: KeyEvent) -> bool {
-        match &mut self.mode {
-            ModeVariant::Compact(m) => m.handle_key(key),
-            ModeVariant::CompactTree(m) => m.handle_key(key),
-            ModeVariant::DeductionTree(m) => m.handle_key(key),
-            ModeVariant::DataFlow(m) => m.handle_key(key),
-            ModeVariant::EffectFlow(m) => m.handle_key(key),
-        }
-    }
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
 
-    /// Handle mouse event for active mode.
-    pub fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
-        match &mut self.mode {
-            ModeVariant::Compact(m) => m.handle_mouse(mouse),
-            ModeVariant::CompactTree(m) => m.handle_mouse(mouse),
-            ModeVariant::DeductionTree(m) => m.handle_mouse(mouse),
-            ModeVariant::DataFlow(m) => m.handle_mouse(mouse),
-            ModeVariant::EffectFlow(m) => m.handle_mouse(mouse),
-        }
-    }
+    use crate::scenario_replay::{key, render_scenario, ReplayedMessages};
 
-    /// Take clicked error from modes that support it (if any).
-    pub fn take_clicked_error(&mut self) -> Option<String> {
-        match &mut self.mode {
-            ModeVariant::Compact(m) => Mode::take_clicked_error(m),
-            ModeVariant::CompactTree(m) => Mode::take_clicked_error(m),
-            ModeVariant::DeductionTree(m) => Mode::take_clicked_error(m),
-            ModeVariant::DataFlow(m) => Mode::take_clicked_error(m),
-            ModeVariant::EffectFlow(m) => Mode::take_clicked_error(m),
-        }
-    }
-
-    /// Update active mode. Each mode builds its own input from the DAG.
-    pub fn update(&mut self, error: Option<String>) {
-        let error = error.or_else(|| self.incompatibility_error());
-
-        match (&mut self.mode, &self.dag) {
-            (ModeVariant::Compact(m), DagState::Proof(dag)) => {
-                m.update(Some(dag), error);
-            }
-            (ModeVariant::Compact(m), _) => {
-                m.update(None, error);
-            }
-
-            (ModeVariant::CompactTree(m), DagState::Proof(dag)) => {
-                m.update(Some(dag), error);
-            }
-            (ModeVariant::CompactTree(m), _) => {
-                m.update(None, error);
-            }
-
-            (ModeVariant::DeductionTree(m), DagState::Proof(dag)) => {
-                m.update(Some(dag), error);
-            }
-            (ModeVariant::DeductionTree(m), _) => {
-                m.update(None, error);
-            }
-
-            (ModeVariant::DataFlow(m), DagState::Dataflow(dag)) => {
-                m.update(Some(dag), error);
-            }
-            (ModeVariant::DataFlow(m), _) => {
-                m.update(None, error);
-            }
-
-            (ModeVariant::EffectFlow(m), DagState::Effectflow(dag)) => {
-                m.update(Some(dag), error);
-            }
-            (ModeVariant::EffectFlow(m), _) => {
-                m.update(None, error);
-            }
-        }
-    }
-
-    /// Sync timing display to mode viewports and render.
-    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
-        self.sync_timing_display();
-        match &mut self.mode {
-            ModeVariant::Compact(m) => m.render(frame, area),
-            ModeVariant::CompactTree(m) => m.render(frame, area),
-            ModeVariant::DeductionTree(m) => m.render(frame, area),
-            ModeVariant::DataFlow(m) => m.render(frame, area),
-            ModeVariant::EffectFlow(m) => m.render(frame, area),
-        }
-    }
-
-    fn sync_timing_display(&mut self) {
-        let td = self.timing_display;
-        match &mut self.mode {
-            ModeVariant::DeductionTree(m) => m.viewport.timing_display = td,
-            ModeVariant::DataFlow(m) => m.viewport.timing_display = td,
-            ModeVariant::EffectFlow(m) => m.viewport.timing_display = td,
-            ModeVariant::Compact(_) | ModeVariant::CompactTree(_) => {}
-        }
+    #[test]
+    fn data_flow_dag_in_effect_flow_mode_reports_incompatibility() {
+        assert_snapshot!(render_scenario(
+            "sorting",
+            &ReplayedMessages::All,
+            &[key(']')]
+        ));
     }
 }

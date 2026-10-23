@@ -3,31 +3,17 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Paragraph, StatefulWidget, Widget},
+    widgets::{Paragraph, Widget},
 };
 
 use crate::{
     deduction_tree::TacticProofState,
+    message::ClickTarget,
     protocol::NodeId,
-    selection::{Region, Selection},
+    selection::Selection,
     theme::{Gray, Theme},
-    widgets::{AssumptionPane, AssumptionPaneState, GoalsPane, GoalsPaneState},
+    widgets::{AssumptionPane, GoalsPane},
 };
-
-#[derive(Default)]
-pub struct DiffPaneState {
-    assumption_state: AssumptionPaneState,
-    goals_state: GoalsPaneState,
-}
-
-impl DiffPaneState {
-    pub fn click_regions(&self) -> impl Iterator<Item = &Region> {
-        self.assumption_state
-            .click_regions()
-            .iter()
-            .chain(self.goals_state.click_regions().iter())
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DiffPaneKind {
@@ -93,10 +79,8 @@ impl<'a> DiffPane<'a> {
     }
 }
 
-impl StatefulWidget for DiffPane<'_> {
-    type State = DiffPaneState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+impl DiffPane<'_> {
+    pub fn draw(self, area: Rect, buf: &mut Buffer) -> Vec<ClickTarget> {
         let title_line = Line::from(Span::styled(self.kind.title(), self.kind.title_style()));
         let title_area = Rect::new(area.x, area.y, area.width, 1);
         Paragraph::new(title_line)
@@ -125,16 +109,16 @@ impl StatefulWidget for DiffPane<'_> {
         let selection = if is_current { self.selection } else { None };
         let node_id = if is_current { self.node_id } else { None };
 
-        AssumptionPane::new(
+        let assumption_targets = AssumptionPane::new(
             self.state,
             selection,
             self.is_hyp_focused(),
             is_current,
             node_id,
         )
-        .render(hyp_area, buf, &mut state.assumption_state);
+        .draw(hyp_area, buf);
 
-        GoalsPane::new(
+        let goal_targets = GoalsPane::new(
             self.state,
             selection,
             self.is_goal_focused(),
@@ -142,6 +126,8 @@ impl StatefulWidget for DiffPane<'_> {
             node_id,
             self.active_goal_name,
         )
-        .render(goal_area, buf, &mut state.goals_state);
+        .draw(goal_area, buf);
+
+        assumption_targets.into_iter().chain(goal_targets).collect()
     }
 }

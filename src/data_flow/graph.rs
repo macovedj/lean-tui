@@ -6,8 +6,9 @@ use ratatui::style::{Color, Modifier, Style};
 use crate::{
     graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
     protocol::{
-        DiagnosticInfo, DiagnosticSeverity, DisplayStyle, GenericDag, GraphNode,
-        LineCharacterPosition, LocalBinding, NodeId, RichText, TimingDisplay,
+        DiagnosticInfo, DiagnosticSeverity, DisplayStyle, FullyQualifiedDocumentPosition,
+        GenericDag, GraphNode, LineCharacterPosition, LocalBinding, NodeId, RichText,
+        TimingDisplay,
     },
     selection::Selection,
     theme::{Red, Theme},
@@ -453,32 +454,28 @@ impl DataFlowDag {
         layout
     }
 
-    /// Get the navigation location for a selection.
     pub fn navigation_location(
         &self,
         selection: Selection,
         current_uri: &str,
-    ) -> Option<(String, LineCharacterPosition)> {
+    ) -> Option<FullyQualifiedDocumentPosition> {
         match selection {
-            Selection::InitialHyp { hyp_idx } => self
-                .block_input
-                .get(hyp_idx)
-                .and_then(|b| b.navigation_locations.as_ref())
-                .and_then(|nav| nav.definition.as_ref())
-                .map(|loc| (loc.uri.clone(), loc.position)),
             Selection::Hyp { node_id, hyp_idx } => self
                 .get(node_id)
                 .and_then(|node| node.bindings().get(hyp_idx).cloned())
                 .and_then(|b| b.navigation_locations)
                 .and_then(|nav| nav.definition)
-                .map(|loc| (loc.uri, loc.position)),
-            Selection::Goal { node_id, .. } => self
-                .get(node_id)
-                .map(|node| (current_uri.to_string(), node.position)),
-            Selection::Theorem => self
-                .root_node_id
-                .and_then(|id| self.get(id))
-                .map(|node| (current_uri.to_string(), node.position)),
+                .map(|location| FullyQualifiedDocumentPosition {
+                    uri: location.uri,
+                    position: location.position,
+                }),
+            Selection::Goal { node_id, .. } => {
+                self.get(node_id)
+                    .map(|node| FullyQualifiedDocumentPosition {
+                        uri: current_uri.to_string(),
+                        position: node.position,
+                    })
+            }
             Selection::Error { .. } => None,
         }
     }
@@ -566,5 +563,13 @@ impl Dag for DataFlowDag {
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
+    }
+
+    fn node_count(&self) -> usize {
+        self.len()
+    }
+
+    fn current_node(&self) -> Option<NodeId> {
+        self.current_node_id
     }
 }

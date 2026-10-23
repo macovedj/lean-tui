@@ -706,6 +706,16 @@ impl TryFrom<GenericDag> for EffectFlowDag {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        for node in &nodes {
+            tracing::trace!(
+                node_id = node.id,
+                kind = ?node.effect_kind,
+                edges = node.edges.len(),
+                content = %node.content.to_plain_text(),
+                "Effect flow node"
+            );
+        }
+
         Ok(Self {
             nodes,
             root_node_id: dag.root_node_id,
@@ -723,5 +733,13 @@ impl Dag for EffectFlowDag {
 
     fn get_node(&self, id: NodeId) -> Option<&Self::Node> {
         self.get(id)
+    }
+
+    fn node_count(&self) -> usize {
+        self.len()
+    }
+
+    fn current_node(&self) -> Option<NodeId> {
+        self.current_node_id
     }
 }
