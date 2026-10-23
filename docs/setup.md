@@ -2,13 +2,39 @@
 
 Lean-TUI is a front-end. The proof and program graphs come from [Lean-Prism](https://codeberg.org/wvhulle/lean-prism), which runs inside the Lean language server of your editor and streams the graph under your cursor to `lean-tui` over TCP.
 
-## Install `lean-tui`
+## Install with Nix
 
-With Nix:
+Both projects are flakes. Add them as inputs of your NixOS, Home Manager or project flake:
+
+```nix
+{
+  inputs = {
+    lean-tui.url = "git+https://codeberg.org/wvhulle/lean-tui";
+    lean-prism.url = "git+https://codeberg.org/wvhulle/lean-prism";
+  };
+}
+```
+
+and put the packages where you keep your tools, for example in a Home Manager module that receives `inputs` and `pkgs`:
+
+```nix
+home.packages = [
+  inputs.lean-tui.packages.${pkgs.stdenv.hostPlatform.system}.default
+  inputs.lean-prism.packages.${pkgs.stdenv.hostPlatform.system}.default
+];
+```
+
+Use `environment.systemPackages` on NixOS, or a devshell's `packages` to keep them per project. The Lean-Prism flake builds for `x86_64-linux` only.
+
+To try both without installing anything:
 
 ```bash
-nix profile install git+https://codeberg.org/wvhulle/lean-tui
+nix shell git+https://codeberg.org/wvhulle/lean-tui git+https://codeberg.org/wvhulle/lean-prism
 ```
+
+The flakes use the binary cache `wvhulle.cachix.org`; accept its settings when Nix asks.
+
+## Install `lean-tui` without Nix
 
 With Cargo, the build needs Lean-Prism's protocol schema, named by `LEAN_DAG_SCHEMA`:
 
@@ -21,15 +47,11 @@ Make sure `~/.cargo/bin` is on your `PATH`.
 
 Static Linux binaries are also attached to every [Codeberg release](https://codeberg.org/wvhulle/lean-tui/releases).
 
-## Install `lean-prism`
+## Install `lean-prism` without Nix
 
 `lean-prism serve` replaces `lake serve`. It runs `lake serve` for your project with Lean-Prism loaded as a plugin built for the project's Lean version, so your project needs no changes.
 
-```bash
-nix profile install git+https://codeberg.org/wvhulle/lean-prism
-```
-
-Without Nix, build it from a clone with `lake build lean-prism lean-server-plugin` and put `.lake/build/bin` on your `PATH`. A source build fetches and builds the plugin for your project's Lean version the first time you open the project, and reports that build to the editor as LSP progress. See [Lean-Prism's supported versions](https://codeberg.org/wvhulle/lean-prism#supported-lean-versions).
+Build it from a clone with `lake build lean-prism lean-server-plugin` and put `.lake/build/bin` on your `PATH`. A source build fetches and builds the plugin for your project's Lean version the first time you open the project, and reports that build to the editor as LSP progress. See [Lean-Prism's supported versions](https://codeberg.org/wvhulle/lean-prism#supported-lean-versions).
 
 If your project already requires `LeanPrism` in its lakefile, `lean-prism serve` warns and falls back to plain `lake serve`. Remove the requirement and the `import LeanPrism` lines to use the plugin.
 

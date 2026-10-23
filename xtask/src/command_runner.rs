@@ -20,6 +20,9 @@ pub enum TaskError {
         path: PathBuf,
         regenerate_command: &'static str,
     },
+    MissingRecordings {
+        directory: PathBuf,
+    },
 }
 
 impl fmt::Display for TaskError {
@@ -39,6 +42,11 @@ impl fmt::Display for TaskError {
                 formatter,
                 "{} is out of date, run `{regenerate_command}`",
                 path.display()
+            ),
+            Self::MissingRecordings { directory } => write!(
+                formatter,
+                "no .webp recordings in {}, keeping the published screenshots",
+                directory.display()
             ),
         }
     }
