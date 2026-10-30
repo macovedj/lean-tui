@@ -2,16 +2,16 @@
 
 Different Lean code calls for different pictures. Lean-TUI picks a mode automatically from the code under the cursor: one of the proof views for tactic proofs, data flow for term-style code, effect flow for monadic code. Cycle through the modes with `[` and `]`.
 
-The samples below live in [`demos/`](../demos/).
+The samples below live in [`demos/`](../demos/), one folder per sample, and each one names the official Lean documentation it is taken from.
 
 ## Compact
 
 The proof state as a list of hypotheses and goals. By default the state before the current tactic is shown next to the current one.
 
-This proof from [`Swap.lean`](../demos/swap/Swap.lean) has a deliberate error: `h2` is used without the rewrite, so it does not match the goal. Errors are part of proof development, so every mode shows them.
+This proof, adapted from `and_swap` in [Theorem Proving in Lean 4](https://lean-lang.org/theorem_proving_in_lean4/Propositions-and-Proofs/), lives in [`Swap.lean`](../demos/swap/Swap.lean) and has a deliberate error: `h2` is used without the rewrite, so it does not match the goal. Errors are part of proof development, so every mode shows them.
 
 ```lean
-theorem andSwap (p q : Prop) : p ∧ q ↔ q ∧ p := by
+theorem and_swap (p q : Prop) : p ∧ q ↔ q ∧ p := by
   apply Iff.intro
 
   intro h1
@@ -19,9 +19,7 @@ theorem andSwap (p q : Prop) : p ∧ q ↔ q ∧ p := by
 
   exact h1
   intro h2
-  -- Wrong
   exact h2
-  -- Correct: rw [and_comm] at h2; exact h2
 ```
 
 ![Compact view](../demos/swap/compact.webp)
@@ -30,7 +28,7 @@ Unchanged items use the default color. Items added by the step are green; goals 
 
 ## Semantic tableau
 
-Each proof step is a node in a tree that follows the cursor in your editor. Click on the goals and hypotheses of a node, or move between them with `hjkl`; `t` flips the tree orientation.
+Each proof step is a node in a tree that follows the cursor in your editor. The recordings of this and the next mode use the prime number example from the [Lean homepage](https://lean-lang.org/), in [`Prime.lean`](../demos/prime/Prime.lean). Click on the goals and hypotheses of a node, or move between them with `hjkl`; `t` flips the tree orientation.
 
 ![Semantic tableau view](../demos/prime/semantic_tableau.webp)
 
@@ -46,12 +44,17 @@ A compact semantic tableau: the proof tree on its side on the left, the hypothes
 
 Not every proof uses tactics. Term-style proofs work forwards and look like ordinary functional programs. This mode splits such code into related sub-states, built from both the concrete and the abstract syntax tree. Each node holds the expected type at that point and the variables in scope.
 
-From [`Sorting.lean`](../demos/sorting/Sorting.lean):
+Merge sort from [Functional Programming in Lean](https://lean-lang.org/functional_programming_in_lean/Programming___-Proving___-and-Performance/More-Inequalities/), in [`Sorting.lean`](../demos/sorting/Sorting.lean):
 
 ```lean
-def insert (x : Nat) : List Nat → List Nat
-  | [] => [x]
-  | y :: ys => if x ≤ y then x :: y :: ys else  y :: insert x ys
+def merge [Ord α] (xs : List α) (ys : List α) : List α :=
+  match xs, ys with
+  | [], _ => ys
+  | _, [] => xs
+  | x'::xs', y'::ys' =>
+    match Ord.compare x' y' with
+    | .lt | .eq => x' :: merge xs' (y' :: ys')
+    | .gt => y' :: merge (x'::xs') ys'
 ```
 
 ![Data flow view](../demos/sorting/data_flow.webp)
@@ -65,14 +68,22 @@ In monadic code every `let x ← computation` combines:
 - a **return value**: what the computation returns, drawn with a forward arrow;
 - an **effect**: how it changes the context, such as state writes, drawn as an icon under the return value. Effects of nested monadic calls bubble up into a list.
 
-From [`Monadic.lean`](../demos/monadic/Monadic.lean):
+The letter counter from [Functional Programming in Lean](https://lean-lang.org/functional_programming_in_lean/Monad-Transformers/A-Monad-Construction-Kit/#state-monad), in [`Monadic.lean`](../demos/monadic/Monadic.lean):
 
 ```lean
-def counterSequence : StateM Counter Nat := do
-  let v1 ← increment
-  let v2 ← double
-  let v3 ← increment
-  pure (v1 + v2 + v3)
+    | c :: cs =>
+      let st ← get
+      let st' ←
+        if c.isAlpha then
+          if vowels.contains c then
+            pure {st with vowels := st.vowels + 1}
+          else if consonants.contains c then
+            pure {st with consonants := st.consonants + 1}
+          else -- modified or non-English letter
+            pure st
+        else throw (.notALetter c)
+      set st'
+      loop cs
 ```
 
 ![Effect flow view](../demos/monadic/effect_flow.webp)

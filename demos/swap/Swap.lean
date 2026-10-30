@@ -1,4 +1,6 @@
-theorem andSwap (p q : Prop) : p ∧ q ↔ q ∧ p := by
+-- Adapted from https://lean-lang.org/theorem_proving_in_lean4/Propositions-and-Proofs/ (`and_swap`):
+-- rewritten with tactics, and the second direction deliberately misses the rewrite.
+theorem and_swap (p q : Prop) : p ∧ q ↔ q ∧ p := by
   apply Iff.intro
 
   intro h1
@@ -6,6 +8,4 @@ theorem andSwap (p q : Prop) : p ∧ q ↔ q ∧ p := by
 
   exact h1
   intro h2
-  -- Wrong
   exact h2
-  -- Correct: rw [and_comm] at h2; exact h2

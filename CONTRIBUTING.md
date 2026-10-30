@@ -96,6 +96,8 @@ demos/
   lean-dev/                                             co-development project, see below
 ```
 
+The samples are taken from the official Lean documentation (the [Lean homepage](https://lean-lang.org/), [Theorem Proving in Lean 4](https://lean-lang.org/theorem_proving_in_lean4/) and [Functional Programming in Lean](https://lean-lang.org/functional_programming_in_lean/)). The first lines of each sample name the page it comes from, and say what was changed if it was adapted. `swap/Swap.lean` keeps a deliberate error, so it is left out of the Lake build.
+
 #### Regenerating recordings
 
 The tapes are recorded with [VHS](https://github.com/charmbracelet/vhs). Each `<demo>/<scene>.tape` opens Helix (with `lean-prism serve` as language server, see `demos/.helix/`) and `lean-tui` side by side in tmux, then plays the keystrokes. The shared setup is in `open.tape` and the shared settings are in `common.tape`. Tapes trigger graph updates with `space h` (document highlight) instead of hover, so no popup covers the code. VHS records MP4, and `cargo xtask record-scene` encodes it to an animated WebP with ffmpeg, dropping duplicate frames (`mpdecimate`) so still moments cost nothing.

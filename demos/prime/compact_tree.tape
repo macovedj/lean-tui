@@ -1,6 +1,6 @@
 Source common.tape
 Output compact_tree.mp4
-Env SCENE_FILE "prime/Prime.lean:7"
+Env SCENE_FILE "prime/Prime.lean:8"
 Source open.tape
 
 Ctrl+B Right Sleep 500ms
