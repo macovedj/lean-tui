@@ -23,6 +23,9 @@ pub enum TaskError {
     MissingRecordings {
         directory: PathBuf,
     },
+    MissingReplayWorker {
+        demo_directory: PathBuf,
+    },
 }
 
 impl fmt::Display for TaskError {
@@ -47,6 +50,11 @@ impl fmt::Display for TaskError {
                 formatter,
                 "no .webp recordings in {}, keeping the published screenshots",
                 directory.display()
+            ),
+            Self::MissingReplayWorker { demo_directory } => write!(
+                formatter,
+                "no Lean-Prism worker serves a file in {}, open one in an editor first",
+                demo_directory.display()
             ),
         }
     }

@@ -37,8 +37,11 @@ use crossterm::{
 use ratatui::prelude::*;
 use tokio::runtime::Builder as RuntimeBuilder;
 
-pub use crate::keybindings::keybinding_reference_markdown;
 use crate::{error::Result, event_loop::run_event_loop};
+pub use crate::{
+    keybindings::keybinding_reference_markdown,
+    protocol::{connected_file_uri, ready_command_json},
+};
 
 const SCANNED_PORT_COUNT: u16 = 10;
 

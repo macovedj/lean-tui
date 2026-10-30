@@ -115,6 +115,18 @@ On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `
 
 Because unchanged recordings come from the cache, they keep the same bytes and are not committed again. The workflow needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
 
+#### Capturing replay fixtures
+
+The snapshot tests in `src/` replay `<demo>/replay.jsonl`: the raw messages a Lean-Prism worker sent while someone moved the cursor through the sample. Cargo finds the folder through `LEAN_TUI_DEMOS_DIR`, which `.cargo/config.toml` sets. To capture a fixture again after changing a sample:
+
+```bash
+cd demos && hx prime/Prime.lean        # starts lean-prism serve through demos/.helix
+cargo xtask capture-replay demos/prime # in a second terminal; move the cursor in Helix, then Ctrl-C
+cargo insta review
+```
+
+`capture-replay` connects to the worker that serves a file of that demo and records every message. It rewrites the machine-specific project path in URIs to `file:///project/`.
+
 #### Lean projects
 
 - `demos/`: plain Lake project without dependencies; the recordings get Lean-Prism from the `lean-prism` flake input through `lean-prism serve`.

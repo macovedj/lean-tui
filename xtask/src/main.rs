@@ -4,6 +4,7 @@ mod directory_files;
 mod keybinding_docs;
 mod recordings;
 mod release;
+mod replay_capture;
 
 use std::{path::PathBuf, process::ExitCode};
 
@@ -27,6 +28,9 @@ enum RepoTask {
     },
     PublishScreenshots {
         recordings: PathBuf,
+    },
+    CaptureReplay {
+        demo_directory: PathBuf,
     },
     CachedBuild {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -58,6 +62,9 @@ fn run_repo_task(task: RepoTask) -> Result<(), TaskError> {
             out,
         } => recordings::record_scene(&lean_project, &tape, &out),
         RepoTask::PublishScreenshots { recordings } => recordings::publish_screenshots(&recordings),
+        RepoTask::CaptureReplay { demo_directory } => {
+            replay_capture::capture_replay(&demo_directory)
+        }
         RepoTask::CachedBuild { build_args } => ci_builds::cached_build(&build_args),
         RepoTask::CheckCommits { revision_range } => ci_builds::check_commits(&revision_range),
         RepoTask::UploadReleaseAssets { assets_dir } => release::upload_release_assets(&assets_dir),

@@ -20,6 +20,18 @@ pub use generated::*;
 /// Type alias for node IDs.
 pub type NodeId = u64;
 
+pub fn ready_command_json() -> serde_json::Result<String> {
+    serde_json::to_string(&ClientToServerCommand::Ready)
+}
+
+#[must_use]
+pub fn connected_file_uri(message_line: &str) -> Option<String> {
+    match serde_json::from_str(message_line).ok()? {
+        ServerToClientMessage::Connected { file_uri, .. } => file_uri,
+        _ => None,
+    }
+}
+
 #[derive(Default, Copy, Clone, PartialEq, Eq)]
 pub enum TimingDisplay {
     #[default]

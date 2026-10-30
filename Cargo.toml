@@ -24,7 +24,7 @@ cast_sign_loss = { level = "allow", priority = 2 }
 excessive_nesting = { level = "warn", priority = 2 }
 # ViewMode variants have different sizes by design
 large_enum_variant = { level = "allow", priority = 2 }
-missing_errors_doc = { level = "allow", priority = -1 }
+missing_errors_doc = { level = "allow", priority = 2 }
 # Vec::is_empty/len aren't const on stable Rust
 missing_const_for_fn = { level = "allow", priority = 2 }
 nursery = "warn"
