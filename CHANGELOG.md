@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0](https://codeberg.org/wvhulle/lean-tui/compare/lean-tui-v1.1.1...lean-tui-v1.2.0) - 2026-10-30
+
+### Added
+
+- *(xtask)* capture replay fixtures from a running Lean-Prism worker
+
+### Build
+
+- provide the demos' lean4-nix toolchain in the dev shell
+
+### Changed
+
+- group each demo's sources, recordings and fixture under demos/
+
+### Documentation
+
+- vendor demo samples from the official Lean documentation
+- publish screenshots on an orphan branch
+
+### Fixed
+
+- show effect flow expressions on one capped line
+- *(demos)* jump with gg and wait for the worker before recording
+
+### Miscellaneous
+
+- update lean-prism and recapture replay fixtures
+
 ## [1.1.1](https://codeberg.org/wvhulle/lean-tui/compare/lean-tui-v1.1.0...lean-tui-v1.1.1) - 2026-10-23
 
 ### Build
