@@ -8,6 +8,7 @@
 let
   inherit (pkgs) lib;
   leanPkgs = pkgs.extend (lean4-nix.readToolchainFile ./lean-toolchain);
+  lean-toolchain = leanPkgs.lean.lean-all;
   lake2nix = leanPkgs.callPackage lean4-nix.lake { };
 
   project = lake2nix.mkPackage {
@@ -31,7 +32,7 @@ let
     runtimeInputs = [
       lean-tui
       lean-prism-server
-      leanPkgs.lean.lean-all
+      lean-toolchain
       pkgs.ffmpeg
       pkgs.helix
       pkgs.tmux
@@ -97,7 +98,12 @@ let
   ];
 in
 {
-  inherit project scenes record-scene;
+  inherit
+    project
+    scenes
+    record-scene
+    lean-toolchain
+    ;
   all = pkgs.symlinkJoin {
     name = "lean-tui-recordings";
     paths = builtins.attrValues scenes;

@@ -109,7 +109,7 @@
       devShells = builtins.mapAttrs (_: system: {
         default = system.toolchains.devCrane.devShell {
           packages = [
-            system.pkgs.elan
+            system.recordings.lean-toolchain
             system.pkgs.release-plz
             system.pkgs.convco
             system.pkgs.git-cliff
