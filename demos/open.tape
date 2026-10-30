@@ -4,6 +4,7 @@ Type "tmux -f tmux.conf split-window -h -t demo lean-tui" Enter
 Type "tmux -f tmux.conf select-pane -t demo:0.0" Enter
 Type "tmux -f tmux.conf attach -t demo" Enter
 Wait+Screen /NOR /
+Wait+Screen /Connected to Lean-Prism/
 Type "gs" Type " h"
 Wait+Screen /\d+:\d+ \(\S+\)/
 Type ",;"

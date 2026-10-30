@@ -106,7 +106,7 @@ The tapes are recorded with [VHS](https://github.com/charmbracelet/vhs). Each `<
 nix build .#recordings && cp -rL --no-preserve=mode result/* demos/
 ```
 
-Tapes jump to absolute line numbers (`:12`), so update them when you edit a sample.
+Tapes jump to absolute line numbers with `12gg` (not `:12`, which flashes the command completion menu), so update them when you edit a sample.
 
 Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` to a demo folder. To add a demo, add a folder with a Lean file and at least one tape, and list the Lean module in `demos/lakefile.toml`.
 

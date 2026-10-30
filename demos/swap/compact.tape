@@ -7,6 +7,6 @@ Ctrl+B Right Sleep 500ms
 Type "[" Sleep 1s
 Type "[" Sleep 2s
 Ctrl+B Left Sleep 500ms
-Type ":7" Enter Type "gs" Sleep 300ms Type " h" Sleep 2500ms Type ",;"
-Type ":9" Enter Type "gs" Sleep 300ms Type " h" Sleep 2500ms Type ",;"
-Type ":11" Enter Type "gs" Sleep 300ms Type " h" Sleep 4s
+Type "7gg" Type "gs" Sleep 300ms Type " h" Sleep 2500ms Type ",;"
+Type "9gg" Type "gs" Sleep 300ms Type " h" Sleep 2500ms Type ",;"
+Type "11gg" Type "gs" Sleep 300ms Type " h" Sleep 4s
