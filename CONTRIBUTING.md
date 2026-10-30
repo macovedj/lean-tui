@@ -83,16 +83,16 @@ The Woodpecker repository needs the secrets `codeberg_token` (repository write a
 
 ### Demos
 
-Every folder in `demos/` is one demo: a Lean sample, the VHS tapes that record it, the recorded WebP animations and the replay fixture used by the snapshot tests.
+Every folder in `demos/` is one demo: a Lean sample, the VHS tapes that record it and the replay fixture used by the snapshot tests. The recorded WebP animations are not part of `main`: they live as the single commit of the orphan `recordings` branch, so the history of `main` stays free of media, and the README and docs embed them from `https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/<demo>/<scene>.webp`.
 
 ```
 demos/
   default.nix  lakefile.toml  lean-toolchain  .helix/   Lake project and Nix recording setup
   common.tape  open.tape  tmux.conf                     shared by every tape
-  prime/    Prime.lean    workflow.tape  compact_tree.tape  semantic_tableau.tape  *.webp  replay.jsonl
-  swap/     Swap.lean     compact.tape      compact.webp      replay.jsonl
-  sorting/  Sorting.lean  data_flow.tape    data_flow.webp    replay.jsonl
-  monadic/  Monadic.lean  effect_flow.tape  effect_flow.webp  replay.jsonl
+  prime/    Prime.lean    workflow.tape  compact_tree.tape  semantic_tableau.tape  replay.jsonl
+  swap/     Swap.lean     compact.tape      replay.jsonl
+  sorting/  Sorting.lean  data_flow.tape    replay.jsonl
+  monadic/  Monadic.lean  effect_flow.tape  replay.jsonl
   lean-dev/                                             co-development project, see below
 ```
 
@@ -106,6 +106,8 @@ The tapes are recorded with [VHS](https://github.com/charmbracelet/vhs). Each `<
 nix build .#recordings && cp -rL --no-preserve=mode result/* demos/
 ```
 
+The copied `.webp` files are ignored by Git; they are only for looking at locally.
+
 Tapes jump to absolute line numbers with `12gg` (not `:12`, which flashes the command completion menu), so update them when you edit a sample.
 
 Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` to a demo folder. To add a demo, add a folder with a Lean file and at least one tape, and list the Lean module in `demos/lakefile.toml`.
@@ -113,9 +115,9 @@ Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-da
 On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or the demo sources, `.woodpecker/screenshots.yaml` does three things:
 - builds the recordings (and with them the Lean project),
 - pushes them to `wvhulle.cachix.org`,
-- replaces the `.webp` files in `demos/` on `main` with a commit titled `docs: regenerate screenshots [skip ci]`.
+- force-pushes them as the single commit of the orphan `recordings` branch, titled `docs: regenerate screenshots [skip ci]`.
 
-Because unchanged recordings come from the cache, they keep the same bytes and are not committed again. The workflow needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
+Because unchanged recordings come from the cache, they keep the same bytes, so the published tree is unchanged and nothing is pushed. The workflow needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
 
 #### Capturing replay fixtures
 

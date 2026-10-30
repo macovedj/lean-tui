@@ -13,7 +13,6 @@ when:
         - nix/toolchains.nix
         - demos/**
       exclude:
-        - demos/**/*.webp
         - demos/**/replay.jsonl
         - demos/lean-dev/**
   - repo: wvhulle/lean-tui

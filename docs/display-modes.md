@@ -22,7 +22,7 @@ theorem and_swap (p q : Prop) : p ∧ q ↔ q ∧ p := by
   exact h2
 ```
 
-![Compact view](../demos/swap/compact.webp)
+![Compact view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/swap/compact.webp)
 
 Unchanged items use the default color. Items added by the step are green; goals that get closed and hypotheses that get removed are red. `p` and `n` toggle the previous and next step panes.
 
@@ -30,7 +30,7 @@ Unchanged items use the default color. Items added by the step are green; goals 
 
 Each proof step is a node in a tree that follows the cursor in your editor. The recordings of this and the next mode use the prime number example from the [Lean homepage](https://lean-lang.org/), in [`Prime.lean`](../demos/prime/Prime.lean). Click on the goals and hypotheses of a node, or move between them with `hjkl`; `t` flips the tree orientation.
 
-![Semantic tableau view](../demos/prime/semantic_tableau.webp)
+![Semantic tableau view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/prime/semantic_tableau.webp)
 
 This is close to how logicians draw [natural deduction](https://en.wikipedia.org/wiki/Natural_deduction) proofs. The layout is inspired by [Paperproof](https://github.com/Paper-Proof/paperproof).
 
@@ -38,7 +38,7 @@ This is close to how logicians draw [natural deduction](https://en.wikipedia.org
 
 A compact semantic tableau: the proof tree on its side on the left, the hypotheses and goals active at the selected step on the right. `jk` selects items, `hl` scrolls through the steps.
 
-![Compact tree view](../demos/prime/compact_tree.webp)
+![Compact tree view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/prime/compact_tree.webp)
 
 ## Data flow
 
@@ -57,7 +57,7 @@ def merge [Ord α] (xs : List α) (ys : List α) : List α :=
     | .gt => y' :: merge (x'::xs') ys'
 ```
 
-![Data flow view](../demos/sorting/data_flow.webp)
+![Data flow view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/sorting/data_flow.webp)
 
 The decomposition follows a set of built-in rules, and not every Lean control-flow construct has one yet.
 
@@ -86,6 +86,6 @@ The letter counter from [Functional Programming in Lean](https://lean-lang.org/f
       loop cs
 ```
 
-![Effect flow view](../demos/monadic/effect_flow.webp)
+![Effect flow view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/monadic/effect_flow.webp)
 
 Nested calls and pure steps are hidden by default; `e` expands them.

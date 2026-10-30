@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{env, fs, path::Path, process::Command};
 
 use crate::{
     command_runner::{command_stdout, required_variable, run_command, TaskError},
@@ -11,8 +7,8 @@ use crate::{
 
 const SCREENSHOTS_COMMIT_MESSAGE: &str = "docs: regenerate screenshots [skip ci]";
 
-const DEMOS_DIRECTORY: &str = "demos";
-const PUBLISHED_RECORDINGS_PATHSPEC: &str = ":(glob)demos/*/*.webp";
+const RECORDINGS_BRANCH: &str = "recordings";
+const RECORDINGS_STAGING_DIRECTORY: &str = "lean-tui-recordings";
 
 pub fn record_scene(lean_project: &Path, tape: &Path, out: &Path) -> Result<(), TaskError> {
     copy_writable_tree(lean_project, Path::new("."))?;
@@ -61,11 +57,9 @@ fn codeberg_push_url() -> Result<String, TaskError> {
     ))
 }
 
-fn replace_demo_recordings(recorded_demo: &Path, demos: &Path) -> Result<(), TaskError> {
-    let demo_directory = demos.join(recorded_demo.file_name().unwrap_or_default());
-    files_with_suffix(&demo_directory, ".webp")?
-        .iter()
-        .try_for_each(fs::remove_file)?;
+fn stage_demo_recordings(recorded_demo: &Path, staging: &Path) -> Result<(), TaskError> {
+    let demo_directory = staging.join(recorded_demo.file_name().unwrap_or_default());
+    fs::create_dir_all(&demo_directory)?;
     files_with_suffix(recorded_demo, ".webp")?
         .iter()
         .try_for_each(|recording| {
@@ -77,11 +71,34 @@ fn replace_demo_recordings(recorded_demo: &Path, demos: &Path) -> Result<(), Tas
     Ok(())
 }
 
+fn published_recordings_tree(staging: &Path, push_url: &str) -> Result<Option<String>, TaskError> {
+    let remote_branch = format!("refs/heads/{RECORDINGS_BRANCH}");
+    if command_stdout(Command::new("git").current_dir(staging).args([
+        "ls-remote",
+        push_url,
+        &remote_branch,
+    ]))?
+    .trim()
+    .is_empty()
+    {
+        return Ok(None);
+    }
+    run_command(Command::new("git").current_dir(staging).args([
+        "fetch",
+        "--quiet",
+        "--depth",
+        "1",
+        push_url,
+        &remote_branch,
+    ]))?;
+    Ok(Some(command_stdout(
+        Command::new("git")
+            .current_dir(staging)
+            .args(["rev-parse", "FETCH_HEAD^{tree}"]),
+    )?))
+}
+
 pub fn publish_screenshots(recordings: &Path) -> Result<(), TaskError> {
-    let repository_root = PathBuf::from(
-        command_stdout(Command::new("git").args(["rev-parse", "--show-toplevel"]))?.trim(),
-    );
-    let demos = repository_root.join(DEMOS_DIRECTORY);
     let recorded_demos = subdirectories(recordings)?;
     let recorded_scene_count = recorded_demos
         .iter()
@@ -92,36 +109,49 @@ pub fn publish_screenshots(recordings: &Path) -> Result<(), TaskError> {
             directory: recordings.to_path_buf(),
         });
     }
+    let staging = env::temp_dir().join(RECORDINGS_STAGING_DIRECTORY);
+    if staging.exists() {
+        fs::remove_dir_all(&staging)?;
+    }
+    fs::create_dir_all(&staging)?;
     recorded_demos
         .iter()
-        .try_for_each(|recorded_demo| replace_demo_recordings(recorded_demo, &demos))?;
-    if command_stdout(Command::new("git").current_dir(&repository_root).args([
-        "status",
-        "--porcelain",
-        "--",
-        PUBLISHED_RECORDINGS_PATHSPEC,
-    ]))?
-    .is_empty()
-    {
-        println!("screenshots unchanged");
-        return Ok(());
-    }
-    run_command(Command::new("git").current_dir(&repository_root).args([
-        "add",
-        "--",
-        PUBLISHED_RECORDINGS_PATHSPEC,
+        .try_for_each(|recorded_demo| stage_demo_recordings(recorded_demo, &staging))?;
+    run_command(Command::new("git").current_dir(&staging).args([
+        "init",
+        "--quiet",
+        "--initial-branch",
+        RECORDINGS_BRANCH,
     ]))?;
-    run_command(Command::new("git").args([
+    run_command(
+        Command::new("git")
+            .current_dir(&staging)
+            .args(["add", "--all"]),
+    )?;
+    run_command(Command::new("git").current_dir(&staging).args([
         "-c",
         "user.name=lean-tui screenshots",
         "-c",
         "user.email=ci@codeberg.org",
         "commit",
+        "--quiet",
         "--message",
         SCREENSHOTS_COMMIT_MESSAGE,
     ]))?;
     let push_url = codeberg_push_url()?;
-    run_command(Command::new("git").args(["fetch", &push_url, "main"]))?;
-    run_command(Command::new("git").args(["rebase", "FETCH_HEAD"]))?;
-    run_command(Command::new("git").args(["push", &push_url, "HEAD:refs/heads/main"]))
+    let staged_tree = command_stdout(
+        Command::new("git")
+            .current_dir(&staging)
+            .args(["rev-parse", "HEAD^{tree}"]),
+    )?;
+    if published_recordings_tree(&staging, &push_url)?.as_deref() == Some(staged_tree.as_str()) {
+        println!("screenshots unchanged");
+        return Ok(());
+    }
+    run_command(Command::new("git").current_dir(&staging).args([
+        "push",
+        "--force",
+        &push_url,
+        &format!("HEAD:refs/heads/{RECORDINGS_BRANCH}"),
+    ]))
 }

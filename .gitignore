@@ -7,3 +7,4 @@ result
 .cargo-home/
 *.snap.new
 *.pending-snap
+demos/*/*.webp

@@ -2,7 +2,7 @@
 
 A standalone terminal view that draws the proofs and programs you write in [Lean](https://lean-lang.org/) as interactive graphs, next to any editor: Helix, Neovim, Zed, Emacs or VS Code.
 
-![Helix with lean-tui following the cursor](https://codeberg.org/wvhulle/lean-tui/media/branch/main/demos/prime/workflow.webp)
+![Helix with lean-tui following the cursor](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/prime/workflow.webp)
 
 ## Views
 
@@ -10,13 +10,13 @@ The view follows your cursor and picks a display mode for the code under it. See
 
 | Compact | Semantic tableau |
 | --- | --- |
-| ![Compact view](https://codeberg.org/wvhulle/lean-tui/media/branch/main/demos/swap/compact.webp) | ![Semantic tableau view](https://codeberg.org/wvhulle/lean-tui/media/branch/main/demos/prime/semantic_tableau.webp) |
+| ![Compact view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/swap/compact.webp) | ![Semantic tableau view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/prime/semantic_tableau.webp) |
 | Hypotheses and goals before and after each tactic. | Every tactic step as a node in a proof tree. |
 | **Compact tree** | **Data flow** |
-| ![Compact tree view](https://codeberg.org/wvhulle/lean-tui/media/branch/main/demos/prime/compact_tree.webp) | ![Data flow view](https://codeberg.org/wvhulle/lean-tui/media/branch/main/demos/sorting/data_flow.webp) |
+| ![Compact tree view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/prime/compact_tree.webp) | ![Data flow view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/sorting/data_flow.webp) |
 | The proof tree on its side with the active state next to it. | Term-style proofs and functional programs, split into sub-states. |
 | **Effect flow** | |
-| ![Effect flow view](https://codeberg.org/wvhulle/lean-tui/media/branch/main/demos/monadic/effect_flow.webp) | |
+| ![Effect flow view](https://codeberg.org/wvhulle/lean-tui/media/branch/recordings/monadic/effect_flow.webp) | |
 | Return values and effects of monadic code. | |
 
 ## Quick start
