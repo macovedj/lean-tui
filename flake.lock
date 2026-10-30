@@ -100,11 +100,11 @@
         "weir": "weir_3"
       },
       "locked": {
-        "lastModified": 1792770955,
-        "narHash": "sha256-Pt6I8E1iivQzzABsuLFlUYjkEk3qB9uJe5EwYEzjihI=",
+        "lastModified": 1793373824,
+        "narHash": "sha256-ls93OnfKlRx1w2kyf+7zByOjQmrumwrl9Eq+wSxa6qo=",
         "ref": "main",
-        "rev": "4b8b9e0c98613abcfac247d18d54ab66d4b5b56f",
-        "revCount": 223,
+        "rev": "78bf8b11e0965263ef74e2cbf69a7cec6af02038",
+        "revCount": 227,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/lean-prism"
       },
@@ -126,11 +126,11 @@
         "weir": "weir"
       },
       "locked": {
-        "lastModified": 1792770880,
-        "narHash": "sha256-kg1yhukv1VU7mshFG/q07d1cUH668Es/rLdeqVBdUrE=",
+        "lastModified": 1793373752,
+        "narHash": "sha256-SSYGdkDZejwfzxqtie96RK4XXI3PR0g+zDaFP0ojdiY=",
         "ref": "lean/v4.31.0",
-        "rev": "8491aa08f5169f747266b1b816b3484b091a715d",
-        "revCount": 221,
+        "rev": "46d475b96c9725d8bd12bcc14a042ad9f46379e2",
+        "revCount": 224,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/lean-prism"
       },
@@ -152,11 +152,11 @@
         "weir": "weir_2"
       },
       "locked": {
-        "lastModified": 1792770881,
-        "narHash": "sha256-/kQuie1B9J+Gi9AovTkIPYnPjp3YnBIgdICekSaT7cw=",
+        "lastModified": 1793373752,
+        "narHash": "sha256-SS+wgo2f+0LW+s4NWLhWuTyiffh96BWY7LDXCiPzXs0=",
         "ref": "lean/v4.33.0",
-        "rev": "cf1b9cd7c7ab2254c9de8b3a6e4340076c612b94",
-        "revCount": 222,
+        "rev": "4e2a6218ac3be1e2d2575c0fb2c21ce50de01b5a",
+        "revCount": 225,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/lean-prism"
       },

@@ -1,12 +1,12 @@
 ---
 source: src/view.rs
-expression: "render_scenario(\"swap\", &ReplayedMessages::First { count: 2 }, &[])"
+expression: "render_scenario(\"swap\", &ReplayedMessages::First { count: 3 }, &[])"
 ---
 Buffer {
     area: Rect { x: 0, y: 0, width: 140, height: 45 },
     content: [
-        "┌────────────────────────────────────────────────────── lean-tui (swap_tactic.lean) ───────────────────────────────────────────────────────┐",
-        "│                                           Lean is still checking swap_tactic.lean up to line 7.                                          │",
+        "┌────────────────────────────────────────────────────────── lean-tui (Swap.lean) ──────────────────────────────────────────────────────────┐",
+        "│                                              Lean is still checking Swap.lean up to line 7.                                              │",
         "│                                                                                                                                          │",
         "│                                    The graph appears once Lean has elaborated the code at the cursor.                                    │",
         "│                                                                                                                                          │",
@@ -53,8 +53,8 @@ Buffer {
     ],
     styles: [
         x: 0, y: 0, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
-        x: 44, y: 1, fg: Reset, bg: Reset, underline: Reset, modifier: BOLD,
-        x: 97, y: 1, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 47, y: 1, fg: Reset, bg: Reset, underline: Reset, modifier: BOLD,
+        x: 93, y: 1, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
         x: 37, y: 3, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,
         x: 103, y: 3, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
         x: 0, y: 44, fg: DarkGray, bg: Reset, underline: Reset, modifier: NONE,

@@ -227,7 +227,7 @@ mod tests {
         let mut messages = fixture_messages("prime", &ReplayedMessages::All).into_iter();
         messages
             .by_ref()
-            .take(3)
+            .take(4)
             .for_each(|message| send_from_worker(&mut model, message));
         let initial_goal = model.display_mode.current_selection(model.dag());
         press_key(&mut model, 'j');

@@ -215,7 +215,7 @@ mod tests {
     fn awaiting_graph_after_cursor() {
         assert_snapshot!(render_scenario(
             "swap",
-            &ReplayedMessages::First { count: 2 },
+            &ReplayedMessages::First { count: 3 },
             &[]
         ));
     }

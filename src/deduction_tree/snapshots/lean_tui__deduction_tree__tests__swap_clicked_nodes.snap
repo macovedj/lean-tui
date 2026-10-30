@@ -5,7 +5,7 @@ expression: "render_scenario(\"swap\", &ReplayedMessages::All,\n&[click(70, 10),
 Buffer {
     area: Rect { x: 0, y: 0, width: 140, height: 45 },
     content: [
-        "┌ theorem andSwap (swap_tactic.lean) ──────────────────────────────────────────────────────────────────────────────────── Semantic tableau ┐",
+        "┌ theorem and_swap (Swap.lean) ────────────────────────────────────────────────────────────────────────────────────────── Semantic tableau ┐",
         "│┌ ⚠ exact h2 ─────┐  ┌ apply Iff.intro ────┐  ┌ intro h2 ────┐   ┌ apply Iff.intro ────┐                                                  │",
         "││p   : Prop       │  │p  : Prop            │  │p   : Prop    │   │p   : Prop           │                                                  │",
         "││q   : Prop       │  │q  : Prop            │  │q   : Prop────│───│q───:─Prop╯          │                                                  │",
@@ -48,7 +48,7 @@ Buffer {
         "│                                                                                                                                          │",
         "│                                                                                                                                          │",
         "│                                                                                                                                          │",
-        "└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 12:3 (hover) [follow] ┘",
+        "└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 11:3 (hover) [follow] ┘",
         "?: help │ [/]: style │ i/o: in/out │ m: metrics │ g: goto │ y: copy │ q: quit │ hjkl: nav │ t: flip                                         ",
     ],
     styles: [
