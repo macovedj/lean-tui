@@ -1,12 +1,15 @@
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    fmt,
+    fmt, iter,
     num::NonZero,
 };
 
 use petgraph::graph::NodeIndex;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::{
+    style::{Color, Modifier, Style},
+    text::Span,
+};
 
 use crate::{
     graph_layout::{Dag, DagGraph, DagNode, EdgeData, LayoutGraph, NavNode},
@@ -313,7 +316,10 @@ impl EffectFlowNode {
             Style::new().fg(Color::Gray).add_modifier(Modifier::ITALIC)
         };
         ContentItem::Line {
-            spans: self.content.to_spans(expr_style),
+            spans: vec![Span::styled(
+                expression_label(&self.content.to_plain_text()),
+                expr_style,
+            )],
             selection: Some(Selection::Goal {
                 node_id: self.id,
                 goal_idx: 0,
@@ -397,6 +403,24 @@ impl GraphEdge {
         self.kind
             .as_deref()
             .map_or(EdgeKind::Unknown, EdgeKind::from_str)
+    }
+}
+
+const MAX_EXPRESSION_LABEL_CHARS: usize = 48;
+
+fn expression_label(expression_source: &str) -> String {
+    let single_line_expression = expression_source
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if single_line_expression.chars().count() <= MAX_EXPRESSION_LABEL_CHARS {
+        single_line_expression
+    } else {
+        single_line_expression
+            .chars()
+            .take(MAX_EXPRESSION_LABEL_CHARS - 1)
+            .chain(iter::once('…'))
+            .collect()
     }
 }
 
