@@ -1,6 +1,0 @@
-name = "recordings"
-defaultTargets = ["Samples"]
-
-[[lean_lib]]
-name = "Samples"
-roots = ["Samples.prime_tactic", "Samples.sorting", "Samples.monadic"]

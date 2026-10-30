@@ -64,7 +64,7 @@
               ;
           };
           ci = import ./nix/ci.nix { inherit pkgs xtaskTool; };
-          recordings = import ./recordings {
+          recordings = import ./demos {
             inherit
               pkgs
               lean4-nix

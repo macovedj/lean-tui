@@ -6,16 +6,20 @@ use std::{
 
 use crate::{
     command_runner::{command_stdout, required_variable, run_command, TaskError},
-    directory_files::{copy_writable_file, copy_writable_tree, files_with_suffix, regular_files},
+    directory_files::{copy_writable_file, copy_writable_tree, files_with_suffix, subdirectories},
 };
 
 const SCREENSHOTS_COMMIT_MESSAGE: &str = "docs: regenerate screenshots [skip ci]";
 
-pub fn record_scene(lean_project: &Path, scene: &str, out: &Path) -> Result<(), TaskError> {
+const DEMOS_DIRECTORY: &str = "demos";
+const PUBLISHED_RECORDINGS_PATHSPEC: &str = ":(glob)demos/*/*.webp";
+
+pub fn record_scene(lean_project: &Path, tape: &Path, out: &Path) -> Result<(), TaskError> {
     copy_writable_tree(lean_project, Path::new("."))?;
+    let scene = tape.file_stem().unwrap_or_default().to_string_lossy();
     let video_name = format!("{scene}.mp4");
     let webp_name = format!("{scene}.webp");
-    run_command(Command::new("vhs").arg(format!("{scene}.tape")))?;
+    run_command(Command::new("vhs").arg(tape))?;
     run_command(Command::new("ffmpeg").args([
         "-loglevel",
         "error",
@@ -57,37 +61,56 @@ fn codeberg_push_url() -> Result<String, TaskError> {
     ))
 }
 
+fn replace_demo_recordings(recorded_demo: &Path, demos: &Path) -> Result<(), TaskError> {
+    let demo_directory = demos.join(recorded_demo.file_name().unwrap_or_default());
+    files_with_suffix(&demo_directory, ".webp")?
+        .iter()
+        .try_for_each(fs::remove_file)?;
+    files_with_suffix(recorded_demo, ".webp")?
+        .iter()
+        .try_for_each(|recording| {
+            copy_writable_file(
+                recording,
+                &demo_directory.join(recording.file_name().unwrap_or_default()),
+            )
+        })?;
+    Ok(())
+}
+
 pub fn publish_screenshots(recordings: &Path) -> Result<(), TaskError> {
     let repository_root = PathBuf::from(
         command_stdout(Command::new("git").args(["rev-parse", "--show-toplevel"]))?.trim(),
     );
-    let screenshots = repository_root.join("screenshots");
-    let recorded_scenes = files_with_suffix(recordings, ".webp")?;
-    if recorded_scenes.is_empty() {
+    let demos = repository_root.join(DEMOS_DIRECTORY);
+    let recorded_demos = subdirectories(recordings)?;
+    let recorded_scene_count = recorded_demos
+        .iter()
+        .map(|recorded_demo| files_with_suffix(recorded_demo, ".webp").map(|scenes| scenes.len()))
+        .sum::<Result<usize, _>>()?;
+    if recorded_scene_count == 0 {
         return Err(TaskError::MissingRecordings {
             directory: recordings.to_path_buf(),
         });
     }
-    regular_files(&screenshots)?
+    recorded_demos
         .iter()
-        .try_for_each(fs::remove_file)?;
-    recorded_scenes.iter().try_for_each(|recording| {
-        copy_writable_file(
-            recording,
-            &screenshots.join(recording.file_name().unwrap_or_default()),
-        )
-    })?;
-    if command_stdout(
-        Command::new("git")
-            .args(["status", "--porcelain", "--"])
-            .arg(&screenshots),
-    )?
+        .try_for_each(|recorded_demo| replace_demo_recordings(recorded_demo, &demos))?;
+    if command_stdout(Command::new("git").current_dir(&repository_root).args([
+        "status",
+        "--porcelain",
+        "--",
+        PUBLISHED_RECORDINGS_PATHSPEC,
+    ]))?
     .is_empty()
     {
         println!("screenshots unchanged");
         return Ok(());
     }
-    run_command(Command::new("git").args(["add", "--"]).arg(&screenshots))?;
+    run_command(Command::new("git").current_dir(&repository_root).args([
+        "add",
+        "--",
+        PUBLISHED_RECORDINGS_PATHSPEC,
+    ]))?;
     run_command(Command::new("git").args([
         "-c",
         "user.name=lean-tui screenshots",

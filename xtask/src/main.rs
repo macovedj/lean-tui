@@ -21,7 +21,7 @@ struct XtaskCli {
 enum RepoTask {
     RecordScene {
         lean_project: PathBuf,
-        scene: String,
+        tape: PathBuf,
         #[arg(long, default_value = ".")]
         out: PathBuf,
     },
@@ -54,9 +54,9 @@ fn run_repo_task(task: RepoTask) -> Result<(), TaskError> {
     match task {
         RepoTask::RecordScene {
             lean_project,
-            scene,
+            tape,
             out,
-        } => recordings::record_scene(&lean_project, &scene, &out),
+        } => recordings::record_scene(&lean_project, &tape, &out),
         RepoTask::PublishScreenshots { recordings } => recordings::publish_screenshots(&recordings),
         RepoTask::CachedBuild { build_args } => ci_builds::cached_build(&build_args),
         RepoTask::CheckCommits { revision_range } => ci_builds::check_commits(&revision_range),

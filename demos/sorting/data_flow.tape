@@ -1,6 +1,6 @@
 Source common.tape
 Output data_flow.mp4
-Env SCENE_FILE "Samples/sorting.lean:2"
+Env SCENE_FILE "sorting/Sorting.lean:2"
 Source open.tape
 
 Type ":3" Enter Type "gs" Sleep 300ms Type " h" Sleep 2500ms Type ",;"

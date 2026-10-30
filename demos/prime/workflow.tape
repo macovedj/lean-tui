@@ -1,6 +1,6 @@
 Source common.tape
 Output workflow.mp4
-Env SCENE_FILE "Samples/prime_tactic.lean:2"
+Env SCENE_FILE "prime/Prime.lean:2"
 Source open.tape
 
 Type ":7" Enter Type "gs" Sleep 300ms Type " h" Sleep 2500ms Type ",;"

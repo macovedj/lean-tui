@@ -40,9 +40,9 @@ pub fn fixture_messages(
     fixture_name: &str,
     replayed: &ReplayedMessages,
 ) -> Vec<ServerToClientMessage> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures")
-        .join(format!("{fixture_name}.jsonl"));
+    let path = PathBuf::from(env!("LEAN_TUI_DEMOS_DIR"))
+        .join(fixture_name)
+        .join("replay.jsonl");
     let messages = fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()))
         .lines()

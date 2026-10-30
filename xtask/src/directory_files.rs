@@ -5,13 +5,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub fn regular_files(directory: &Path) -> io::Result<Vec<PathBuf>> {
-    let mut file_paths = fs::read_dir(directory)?
+fn sorted_entries(directory: &Path, keep_entry: fn(&Path) -> bool) -> io::Result<Vec<PathBuf>> {
+    let mut entry_paths = fs::read_dir(directory)?
         .map(|entry| entry.map(|entry| entry.path()))
-        .filter(|path| path.as_ref().map_or(true, |path| path.is_file()))
+        .filter(|path| path.as_ref().map_or(true, |path| keep_entry(path)))
         .collect::<io::Result<Vec<_>>>()?;
-    file_paths.sort();
-    Ok(file_paths)
+    entry_paths.sort();
+    Ok(entry_paths)
+}
+
+pub fn regular_files(directory: &Path) -> io::Result<Vec<PathBuf>> {
+    sorted_entries(directory, Path::is_file)
+}
+
+pub fn subdirectories(directory: &Path) -> io::Result<Vec<PathBuf>> {
+    sorted_entries(directory, Path::is_dir)
 }
 
 pub fn files_with_suffix(directory: &Path, suffix: &str) -> io::Result<Vec<PathBuf>> {

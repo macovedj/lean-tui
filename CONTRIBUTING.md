@@ -65,7 +65,7 @@ nix flake update lean-prism
 
 A `cargo` build outside the devshell needs `LEAN_DAG_SCHEMA` pointing at a checkout of lean-prism's `protocol-schema.json`.
 
-The flake is split by concern: `nix/` builds, checks and releases the Rust crate, and `recordings/` holds everything that needs Lean.
+The flake is split by concern: `nix/` builds, checks and releases the Rust crate, and `demos/` holds everything that needs Lean.
 
 Repository tasks are Rust subcommands of the `xtask` crate, run with `cargo xtask <task>` (`cargo xtask --help` lists them). Nix wraps each one with its runtime tools in `nix/xtask-tool.nix`, so CI calls them as `nix run .#<task>`.
 
@@ -81,21 +81,41 @@ Releases are automated with [release-plz](https://release-plz.dev/) on Woodpecke
 
 The Woodpecker repository needs the secrets `codeberg_token` (repository write access), `cargo_registry_token` (crates.io publish token for `lean-tui`) and `cachix_auth_token` (push access to `wvhulle.cachix.org`).
 
-### Regenerating Screenshots
+### Demos
 
-The WebP animations in `screenshots/` are recorded with [VHS](https://github.com/charmbracelet/vhs) tapes in `recordings/tapes/`: each `<scene>.tape` opens Helix (with `lean-prism serve` as language server, see `recordings/.helix/`) and `lean-tui` side by side in tmux (shared setup in `open.tape`, shared settings in `common.tape`) and plays the keystrokes. Tapes trigger graph updates with `space h` (document highlight) instead of hover, so no popup covers the code. VHS records MP4, and `cargo xtask record-scene` encodes it to an animated WebP with ffmpeg, dropping duplicate frames (`mpdecimate`) so still moments cost nothing.
+Every folder in `demos/` is one demo: a Lean sample, the VHS tapes that record it, the recorded WebP animations and the replay fixture used by the snapshot tests.
+
+```
+demos/
+  default.nix  lakefile.toml  lean-toolchain  .helix/   Lake project and Nix recording setup
+  common.tape  open.tape  tmux.conf                     shared by every tape
+  prime/    Prime.lean    workflow.tape  compact_tree.tape  semantic_tableau.tape  *.webp  replay.jsonl
+  swap/     Swap.lean     compact.tape      compact.webp      replay.jsonl
+  sorting/  Sorting.lean  data_flow.tape    data_flow.webp    replay.jsonl
+  monadic/  Monadic.lean  effect_flow.tape  effect_flow.webp  replay.jsonl
+  lean-dev/                                             co-development project, see below
+```
+
+#### Regenerating recordings
+
+The tapes are recorded with [VHS](https://github.com/charmbracelet/vhs). Each `<demo>/<scene>.tape` opens Helix (with `lean-prism serve` as language server, see `demos/.helix/`) and `lean-tui` side by side in tmux, then plays the keystrokes. The shared setup is in `open.tape` and the shared settings are in `common.tape`. Tapes trigger graph updates with `space h` (document highlight) instead of hover, so no popup covers the code. VHS records MP4, and `cargo xtask record-scene` encodes it to an animated WebP with ffmpeg, dropping duplicate frames (`mpdecimate`) so still moments cost nothing.
 
 ```bash
-nix build .#recordings && cp --no-preserve=mode result/*.webp screenshots/
+nix build .#recordings && cp -rL --no-preserve=mode result/* demos/
 ```
 
 Tapes jump to absolute line numbers (`:12`), so update them when you edit a sample.
 
-Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` next to the others.
+Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` to a demo folder. To add a demo, add a folder with a Lean file and at least one tape, and list the Lean module in `demos/lakefile.toml`.
 
-On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or `recordings/`, `.woodpecker/screenshots.yaml` builds the recordings (and with them the Lean project), pushes them to `wvhulle.cachix.org`, and replaces the files in `screenshots/` on `main` as `docs: regenerate screenshots [skip ci]`. Because unchanged recordings come from the cache, they keep the same bytes and are not committed again. It needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
+On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or the demo sources, `.woodpecker/screenshots.yaml` does three things:
+- builds the recordings (and with them the Lean project),
+- pushes them to `wvhulle.cachix.org`,
+- replaces the `.webp` files in `demos/` on `main` with a commit titled `docs: regenerate screenshots [skip ci]`.
 
-The Lean projects:
+Because unchanged recordings come from the cache, they keep the same bytes and are not committed again. The workflow needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
 
-- `recordings/`: plain Lake project without dependencies; the recordings get Lean-Prism from the `lean-prism` flake input through `lean-prism serve`. `recordings/Samples/` holds the Lean files shown in the docs and recordings, `recordings/tapes/` the VHS tapes.
-- `tests/lean-dev/`: Lake project for co-developing against a sibling `../lean-prism` checkout (with Mathlib). Its `Samples` links to `recordings/Samples`.
+#### Lean projects
+
+- `demos/`: plain Lake project without dependencies; the recordings get Lean-Prism from the `lean-prism` flake input through `lean-prism serve`.
+- `demos/lean-dev/`: Lake project for co-developing against a sibling `../lean-prism` checkout (with Mathlib). It links to each demo folder.

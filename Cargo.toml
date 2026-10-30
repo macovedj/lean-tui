@@ -7,7 +7,7 @@ license = "MIT"
 name = "lean-tui"
 repository = "https://codeberg.org/wvhulle/lean-tui"
 version = "1.1.1"
-exclude = ["docs", "recordings", "screenshots", "tests", "src/**/snapshots"]
+exclude = ["demos", "docs", "src/**/snapshots"]
 
 [workspace]
 members = ["xtask"]

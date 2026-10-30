@@ -9,5 +9,5 @@ require LeanPrism from "../../../lean-prism"
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"
 
-lean_lib Samples where
-  globs := #[.submodules `Samples]
+lean_lib Demos where
+  roots := #[`prime.Prime, `swap.Swap, `sorting.Sorting, `monadic.Monadic]

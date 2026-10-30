@@ -1,2 +1,5 @@
 [alias]
 xtask = "run --package xtask --"
+
+[env]
+LEAN_TUI_DEMOS_DIR = { value = "demos", relative = true }

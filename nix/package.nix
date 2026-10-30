@@ -9,7 +9,7 @@ let
       root = ../.;
       fileset = lib.fileset.unions [
         (craneLib.fileset.commonCargoSources ../.)
-        ../tests/fixtures
+        (lib.fileset.fileFilter (file: file.name == "replay.jsonl") ../demos)
         (lib.fileset.fileFilter (file: file.hasExt "snap") ../src)
       ];
     };

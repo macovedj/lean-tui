@@ -11,16 +11,18 @@ let
   lake2nix = leanPkgs.callPackage lean4-nix.lake { };
 
   project = lake2nix.mkPackage {
-    name = "Samples";
+    name = "Demos";
     src = lib.fileset.toSource {
       root = ./.;
-      fileset = lib.fileset.unions [
-        ./lakefile.toml
-        ./lake-manifest.json
-        ./lean-toolchain
-        ./.helix
-        ./Samples
-      ];
+      fileset = lib.fileset.unions (
+        [
+          ./lakefile.toml
+          ./lake-manifest.json
+          ./lean-toolchain
+          ./.helix
+        ]
+        ++ map (demo: lib.fileset.fileFilter (file: file.hasExt "lean") (./. + "/${demo}")) demoNames
+      );
     };
   };
 
@@ -54,33 +56,45 @@ let
     ];
   };
 
-  sharedTapes = [
-    "common.tape"
-    "open.tape"
-  ];
+  tapesInDirectory =
+    directory:
+    lib.pipe (builtins.readDir directory) [
+      (lib.filterAttrs (file: kind: kind == "regular" && lib.hasSuffix ".tape" file))
+      builtins.attrNames
+      (map (lib.removeSuffix ".tape"))
+    ];
 
-  sceneNames = lib.pipe (builtins.readDir ./tapes) [
+  demoNames = lib.pipe (builtins.readDir ./.) [
+    (lib.filterAttrs (entry: kind: kind == "directory" && tapesInDirectory (./. + "/${entry}") != [ ]))
     builtins.attrNames
-    (builtins.filter (file: lib.hasSuffix ".tape" file && !(builtins.elem file sharedTapes)))
-    (map (lib.removeSuffix ".tape"))
   ];
 
   recordScene =
-    scene:
+    demo: scene:
     pkgs.stdenvNoCC.mkDerivation {
       name = "lean-tui-recording-${scene}";
       src = lib.fileset.toSource {
-        root = ./tapes;
-        fileset = lib.fileset.unions (
-          map (tape: ./tapes + "/${tape}") (sharedTapes ++ [ "${scene}.tape" ]) ++ [ ./tapes/tmux.conf ]
-        );
+        root = ./.;
+        fileset = lib.fileset.unions [
+          ./common.tape
+          ./open.tape
+          ./tmux.conf
+          (./. + "/${demo}/${scene}.tape")
+        ];
       };
       nativeBuildInputs = [ record-scene ];
-      buildPhase = "HOME=$TMPDIR record-scene ${project} ${scene} --out $out";
+      buildPhase = "HOME=$TMPDIR record-scene ${project} ${demo}/${scene}.tape --out $out/${demo}";
       dontInstall = true;
     };
 
-  scenes = lib.genAttrs sceneNames recordScene;
+  scenes = lib.pipe demoNames [
+    (map (
+      demo:
+      map (scene: lib.nameValuePair scene (recordScene demo scene)) (tapesInDirectory (./. + "/${demo}"))
+    ))
+    lib.flatten
+    builtins.listToAttrs
+  ];
 in
 {
   inherit project scenes record-scene;
