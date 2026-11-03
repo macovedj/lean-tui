@@ -67,3 +67,9 @@ typify = "0.4"
 
 [dev-dependencies]
 insta = "1.49.0"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
