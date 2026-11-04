@@ -8,30 +8,72 @@ variables:
       experimental-features = nix-command flakes
       accept-flake-config = true
       sandbox = false
-  - &cache_writing_env
-    <<: *nix_config
-    CACHIX_AUTH_TOKEN:
-      from_secret: cachix_auth_token
-  - &on_trusted_events
-    - event: [push, manual]
   - &on_pull_requests
     - event: pull_request
-  - &flake_checks
-    image: nixos/nix:2.34.9
-    depends_on: []
-    commands:
-      - nix run .#cached-build -- .#checks.x86_64-linux.build-lean-tui .#checks.x86_64-linux.tests .#checks.x86_64-linux.fmt .#checks.x86_64-linux.keybinding-docs
+  - &after_earlier_steps
+    - status: [success, failure]
 
 steps:
-  - name: flake-checks
-    <<: *flake_checks
-    when: *on_trusted_events
-    environment: *cache_writing_env
-
-  - name: flake-checks-pr
-    <<: *flake_checks
-    when: *on_pull_requests
+  - name: build-cargo-dependencies
+    image: nixos/nix:2.34.9
+    depends_on: []
     environment: *nix_config
+    commands:
+      - nix run --quiet .#build-unless-cached -- .#packages.x86_64-linux.cargo-dependencies
+
+  - name: build-lean-tui
+    image: nixos/nix:2.34.9
+    depends_on: [build-cargo-dependencies]
+    when: *after_earlier_steps
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#import-exported-paths
+      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.build-lean-tui
+
+  - name: cargo-test
+    image: nixos/nix:2.34.9
+    depends_on: [build-cargo-dependencies]
+    when: *after_earlier_steps
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#import-exported-paths
+      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.tests
+
+  - name: keybinding-docs
+    image: nixos/nix:2.34.9
+    depends_on: [build-cargo-dependencies]
+    when: *after_earlier_steps
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#import-exported-paths
+      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.keybinding-docs
+
+  - name: upload-check-cache
+    image: nixos/nix:2.34.9
+    depends_on: [build-lean-tui, cargo-test, keybinding-docs, rustfmt]
+    when:
+      - event: [push, manual]
+        status: [success, failure]
+    environment:
+      <<: *nix_config
+      CACHIX_AUTH_TOKEN:
+        from_secret: cachix_auth_token
+    commands:
+      - nix run --quiet .#upload-exported-paths
+
+  - name: rustfmt
+    image: nixos/nix:2.34.9
+    depends_on: []
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.fmt
+
+  - name: ci-task-tests
+    image: nixos/nix:2.34.9
+    depends_on: []
+    environment: *nix_config
+    commands:
+      - nix build --quiet --print-build-logs .#checks.x86_64-linux.ci-task-tests
 
   - name: conventional-commits
     image: nixos/nix:2.34.9
@@ -39,5 +81,4 @@ steps:
     when: *on_pull_requests
     environment: *nix_config
     commands:
-      - git fetch --quiet origin "$${CI_COMMIT_TARGET_BRANCH}"
-      - nix run .#check-commits -- FETCH_HEAD..HEAD
+      - nix run --quiet .#check-commits -- --fetch-target-branch FETCH_HEAD..HEAD

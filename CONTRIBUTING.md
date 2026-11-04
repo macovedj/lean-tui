@@ -67,7 +67,21 @@ A `cargo` build outside the devshell needs `LEAN_DAG_SCHEMA` pointing at a check
 
 The flake is split by concern: `nix/` builds, checks and releases the Rust crate, and `demos/` holds everything that needs Lean.
 
-Repository tasks are Rust subcommands of the `xtask` crate, run with `cargo xtask <task>` (`cargo xtask --help` lists them). Nix wraps each one with its runtime tools in `nix/xtask-tool.nix`, so CI calls them as `nix run .#<task>`.
+Product tasks such as recording scenes and generating docs are Rust subcommands of the `xtask` crate, run with `cargo xtask <task>` (`cargo xtask --help` lists them). Nix wraps the ones CI needs with their runtime tools in `nix/xtask-tool.nix`.
+
+CI tasks are Nushell scripts in `ci/`, exposed as flake apps by `nix/ci.nix`, and workflows hold no shell logic. They also work locally where the variables they read are set:
+
+| Command | Purpose |
+|---------|---------|
+| `nix run .#check-commits -- main..@` | Conventional commit message check for a revision range |
+| `nix run .#release` | Publish an unreleased version to crates.io and create its tag and Codeberg release (CI only, needs `CODEBERG_TOKEN`) |
+| `nix run .#release-pr` | Open or update the release PR (CI only, needs `CODEBERG_TOKEN`) |
+| `nix run .#collect-release-archives -- <result> <dist>` | Copy the archives of a build result into a release directory |
+| `nix run .#upload-release-assets -- <dist>` | Checksum the archives in a release directory and attach them to the Codeberg release (CI only, needs `CODEBERG_TOKEN`) |
+| `nix run .#build-unless-cached -- <installable>` | Build and export an output unless it is already in Cachix (needs `CI_WORKSPACE`) |
+| `nix run .#build-and-export-paths -- <installable>` | Build and export newly built paths to the workspace for later steps (needs `CI_WORKSPACE`) |
+| `nix run .#import-exported-paths` | Import paths exported by an earlier step (needs `CI_WORKSPACE`) |
+| `nix run .#upload-exported-paths` | Push the exported paths to Cachix (needs `CI_WORKSPACE` and `CACHIX_AUTH_TOKEN`) |
 
 `docs/keybindings.md` is generated from `src/keybindings.rs`. After changing a keybinding, run `cargo xtask keybinding-docs`; the `keybinding-docs` flake check fails when the file is out of date.
 
@@ -75,7 +89,7 @@ Repository tasks are Rust subcommands of the `xtask` crate, run with `cargo xtas
 
 Releases are automated with [release-plz](https://release-plz.dev/) on Woodpecker, so write [conventional commits](https://www.conventionalcommits.org/) (pull requests are checked with `convco`).
 
-- `.woodpecker/checks.yaml` builds the crate, runs the tests and `rustfmt`, and checks that `docs/keybindings.md` is up to date. It never needs Lean.
+- `.woodpecker/checks.yaml` builds the crate, runs the tests, `rustfmt` and the CI task tests, and checks that `docs/keybindings.md` is up to date, each in its own step. The Cargo dependencies come first in their own step. Pushes upload newly built paths to Cachix in a separate step; pull requests run the same steps without the upload. It never needs Lean.
 - `.woodpecker/release.yaml` runs on every push to `main`: it publishes a bumped version to crates.io, tags it and creates the Codeberg release, then opens or updates a release pull request with the next version and changelog. Merging that pull request triggers the next release. `feat`, `fix` and `perf` commits trigger a release; other types only appear in the changelog.
 - `.woodpecker/binaries.yaml` builds static musl binaries (`nix build .#dist`) and attaches them to each Codeberg release.
 
@@ -112,7 +126,7 @@ Tapes jump to absolute line numbers with `12gg` (not `:12`, which flashes the co
 
 Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` to a demo folder. To add a demo, add a folder with a Lean file and at least one tape, and list the Lean module in `demos/lakefile.toml`.
 
-On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or the demo sources, `.woodpecker/screenshots.yaml` does three things:
+On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or the demo sources, `.woodpecker/screenshots.yaml` does three things, each in its own step:
 - builds the recordings (and with them the Lean project),
 - pushes them to `wvhulle.cachix.org`,
 - force-pushes them as the single commit of the orphan `recordings` branch, titled `docs: regenerate screenshots [skip ci]`.

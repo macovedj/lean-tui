@@ -47,23 +47,31 @@
             inherit lean-tui;
           };
           xtaskTool = import ./nix/xtask-tool.nix { inherit pkgs xtask; };
+          ciTasks = import ./nix/ci.nix {
+            inherit pkgs;
+            inherit (toolchains) nightlyWithTargets;
+          };
         in
         {
-          inherit pkgs toolchains lean-tui;
+          inherit
+            pkgs
+            toolchains
+            lean-tui
+            ciTasks
+            ;
           checks = import ./nix/checks.nix {
             inherit (toolchains) craneLib rustfmtCrane;
             inherit pkgs lean-tui xtask;
+            inherit (ciTasks) ciTaskTests;
           };
           release = import ./nix/release.nix {
             inherit (toolchains) nightlyWithTargets;
             inherit
               pkgs
               crane
-              xtaskTool
               lean-tui
               ;
           };
-          ci = import ./nix/ci.nix { inherit pkgs xtaskTool; };
           recordings = import ./demos {
             inherit
               pkgs
@@ -86,6 +94,7 @@
         {
           default = system.lean-tui;
           inherit (system) lean-tui;
+          cargo-dependencies = system.lean-tui.cargoArtifacts;
           inherit (system.recordings) record-scene;
           recording-project = system.recordings.project;
           recordings = system.recordings.all;
@@ -98,14 +107,13 @@
         ) system.recordings.scenes
       ) perSystem;
       checks = builtins.mapAttrs (_: system: system.checks) perSystem;
-      apps = builtins.mapAttrs (_: system: {
-        release = mkApp system.release.release;
-        release-pr = mkApp system.release.release-pr;
-        upload-release-assets = mkApp system.release.upload-release-assets;
-        cached-build = mkApp system.ci.cached-build;
-        check-commits = mkApp system.ci.check-commits;
-        publish-screenshots = mkApp system.recordings.publish-screenshots;
-      }) perSystem;
+      apps = builtins.mapAttrs (
+        _: system:
+        builtins.mapAttrs (_: mkApp) system.ciTasks.ciTaskTools
+        // {
+          publish-screenshots = mkApp system.recordings.publish-screenshots;
+        }
+      ) perSystem;
       devShells = builtins.mapAttrs (_: system: {
         default = system.toolchains.devCrane.devShell {
           packages = [

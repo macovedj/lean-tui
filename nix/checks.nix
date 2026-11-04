@@ -4,6 +4,7 @@
   rustfmtCrane,
   lean-tui,
   xtask,
+  ciTaskTests,
 }:
 let
   generatedDocs = pkgs.lib.fileset.toSource {
@@ -13,6 +14,7 @@ let
 in
 {
   build-lean-tui = lean-tui;
+  ci-task-tests = ciTaskTests;
   tests = craneLib.cargoTest (
     lean-tui.cargoArgs
     // {

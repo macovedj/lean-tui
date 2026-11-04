@@ -12,14 +12,21 @@ variables:
 steps:
   - name: build-musl-tarballs
     image: nixos/nix:2.34.9
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#build-and-export-paths -- .#dist
+      - nix run --quiet .#collect-release-archives -- result dist
+
+  - name: upload-musl-cache
+    image: nixos/nix:2.34.9
+    when:
+      - status: [success, failure]
     environment:
       <<: *nix_config
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
     commands:
-      - nix run .#cached-build -- .#dist
-      - mkdir -p dist
-      - cp result/* dist/
+      - nix run --quiet .#upload-exported-paths
 
   - name: attach-to-codeberg-release
     image: nixos/nix:2.34.9
@@ -28,4 +35,4 @@ steps:
       CODEBERG_TOKEN:
         from_secret: codeberg_token
     commands:
-      - nix run .#upload-release-assets -- dist
+      - nix run --quiet .#upload-release-assets -- dist

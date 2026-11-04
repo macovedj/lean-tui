@@ -22,18 +22,38 @@ when:
 depends_on:
   - checks
 
+variables:
+  - &nix_config
+    NIX_CONFIG: |
+      experimental-features = nix-command flakes
+      accept-flake-config = true
+      sandbox = false
+
 steps:
-  - name: record-and-publish
+  - name: record-scenes
     image: nixos/nix:2.34.9
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#build-and-export-paths -- .#recordings --max-jobs 1
+
+  - name: upload-recordings-cache
+    image: nixos/nix:2.34.9
+    when:
+      - status: [success, failure]
     environment:
-      NIX_CONFIG: |
-        experimental-features = nix-command flakes
-        accept-flake-config = true
-        sandbox = false
+      <<: *nix_config
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
+    commands:
+      - nix run --quiet .#upload-exported-paths
+
+  - name: publish-screenshots
+    image: nixos/nix:2.34.9
+    environment:
+      <<: *nix_config
       CODEBERG_TOKEN:
         from_secret: codeberg_token
     commands:
-      - nix run .#cached-build -- .#recordings --max-jobs 1
-      - nix run .#publish-screenshots -- result
+      - nix run --quiet .#import-exported-paths
+      - nix build --quiet --print-build-logs .#recordings --max-jobs 1
+      - nix run --quiet .#publish-screenshots -- result

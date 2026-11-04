@@ -34,12 +34,10 @@ steps:
     image: nixos/nix:2.34.9
     environment: *release_env
     commands:
-      - git remote set-url origin "https://wvhulle:$${CODEBERG_TOKEN}@codeberg.org/$${CI_REPO}.git"
-      - git checkout -B main "$${CI_COMMIT_SHA}"
-      - nix run .#release
+      - nix run --quiet .#release
 
   - name: update-release-pr
     image: nixos/nix:2.34.9
     environment: *release_env
     commands:
-      - nix run .#release-pr
+      - nix run --quiet .#release-pr

@@ -3,7 +3,7 @@ use std::{
     error::Error,
     fmt, io,
     path::PathBuf,
-    process::{Child, Command, ExitStatus, Output, Stdio},
+    process::{Command, ExitStatus, Output, Stdio},
 };
 
 #[derive(Debug)]
@@ -88,11 +88,6 @@ pub fn command_stdout(command: &mut Command) -> Result<String, TaskError> {
     let Output { status, stdout, .. } = command.stderr(Stdio::inherit()).output()?;
     ensure_success(command, status)?;
     Ok(String::from_utf8_lossy(&stdout).into_owned())
-}
-
-pub fn wait_for_child(command: &Command, mut child: Child) -> Result<(), TaskError> {
-    let status = child.wait()?;
-    ensure_success(command, status)
 }
 
 pub fn required_variable(name: &'static str) -> Result<String, TaskError> {

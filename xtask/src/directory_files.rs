@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsStr,
     fs, io,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
@@ -14,7 +13,7 @@ fn sorted_entries(directory: &Path, keep_entry: fn(&Path) -> bool) -> io::Result
     Ok(entry_paths)
 }
 
-pub fn regular_files(directory: &Path) -> io::Result<Vec<PathBuf>> {
+fn regular_files(directory: &Path) -> io::Result<Vec<PathBuf>> {
     sorted_entries(directory, Path::is_file)
 }
 
@@ -27,10 +26,6 @@ pub fn files_with_suffix(directory: &Path, suffix: &str) -> io::Result<Vec<PathB
         .into_iter()
         .filter(|path| path.to_string_lossy().ends_with(suffix))
         .collect())
-}
-
-pub fn file_names(paths: &[PathBuf]) -> Vec<&OsStr> {
-    paths.iter().filter_map(|path| path.file_name()).collect()
 }
 
 pub fn copy_writable_file(source: &Path, destination: &Path) -> io::Result<()> {
