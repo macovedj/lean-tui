@@ -1,7 +1,6 @@
 {
   pkgs,
   craneLib,
-  rustfmtCrane,
   lean-tui,
   xtask,
 }:
@@ -20,7 +19,6 @@ in
       doInstallCargoArtifacts = false;
     }
   );
-  fmt = rustfmtCrane.cargoFmt { inherit (lean-tui.cargoArgs) src; };
   keybinding-docs = pkgs.runCommand "keybinding-docs" { } ''
     cd ${generatedDocs}
     ${pkgs.lib.getExe xtask} keybinding-docs --check

@@ -6,7 +6,7 @@ let
 in
 {
   craneLib = craneWithNightly (toolchain: toolchain.minimal);
-  rustfmtCrane = craneWithNightly (
+  rustfmtToolchain = pkgs.rust-bin.selectLatestNightlyWith (
     toolchain: toolchain.minimal.override { extensions = [ "rustfmt" ]; }
   );
   devCrane = craneWithNightly (

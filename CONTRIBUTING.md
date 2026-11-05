@@ -67,7 +67,7 @@ A `cargo` build outside the devshell needs `LEAN_DAG_SCHEMA` pointing at a check
 
 The flake is split by concern: `nix/` builds, checks and releases the Rust crate, and `demos/` holds everything that needs Lean.
 
-Repository tasks are Rust subcommands of the `xtask` crate, run with `cargo xtask <task>` (`cargo xtask --help` lists them). Nix wraps each one with its runtime tools in `nix/xtask-tool.nix`, so CI calls them as `nix run .#<task>`.
+Repository tasks are Rust subcommands of the `xtask` crate, run with `cargo xtask <task>` (`cargo xtask --help` lists them). Nix wraps each one with its runtime tools in `nix/xtask-tool.nix`. CI tasks are Nushell scripts in `ci/`, exposed as flake apps in `nix/ci-tasks.nix`, so every workflow command is a plain `nix run .#<task>`.
 
 `docs/keybindings.md` is generated from `src/keybindings.rs`. After changing a keybinding, run `cargo xtask keybinding-docs`; the `keybinding-docs` flake check fails when the file is out of date.
 
@@ -75,11 +75,12 @@ Repository tasks are Rust subcommands of the `xtask` crate, run with `cargo xtas
 
 Releases are automated with [release-plz](https://release-plz.dev/) on Woodpecker, so write [conventional commits](https://www.conventionalcommits.org/) (pull requests are checked with `convco`).
 
-- `.woodpecker/checks.yaml` builds the crate, runs the tests and `rustfmt`, and checks that `docs/keybindings.md` is up to date. It never needs Lean.
-- `.woodpecker/release.yaml` runs on every push to `main`: it publishes a bumped version to crates.io, tags it and creates the Codeberg release, then opens or updates a release pull request with the next version and changelog. Merging that pull request triggers the next release. `feat`, `fix` and `perf` commits trigger a release; other types only appear in the changelog.
-- `.woodpecker/binaries.yaml` builds static musl binaries (`nix build .#dist`) and attaches them to each Codeberg release.
+- `.woodpecker/checks.yaml` builds the Rust dependencies in a step of their own, then builds the crate, runs the tests, runs the pre-commit hooks from `.pre-commit-config.yaml` (`nix run .#run-pre-commit-hooks`) and checks that `docs/keybindings.md` is up to date. It never needs Lean.
+- `.woodpecker/publish-release-and-update-pr.yaml` runs on every push to `main`: it publishes a bumped version to crates.io, tags it and creates the Codeberg release, then opens or updates a release pull request with the next version and changelog. Merging that pull request triggers the next release. `feat`, `fix` and `perf` commits trigger a release; other types only appear in the changelog.
+- `.woodpecker/release-binaries.yaml` builds static musl binaries (`nix build .#dist`) and attaches them to each Codeberg release.
+- `.woodpecker/dependency-update-pr.yaml` runs from the `weekly-dependency-update` cron. It updates `Cargo.lock` and `flake.lock`, including `lean-prism`, and opens or updates one pull request from `bot/dependency-updates`. The checks on that pull request are the trial build, and commits pushed to the branch by hand stop further automatic updates until it is merged.
 
-The Woodpecker repository needs the secrets `codeberg_token` (repository write access), `cargo_registry_token` (crates.io publish token for `lean-tui`) and `cachix_auth_token` (push access to `wvhulle.cachix.org`).
+Automated pushes, tags and pull requests use the `wvhulle-bot` account. The Woodpecker repository needs the secrets `bot_token` (an access token of `wvhulle-bot`, which has write access), `cargo_registry_token` (crates.io publish token for `lean-tui`) and `cachix_auth_token` (push access to `wvhulle.cachix.org`).
 
 ### Demos
 
@@ -112,12 +113,12 @@ Tapes jump to absolute line numbers with `12gg` (not `:12`, which flashes the co
 
 Each tape is its own derivation (`.#recording-semantic_tableau`, `.#recording-data_flow`, ...), so Nix records them in parallel and only re-records tapes whose inputs changed. To add a scene, add a `<scene>.tape` to a demo folder. To add a demo, add a folder with a Lean file and at least one tape, and list the Lean module in `demos/lakefile.toml`.
 
-On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or the demo sources, `.woodpecker/screenshots.yaml` does three things:
+On every push to `main` that touches the crate (`src/`, `build.rs`, `Cargo.*`, `flake.lock`, `nix/package.nix`, `nix/toolchains.nix`) or the demo sources, `.woodpecker/demo-recordings.yaml` does three things:
 - builds the recordings (and with them the Lean project),
 - pushes them to `wvhulle.cachix.org`,
 - force-pushes them as the single commit of the orphan `recordings` branch, titled `docs: regenerate screenshots [skip ci]`.
 
-Because unchanged recordings come from the cache, they keep the same bytes, so the published tree is unchanged and nothing is pushed. The workflow needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `codeberg_token` (a Codeberg access token with repository write access).
+Because unchanged recordings come from the cache, they keep the same bytes, so the published tree is unchanged and nothing is pushed. The workflow needs two Woodpecker secrets: `cachix_auth_token` (push access to the `wvhulle` cache) and `bot_token` (the `wvhulle-bot` access token).
 
 #### Capturing replay fixtures
 

@@ -1,0 +1,52 @@
+when:
+  - repo: wvhulle/lean-tui
+    event: push
+    branch: main
+    path:
+      include:
+        - src/**
+        - build.rs
+        - Cargo.toml
+        - Cargo.lock
+        - flake.lock
+        - nix/package.nix
+        - nix/toolchains.nix
+        - demos/**
+      exclude:
+        - demos/**/replay.jsonl
+        - demos/lean-dev/**
+  - repo: wvhulle/lean-tui
+    event: manual
+    branch: main
+
+depends_on:
+  - checks
+
+variables:
+  - &nix_config
+    NIX_CONFIG: |
+      experimental-features = nix-command flakes
+      accept-flake-config = true
+      sandbox = false
+
+steps:
+  - name: record-and-push-demo-recordings
+    image: nixos/nix:2.34.9
+    environment:
+      <<: *nix_config
+      CODEBERG_TOKEN:
+        from_secret: bot_token
+    commands:
+      - nix run --quiet .#build-and-export-paths -- .#recordings --max-jobs 1
+      - nix run --quiet .#publish-screenshots -- result
+
+  - name: upload-demo-recordings-to-cachix
+    image: nixos/nix:2.34.9
+    when:
+      - status: [success, failure]
+    environment:
+      <<: *nix_config
+      CACHIX_AUTH_TOKEN:
+        from_secret: cachix_auth_token
+    commands:
+      - nix run --quiet .#upload-exported-paths

@@ -8,36 +8,70 @@ variables:
       experimental-features = nix-command flakes
       accept-flake-config = true
       sandbox = false
-  - &cache_writing_env
-    <<: *nix_config
-    CACHIX_AUTH_TOKEN:
-      from_secret: cachix_auth_token
-  - &on_trusted_events
-    - event: [push, manual]
-  - &on_pull_requests
-    - event: pull_request
-  - &flake_checks
-    image: nixos/nix:2.34.9
-    depends_on: []
-    commands:
-      - nix run .#cached-build -- .#checks.x86_64-linux.build-lean-tui .#checks.x86_64-linux.tests .#checks.x86_64-linux.fmt .#checks.x86_64-linux.keybinding-docs
+  - &after_dependency_step
+    - status: [success, failure]
 
 steps:
-  - name: flake-checks
-    <<: *flake_checks
-    when: *on_trusted_events
-    environment: *cache_writing_env
-
-  - name: flake-checks-pr
-    <<: *flake_checks
-    when: *on_pull_requests
-    environment: *nix_config
-
-  - name: conventional-commits
+  - name: prepare-build-dependencies
     image: nixos/nix:2.34.9
     depends_on: []
-    when: *on_pull_requests
     environment: *nix_config
     commands:
-      - git fetch --quiet origin "$${CI_COMMIT_TARGET_BRANCH}"
-      - nix run .#check-commits -- FETCH_HEAD..HEAD
+      - nix run --quiet .#build-unless-cached -- .#packages.x86_64-linux.build-dependencies
+
+  - name: build-lean-tui
+    image: nixos/nix:2.34.9
+    depends_on: [prepare-build-dependencies]
+    when: *after_dependency_step
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#import-exported-paths
+      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.build-lean-tui
+
+  - name: run-test-suite
+    image: nixos/nix:2.34.9
+    depends_on: [prepare-build-dependencies]
+    when: *after_dependency_step
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#import-exported-paths
+      - nix run --quiet .#build-and-export-paths -- .#checks.x86_64-linux.tests
+
+  - name: check-keybinding-docs
+    image: nixos/nix:2.34.9
+    depends_on: [prepare-build-dependencies]
+    when: *after_dependency_step
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#import-exported-paths
+      - nix build --quiet --print-build-logs .#checks.x86_64-linux.keybinding-docs
+
+  - name: upload-builds-to-cachix
+    image: nixos/nix:2.34.9
+    depends_on: [build-lean-tui, run-test-suite]
+    when:
+      - event: [push, manual]
+        branch: main
+        status: [success, failure]
+    environment:
+      <<: *nix_config
+      CACHIX_AUTH_TOKEN:
+        from_secret: cachix_auth_token
+    commands:
+      - nix run --quiet .#upload-exported-paths
+
+  - name: run-pre-commit-hooks
+    image: nixos/nix:2.34.9
+    depends_on: []
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#run-pre-commit-hooks
+
+  - name: check-commit-messages
+    image: nixos/nix:2.34.9
+    depends_on: []
+    when:
+      - event: pull_request
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#check-commit-messages -- --fetch-target-branch FETCH_HEAD..HEAD

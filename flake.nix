@@ -29,6 +29,10 @@
     }:
     let
       inherit (nixpkgs) lib;
+      mkApp = program: {
+        type = "app";
+        program = lib.getExe program;
+      };
       perSystem = lib.genAttrs [ "x86_64-linux" "aarch64-linux" ] (
         system:
         let
@@ -51,19 +55,18 @@
         {
           inherit pkgs toolchains lean-tui;
           checks = import ./nix/checks.nix {
-            inherit (toolchains) craneLib rustfmtCrane;
+            inherit (toolchains) craneLib;
             inherit pkgs lean-tui xtask;
           };
           release = import ./nix/release.nix {
             inherit (toolchains) nightlyWithTargets;
-            inherit
-              pkgs
-              crane
-              xtaskTool
-              lean-tui
-              ;
+            inherit pkgs crane lean-tui;
           };
-          ci = import ./nix/ci.nix { inherit pkgs xtaskTool; };
+          ciTaskApps = import ./nix/ci-tasks.nix {
+            inherit pkgs mkApp;
+            cargoToolchain = toolchains.nightlyWithTargets [ ];
+            preCommitInputs = [ toolchains.rustfmtToolchain ];
+          };
           recordings = import ./demos {
             inherit
               pkgs
@@ -75,10 +78,6 @@
           };
         }
       );
-      mkApp = program: {
-        type = "app";
-        program = lib.getExe program;
-      };
     in
     {
       packages = builtins.mapAttrs (
@@ -90,6 +89,7 @@
           recording-project = system.recordings.project;
           recordings = system.recordings.all;
           inherit (system.release) dist;
+          build-dependencies = system.lean-tui.cargoArtifacts;
           x86_64-linux-musl = system.release.muslPackages.x86_64;
           aarch64-linux-musl = system.release.muslPackages.aarch64;
         }
@@ -98,14 +98,13 @@
         ) system.recordings.scenes
       ) perSystem;
       checks = builtins.mapAttrs (_: system: system.checks) perSystem;
-      apps = builtins.mapAttrs (_: system: {
-        release = mkApp system.release.release;
-        release-pr = mkApp system.release.release-pr;
-        upload-release-assets = mkApp system.release.upload-release-assets;
-        cached-build = mkApp system.ci.cached-build;
-        check-commits = mkApp system.ci.check-commits;
-        publish-screenshots = mkApp system.recordings.publish-screenshots;
-      }) perSystem;
+      apps = builtins.mapAttrs (
+        _: system:
+        system.ciTaskApps
+        // {
+          publish-screenshots = mkApp system.recordings.publish-screenshots;
+        }
+      ) perSystem;
       devShells = builtins.mapAttrs (_: system: {
         default = system.toolchains.devCrane.devShell {
           packages = [

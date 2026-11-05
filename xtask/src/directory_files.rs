@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsStr,
     fs, io,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
@@ -27,10 +26,6 @@ pub fn files_with_suffix(directory: &Path, suffix: &str) -> io::Result<Vec<PathB
         .into_iter()
         .filter(|path| path.to_string_lossy().ends_with(suffix))
         .collect())
-}
-
-pub fn file_names(paths: &[PathBuf]) -> Vec<&OsStr> {
-    paths.iter().filter_map(|path| path.file_name()).collect()
 }
 
 pub fn copy_writable_file(source: &Path, destination: &Path) -> io::Result<()> {

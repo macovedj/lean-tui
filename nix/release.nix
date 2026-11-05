@@ -2,7 +2,6 @@
   pkgs,
   crane,
   nightlyWithTargets,
-  xtaskTool,
   lean-tui,
 }:
 let
@@ -31,20 +30,6 @@ let
 
   muslPackages = lib.genAttrs [ "x86_64" "aarch64" ] mkMuslPackage;
 
-  releasePlzOnCodeberg =
-    subcommand:
-    xtaskTool {
-      name = subcommand;
-      taskArgs = [
-        "release-plz"
-        subcommand
-      ];
-      runtimeInputs = [
-        (nightlyWithTargets [ ])
-        pkgs.release-plz
-        pkgs.gitMinimal
-      ];
-    };
 in
 {
   inherit muslPackages;
@@ -53,19 +38,9 @@ in
     lib.concatLines (
       [ "mkdir -p $out" ]
       ++ lib.mapAttrsToList (
-        arch: package:
-        "tar -czf $out/lean-tui-${arch}-unknown-linux-musl.tar.gz -C ${package}/bin lean-tui"
+        arch: package: "tar -czf $out/lean-tui-${arch}-unknown-linux-musl.tar.gz -C ${package}/bin lean-tui"
       ) muslPackages
     )
   );
 
-  release = releasePlzOnCodeberg "release";
-  release-pr = releasePlzOnCodeberg "release-pr";
-  upload-release-assets = xtaskTool {
-    name = "upload-release-assets";
-    runtimeInputs = [
-      pkgs.tea
-      pkgs.coreutils
-    ];
-  };
 }
