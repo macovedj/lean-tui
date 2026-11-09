@@ -2,11 +2,11 @@
   "nodes": {
     "crane": {
       "locked": {
-        "lastModified": 1769287525,
-        "narHash": "sha256-gABuYA6BzoRMLuPaeO5p7SLrpd4qExgkwEmYaYQY4bM=",
+        "lastModified": 1793836618,
+        "narHash": "sha256-TREenflwEjxOSq292FYwbc3kEm7TDRtXCZRNWEdjBmg=",
         "owner": "ipetkov",
         "repo": "crane",
-        "rev": "0314e365877a85c9e5758f9ea77a9972afbb4c21",
+        "rev": "79fd63528501446749c09f08cad486a58c7d173e",
         "type": "github"
       },
       "original": {
@@ -100,11 +100,11 @@
         "weir": "weir_3"
       },
       "locked": {
-        "lastModified": 1793466224,
-        "narHash": "sha256-RpeY6ewUzGKJe0KetkPOX7v2xrjYnTqp70DgWF5DJf0=",
+        "lastModified": 1793907976,
+        "narHash": "sha256-GXgIRrtdZDqkiBHqQQZkMan/eSyHlZnTb+94NEiA3jM=",
         "ref": "main",
-        "rev": "2d3e2c6ecd8f72ffc9f53603dbe07cb71601ca36",
-        "revCount": 228,
+        "rev": "bd5fc391ae45ca782722d903e5d330178552d359",
+        "revCount": 230,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/lean-prism"
       },
@@ -231,11 +231,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1791479610,
-        "narHash": "sha256-o9izTy5h4lNu8jSVisbMgc/whwf104Y6evqLmVBu1ig=",
+        "lastModified": 1793385892,
+        "narHash": "sha256-TkQnpF6YQP9zTUo714qdiUorBZfu1rTM2QMRebqnfAo=",
         "owner": "lenianiva",
         "repo": "lean4-nix",
-        "rev": "0fca9460b735b6c48d48de5d526b656f4607fd8f",
+        "rev": "2ad74592e34c2e6ff5e8bec9d8abab8f4e9c3a37",
         "type": "github"
       },
       "original": {
@@ -354,11 +354,11 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1769170682,
-        "narHash": "sha256-oMmN1lVQU0F0W2k6OI3bgdzp2YOHWYUAw79qzDSjenU=",
+        "lastModified": 1794042290,
+        "narHash": "sha256-ziZn2PvCJE5JEEpqTdxXwJpPB+L3YqoCpTAMCzyaP3U=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "c5296fdd05cfa2c187990dd909864da9658df755",
+        "rev": "f4a03c008967841f2a0b3cb7c436fc6fc31671f6",
         "type": "github"
       },
       "original": {
@@ -384,11 +384,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1770001842,
-        "narHash": "sha256-ZAyTeILfdWwDp1nuF0RK3McBduMi49qnJvrS+3Ezpac=",
+        "lastModified": 1794127728,
+        "narHash": "sha256-QhZ104DwHvvMxWxmI13zdppISE27UmdqhRI2VwBg/yU=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "5018343419ea808f8a413241381976b7e60951f2",
+        "rev": "51c6dc40d18552701f7c5c62e3f7a5fc899f7132",
         "type": "github"
       },
       "original": {
